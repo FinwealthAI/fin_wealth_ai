@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Server: nginx/1.18.0 (Ubuntu)
+Date: Fri, 21 Nov 2025 14:34:24 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 32765
+Connection: keep-alive
+Vary: origin, Cookie
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin
+Set-Cookie: csrftoken=cT7G8w8yMy5LLOgicPGsC6AnFogjPqnl; expires=Fri, 20 Nov 2026 14:34:24 GMT; Max-Age=31449600; Path=/; SameSite=Lax
+

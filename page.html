@@ -1,0 +1,725 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng Ký - FinWealth</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
+    <link href="/static/data_source/css/dashboard.css" rel="stylesheet">
+    <link href="/static/data_source/css/main-template.css" rel="stylesheet">
+    
+    <link href="/static/data_source/css/dify_chat.css" rel="stylesheet">
+    
+    
+<style>
+    /* Ẩn thanh điều hướng và header của trang */
+    .navbar,
+    .py-4 .bg-white {
+        display: none !important;
+    }
+    main.container.py-4 {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+    .main-card {
+        padding: 0 !important; /* Bỏ padding của thẻ cha */
+    }
+    .login-logo {
+        width: 60px;
+        height: 60px;
+        border: 2px solid white;
+    }
+    /* Đảm bảo chiều cao 2 cột bằng nhau trên màn hình lớn */
+    @media (min-width: 768px) {
+        .row.g-0 {
+            display: flex;
+        }
+        .col-md-5, .col-md-7 {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+    }
+</style>
+
+</head>
+<body class="main-background">
+    
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/unlock-wealth/">
+                <img src="/static/bot_user/img/logo%20finwealth.png" alt="Logo" style="height:32px;width:auto;border-radius:4px;">
+                <span>FinWealth</span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <form class="d-flex" id="globalSearchForm" style="min-width: 200px;">
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control form-control-sm" 
+                               id="globalSearchInput"
+                               placeholder="Tìm mã cổ phiếu..."
+                               style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+                        <button class="btn btn-outline-light btn-sm" type="submit">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <a href="/unlock-wealth/" class="btn btn-outline-light btn-sm d-flex align-items-center ">
+                    <i class="bi bi-house-door-fill me-1"></i> Dashboard
+                </a>
+                <a href="/stock-valuation-table/" class="btn btn-outline-light btn-sm d-flex align-items-center ">
+                    <i class="bi bi-graph-up me-1"></i> Định giá
+                </a>
+                <a href="/filter-stock/" class="btn btn-outline-light btn-sm d-flex align-items-center ">
+                    <i class="bi bi-funnel-fill me-1"></i> Lọc cổ phiếu
+                </a>
+                <a href="/analysis-reports/" class="btn btn-outline-light btn-sm d-flex align-items-center ">
+                    <i class="bi bi-file-earmark-bar-graph me-1"></i> Báo cáo
+                </a>
+                <a href="/mindmap/" class="btn btn-outline-light btn-sm d-flex align-items-center ">
+                    <i class="bi bi-diagram-3 me-1"></i> Sơ đồ
+                </a>
+                
+                
+                    <a href="/login/" class="btn btn-outline-light">Đăng nhập</a>
+                    <a href="/signup/" class="btn btn-light">Đăng ký</a>
+                
+            </div>
+        </div>
+    </nav>
+    
+
+    <div class="floating-toolbar">
+    
+
+    <div class="ai-toolbox" data-authenticated="false">
+    <button type="button"
+            class="btn btn-lg ai-toolbox__toggle"
+            aria-haspopup="true"
+            aria-expanded="false"
+            title="Trợ lý FinWealth AI">
+        <span class="ai-toolbox__pulse"></span>
+        <i class="bi bi-robot"></i>
+    </button>
+
+    <div class="ai-toolbox__menu shadow" aria-hidden="true">
+        <p class="ai-toolbox__menu-title">
+            <i class="bi bi-stars me-1"></i>
+            FinWealth AI Center
+        </p>
+        <button type="button"
+                class="ai-toolbox__action"
+                data-ai-action="report">
+            <div class="ai-toolbox__text">
+                <span class="ai-toolbox__title">Tạo báo cáo AI</span>
+                <span class="ai-toolbox__desc">Kết hợp dữ liệu &amp; phân tích tức thì</span>
+            </div>
+            <div class="ai-toolbox__icon">
+                <i class="bi bi-clipboard-data"></i>
+            </div>
+        </button>
+
+        
+        <button type="button"
+                class="ai-toolbox__action"
+                data-ai-action="chat">
+            <div class="ai-toolbox__text">
+                <span class="ai-toolbox__title">Trò chuyện với AI</span>
+                <span class="ai-toolbox__desc">Đăng nhập để sử dụng trợ lý 24/7</span>
+            </div>
+            <div class="ai-toolbox__icon">
+                <i class="bi bi-lock-fill"></i>
+            </div>
+        </button>
+        
+
+        <div class="ai-toolbox__helper">
+            <small>
+                <i class="bi bi-lightning-charge-fill me-1"></i>
+                Tự động ghi nhớ ticker vừa tạo báo cáo để theo dõi tiếp.
+            </small>
+        </div>
+    </div>
+</div>
+
+</div>
+
+
+    <main class="container py-4">
+        <div class="bg-white shadow-sm rounded p-4 mb-4">
+            <h4 class="mb-0">Tạo tài khoản - FinWealth</h4>
+        </div>
+
+        
+<div class="flex-center-container">
+    <div class="main-card content-card login-card-animation" style="max-width: 960px; width: 100%;">
+        <div class="row g-0 align-items-center">
+            
+            <!-- Cột thông tin bên trái -->
+            <div class="col-md-5 p-4 text-white" style="background: var(--primary-purple-dark); border-radius: 20px 0 0 20px;">
+                <div class="info-panel text-center">
+                    <img src="/static/bot_user/img/logo%20finwealth.png" alt="Logo FinWealth" class="login-logo mb-3">
+                    <h2 class="h4 mb-3">Trợ lý Đầu tư AI</h2>
+                    <p class="lead mb-4">"Finwealth là trợ lý đầu tư AI của bạn, AI phân tích bạn quyết định"</p>
+                    <div class="alert alert-light" style="background-color: rgba(255,255,255,0.2); border: none; color: white;">
+                        <i class="bi bi-gift-fill me-2"></i>
+                        Bạn có 7 ngày dùng thử miễn phí đầy đủ tính năng.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột form đăng ký bên phải -->
+            <div class="col-md-7 p-5">
+                <h1 class="main-title text-center">Tạo tài khoản</h1>
+                
+                
+                 
+
+                <form method="post" action="/signup/">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="IetaLMVAK6B4D8QkLbwWtnH5Cjluc7rzKXqGJ8TYmuwFeMWsNQ2eVj7i7xrDRnEK">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-2">
+                                <input type="text" class="form-control " id="first_name" name="first_name" placeholder="Họ" required value="">
+                                <label for="first_name">Họ</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-2">
+                                <input type="text" class="form-control " id="last_name" name="last_name" placeholder="Tên" required value="">
+                                <label for="last_name">Tên</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-floating mb-2">
+                        <input type="tel" class="form-control " id="phone" name="phone" placeholder="Số điện thoại" required value="">
+                        <label for="phone">Số điện thoại (dùng để đăng nhập)</label>
+                        
+                    </div>
+                    <div class="form-floating mb-2">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Mật khẩu" required>
+                        <label for="password">Mật khẩu</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control " id="password_confirm" name="password_confirm" placeholder="Xác nhận mật khẩu" required>
+                        <label for="password_confirm">Xác nhận mật khẩu</label>
+                         
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button class="main-button btn-lg" type="submit">Đăng Ký</button>
+                    </div>
+
+                    <div class="text-center my-3 position-relative">
+                        <hr>
+                        <span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-bg); padding: 0 10px;" class="text-muted small">HOẶC</span>
+                    </div>
+
+                    <a href="/social/login/google-oauth2/?auth_entry=signup" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-google me-2"></i> Tiếp tục với Google
+                    </a>
+                </form>
+                
+                <div class="mt-3 text-center">
+                    <p class="small">Đã có tài khoản? <a href="/login/">Đăng nhập ngay</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </main>
+
+    <!-- Modal: Thêm/xem/xóa cổ phiếu theo dõi -->
+<div class="modal fade" id="watchlistModal" tabindex="-1" aria-labelledby="watchlistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="watchlistAddForm" method="post" action="/watchlist/add/">
+            <input type="hidden" name="csrfmiddlewaretoken" value="IetaLMVAK6B4D8QkLbwWtnH5Cjluc7rzKXqGJ8TYmuwFeMWsNQ2eVj7i7xrDRnEK">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="watchlistModalLabel">Quản lý cổ phiếu theo dõi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="id_tickers" class="form-label">Mã cổ phiếu (VD: VNM, HDB, KBC)</label>
+                        <input type="text"
+                               class="form-control"
+                               name="tickers"
+                               id="id_tickers"
+                               placeholder="VD: VNM, HDB, KBC"
+                               required>
+                    </div>
+
+                    <hr>
+
+                    <div id="watchlist-items-container">
+                        <!-- Nội dung danh sách sẽ được load vào đây -->
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+    <!-- Modal chi tiết định giá -->
+<div class="modal fade" id="valuationModal" tabindex="-1" aria-labelledby="valuationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="valuationModalLabel">Tổng quan &amp; Chi tiết cho <span id="tickerName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Nav tabs -->
+          <ul class="nav nav-tabs" id="valuationTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Tổng quan</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="news-tab" data-bs-toggle="tab" data-bs-target="#news" type="button" role="tab">Tin tức</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail" type="button" role="tab">Định giá CTCK</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="pe-tab" data-bs-toggle="tab" data-bs-target="#pe" type="button" role="tab">Định giá thị trường</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="growth-tab" data-bs-toggle="tab" data-bs-target="#growth" type="button" role="tab">Biểu đồ tăng trưởng</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="safety-tab" data-bs-toggle="tab" data-bs-target="#safety" type="button" role="tab">Chỉ số an toàn</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="video-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#video"
+                type="button"
+                role="tab"
+              >
+                Video giới thiệu
+              </button>
+            </li>
+          </ul>
+  
+          <!-- Tab panes -->
+          <div class="tab-content mt-3" id="valuationTabContent">
+  
+            <!-- Tab 0: Tổng quan -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+              <div class="row">
+                <div class="col-md-6">
+                  <table class="table table-borderless">
+                    <tbody>
+                      <tr><th>Giá thị trường</th><td id="ov-price">-</td></tr>
+                      <tr><th>Chênh lệch định giá</th><td id="ov-upsize">-</td></tr>
+                      <tr><th>TB định giá CTCK</th><td id="ov-avg_target_price">-</td></tr>
+                      <tr><th>Giá kỳ vọng</th><td id="ov-expected_price">-</td></tr>
+                      <tr><th>Giá đầu tư</th><td id="ov-safe_price">-</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="col-md-6">
+                  <table class="table table-borderless">
+                    <tbody>
+                      <tr><th>Dividend Yield</th><td id="ov-dividend">-</td></tr>
+                      <tr><th>Beta</th><td id="ov-beta">-</td></tr>
+                      <tr><th>P/E</th><td id="ov-pe">-</td></tr>
+                      <tr><th>P/B</th><td id="ov-pb">-</td></tr>
+                      <tr><th>EPS</th><td id="ov-eps">-</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+  
+            <!-- Tab 1: Chi tiết định giá -->
+            <div class="tab-pane fade" id="detail" role="tabpanel">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Nguồn báo cáo</th>
+                    <th>Định giá</th>
+                    <th>Ngày báo cáo</th>
+                    <th>Quan điểm</th>
+                  </tr>
+                </thead>
+                <tbody id="valuationTableBody"></tbody>
+              </table>
+            </div>
+  
+            <!-- Tab 2: Thống kê P/E -->
+            <div class="tab-pane fade" id="pe" role="tabpanel">
+              <div class="d-flex justify-content-between mb-2">
+                <select id="rangeSelect" class="form-select w-auto">
+                  <option value="3m" selected>3 Tháng</option>
+                  <option value="1y">1 Năm</option>
+                  <option value="3y">3 Năm</option>
+                  <option value="5y">5 Năm</option>
+                  <option value="all">Toàn bộ</option>
+                </select>
+                <div class="btn-group" role="group">
+                  <button type="button" class="btn btn-outline-primary active" id="btn-pe">P/E</button>
+                  <button type="button" class="btn btn-outline-primary" id="btn-pb">P/B</button>
+                </div>
+              </div>
+              <canvas id="peChart" width="400" height="200"></canvas>
+            </div>
+  
+            <!-- Tab 3: Biểu đồ tăng trưởng -->
+            <div class="tab-pane fade" id="growth" role="tabpanel">
+              <div class="d-flex justify-content-between mb-2">
+                <select id="growthRangeSelect" class="form-select w-auto">
+                  <option value="3y" selected>3 Năm</option>
+                  <option value="5y">5 Năm</option>
+                  <option value="3q">3 Quý</option>
+                  <option value="5q">5 Quý</option>
+                  <option value="all">Toàn bộ</option>
+                </select>
+                <div class="btn-group" role="group">
+                  <button type="button" class="btn btn-outline-primary active" id="btn-rev-growth">
+                    Tăng trưởng Doanh thu
+                  </button>
+                  <button type="button" class="btn btn-outline-primary" id="btn-prof-growth">
+                    Tăng trưởng Lợi nhuận
+                  </button>
+                </div>
+              </div>
+              <canvas id="growthChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Tab 4: Biểu đồ chỉ số an toàn -->
+            <div class="tab-pane fade" id="safety" role="tabpanel">
+              <div class="d-flex justify-content-between mb-2">
+                <select id="safetyRangeSelect" class="form-select w-auto">
+                  <option value="3y" selected>3 Năm</option>
+                  <option value="5y">5 Năm</option>
+                  <option value="all">Toàn bộ</option>
+                </select>
+                <div class="btn-group" role="group">
+                  <button type="button" class="btn btn-outline-primary active" id="btn-debt-equity">Tỷ lệ nợ vay trên vốn chủ</button>
+                  <button type="button" class="btn btn-outline-primary" id="btn-cfo-ratio">Tỷ lệ CFO/Doanh thu</button>
+                </div>
+              </div>
+              <canvas id="safetyChart" width="400" height="200"></canvas>
+            </div>
+  
+            <!-- Tab 5: Tin tức -->
+            <div class="tab-pane fade" id="news" role="tabpanel">
+              <ul class="list-group" id="newsList"></ul>
+            </div>
+
+            <!-- Tab 6: Video giới thiệu -->
+            <div class="tab-pane fade" id="video" role="tabpanel" aria-labelledby="video-tab">
+              <div id="video-container" class="ratio ratio-16x9">
+                <iframe id="video-frame"
+                        src=""
+                        title="Video giới thiệu"
+                        allowfullscreen>
+                </iframe>
+              </div>
+            </div>
+  
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+
+<!-- Đảm bảo reset mọi thứ khi modal valuation đóng -->
+<script>
+document.getElementById('valuationModal').addEventListener('hidden.bs.modal', function () {
+    // Reset các instance biểu đồ nếu có
+    if (typeof peChartInstance !== 'undefined' && peChartInstance) {
+        peChartInstance.destroy();
+        peChartInstance = null;
+    }
+    if (typeof growthChartInstance !== 'undefined' && growthChartInstance) {
+        growthChartInstance.destroy();
+        growthChartInstance = null;
+    }
+    if (typeof safetyChartInstance !== 'undefined' && safetyChartInstance) {
+        safetyChartInstance.destroy();
+        safetyChartInstance = null;
+    }
+    // Reset biến currentTicker
+    currentTicker = null;
+    // Reset nội dung các tab nếu cần
+    // (Có thể thêm các lệnh reset khác nếu cần)
+});
+</script>
+
+    <!-- data_source/templates/data_source/partials/ai_report_modal.html -->
+<div class="modal fade" id="aiReportModal" tabindex="-1" aria-labelledby="aiReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiReportModalLabel">Tạo Báo cáo AI</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aiReportForm">
+                    <div class="mb-3">
+                        <label for="tickerInput" class="form-label">Nhập mã cổ phiếu</label>
+                        <input type="text"
+                               class="form-control"
+                               id="tickerInput"
+                               placeholder="VD: FPT"
+                               autocomplete="off"
+                               required>
+                        <div class="form-text">Hệ thống ưu tiên mã đang theo dõi gần đây.</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="submit" class="btn btn-primary flex-grow-1">Tạo báo cáo</button>
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                data-bs-dismiss="modal">Đóng</button>
+                    </div>
+                </form>
+                <div id="aiReportStatus" class="ai-report-status mt-4" role="status" style="display:none;"></div>
+                <div id="aiReportResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const dropdownBtn = document.getElementById('notificationDropdownBtn');
+        if (!dropdownBtn) return; // User chưa login
+        
+        const dropdownMenu = document.getElementById('notificationDropdownMenu');
+        const badge = document.getElementById('notification-badge');
+        let newsLoaded = false;
+
+        loadBadgeCount();
+        setInterval(loadBadgeCount, 300000);
+
+        function loadBadgeCount() {
+            fetch('/api/user-news-items/')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.unread_count > 0) {
+                        badge.style.display = '';
+                        badge.textContent = data.unread_count;
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(() => { badge.style.display = 'none'; });
+        }
+
+        dropdownBtn.addEventListener('show.bs.dropdown', function () {
+            if (newsLoaded) return;
+            loadNotifications();
+        });
+
+        function loadNotifications() {
+            newsLoaded = true;
+            dropdownMenu.innerHTML = '<li class="px-4 py-2 text-center text-muted">Đang tải thông báo...</li>';
+
+            fetch('/api/user-news-items/')
+                .then(r => {
+                    if (!r.ok) throw new Error('Network response was not ok');
+                    return r.json();
+                })
+                .then(data => { renderNotifications(data); })
+                .catch(error => {
+                    console.error('Error:', error);
+                    dropdownMenu.innerHTML = '<li class="px-4 py-2 text-center text-danger">Lỗi khi tải thông báo</li>';
+                });
+        }
+
+        function renderNotifications(data) {
+            dropdownMenu.innerHTML = '';
+            if (data.unread_count > 0) {
+                dropdownMenu.insertAdjacentHTML('beforeend', `
+                    <li class="px-4 py-2 text-center">
+                        <a href="#" id="markAllReadBtn" class="text-decoration-none small">Đánh dấu đã đọc tất cả</a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                `);
+            }
+            if (!data.news_items || data.news_items.length === 0) {
+                dropdownMenu.insertAdjacentHTML('beforeend', `<li class="px-4 py-2 text-center text-muted">Chưa có thông báo</li>`);
+                return;
+            }
+            data.news_items.forEach(item => {
+                dropdownMenu.insertAdjacentHTML('beforeend', `
+                    <li class="notification-item ${item.is_read ? 'read' : 'unread'}">
+                        <a href="#" class="text-decoration-none d-block px-3 py-2 notification-link" data-id="${item.id}" data-link="${item.link}">
+                            ${!item.is_read ? '<span class="dot bg-success rounded-circle me-2"></span>' : ''}
+                            <strong>${item.title}</strong><br>${item.content}<br>
+                            <small class="text-muted"><em>${item.date}</em></small>
+                        </a>
+                    </li>
+                `);
+            });
+            
+            dropdownMenu.querySelectorAll('.notification-link').forEach(a => {
+                a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const id = this.getAttribute('data-id');
+                    fetch(`/notifications/read/${id}/`, {method: 'GET', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                        .then(r => r.json())
+                        .then(data => { window.location.href = data.link || '/unlock-wealth/'; })
+                        .catch(() => { window.location.href = '/unlock-wealth/'; });
+                });
+            });
+
+            const markAllBtn = document.getElementById('markAllReadBtn');
+            if (markAllBtn) {
+                markAllBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    fetch('/notifications/read-all/', {method: 'GET', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                        .then(() => {
+                            newsLoaded = false;
+                            loadBadgeCount();
+                            loadNotifications();
+                        });
+                });
+            }
+        }
+
+        dropdownBtn.addEventListener('hide.bs.dropdown', function () {
+            setTimeout(() => { newsLoaded = false; }, 300);
+        });
+    });
+    </script>
+
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="logoutModalLabel">Xác nhận đăng xuất</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+          </div>
+          <div class="modal-body">Bạn có chắc chắn muốn đăng xuất?</div>
+          <div class="modal-footer">
+            <form method="post" action="/logout/">
+              <input type="hidden" name="csrfmiddlewaretoken" value="IetaLMVAK6B4D8QkLbwWtnH5Cjluc7rzKXqGJ8TYmuwFeMWsNQ2eVj7i7xrDRnEK">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+              <button type="submit" class="btn btn-danger">Đăng xuất</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="authRequiredModal" tabindex="-1" aria-labelledby="authRequiredModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="authRequiredModalLabel">Yêu cầu Đăng nhập</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p>Vui lòng đăng nhập hoặc đăng ký để sử dụng tính năng này.</p>
+            <div class="d-grid gap-2">
+                <a href="/login/" class="btn btn-primary">Đăng nhập</a>
+                <a href="/signup/" class="btn btn-secondary">Đăng ký tài khoản mới</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="successModalLabel">Thành Công!</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đã hiểu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="passwordModalLabel">Đổi mật khẩu</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+          </div>
+          <div class="modal-body"><div id="passwordModalContent"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var passwordModal = document.getElementById('passwordModal');
+        var passwordModalContent = document.getElementById('passwordModalContent');
+        var openPasswordModal = document.getElementById('openPasswordModal');
+
+        if (openPasswordModal) {
+            openPasswordModal.addEventListener('click', function (e) {
+                e.preventDefault();
+                fetch('/password-change/')
+                    .then(response => response.text())
+                    .then(html => { passwordModalContent.innerHTML = html; });
+            });
+        }
+
+        if (passwordModal) {
+            passwordModal.addEventListener('submit', function (e) {
+                if (e.target && e.target.tagName === 'FORM') {
+                    e.preventDefault();
+                    const form = e.target;
+                    const formData = new FormData(form);
+                    fetch('/password-change/', {
+                        method: 'POST',
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(html => { passwordModalContent.innerHTML = html; });
+                }
+            });
+        }
+        
+        // Success Modal Auto Show
+        
+    });
+    </script>
+
+    
+    <script src="/static/data_source/js/watchlist.js"></script>
+    <script src="/static/data_source/js/valuation_modal.js"></script>
+
+    
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    
+    <script src="/static/data_source/js/ai_action_launcher.js"></script>
+    
+</body>
+</html>
