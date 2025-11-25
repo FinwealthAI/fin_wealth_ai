@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fin_wealth/models/watchlist_item.dart';
-import 'package:html/parser.dart' as html_parser;
-import 'package:html/dom.dart' as dom;
+
 import 'package:fin_wealth/config/api_config.dart';
 
 class WatchlistRepository {
@@ -12,9 +11,8 @@ class WatchlistRepository {
 
   Future<List<WatchlistItem>> getWatchlist() async {
     try {
-      // The web endpoint returns HTML
       final response = await dio.get(
-        ApiConfig.watchlistGetContent,
+        ApiConfig.watchlistGet,
         options: Options(
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
@@ -23,54 +21,14 @@ class WatchlistRepository {
       );
       
       if (response.statusCode == 200) {
-        final htmlContent = response.data.toString();
-        print('Watchlist HTML: $htmlContent'); // Debug logging
-        return _parseWatchlistHtml(htmlContent);
+        final List<dynamic> data = response.data;
+        return data.map((json) => WatchlistItem.fromJson(json)).toList();
       } else {
         throw Exception('Failed to load watchlist: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Failed to load watchlist: $e');
     }
-  }
-
-  List<WatchlistItem> _parseWatchlistHtml(String html) {
-    final document = html_parser.parse(html);
-    final List<WatchlistItem> items = [];
-
-    // The HTML structure is:
-    // <div class="col-6 col-md-3">
-    //   <div class="badge ...">
-    //     <span>TICKER</span>
-    //     <a class="remove-watchlist-item" data-id="ID">×</a>
-    //   </div>
-    // </div>
-    
-    // Find all remove buttons
-    final removeBtns = document.querySelectorAll('.remove-watchlist-item');
-    
-    for (var btn in removeBtns) {
-      // Get the ID from data-id attribute
-      final idStr = btn.attributes['data-id'];
-      final id = int.tryParse(idStr ?? '') ?? 0;
-      
-      // The ticker is in a <span> sibling element
-      // Navigate to parent (the badge div) and find the span
-      final parent = btn.parent;
-      if (parent != null) {
-        final spanElement = parent.querySelector('span');
-        if (spanElement != null) {
-          final ticker = spanElement.text.trim();
-          items.add(WatchlistItem(
-            id: id,
-            ticker: ticker,
-            // Price info not available in this HTML
-          ));
-        }
-      }
-    }
-
-    return items;
   }
 
   Future<void> addToWatchlist(String ticker) async {

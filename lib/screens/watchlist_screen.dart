@@ -147,8 +147,18 @@ class WatchlistScreen extends StatelessWidget {
                                 item.ticker,
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
-                              subtitle: item.currentPrice != null
-                                  ? Row(
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (item.companyName != null)
+                                    Text(
+                                      item.companyName!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6)),
+                                    ),
+                                  if (item.currentPrice != null)
+                                    Row(
                                       children: [
                                         Text(
                                           '${item.currentPrice}',
@@ -163,8 +173,9 @@ class WatchlistScreen extends StatelessWidget {
                                           ),
                                         ),
                                       ],
-                                    )
-                                  : null,
+                                    ),
+                                ],
+                              ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                                 onPressed: () {

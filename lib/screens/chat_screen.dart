@@ -182,7 +182,7 @@ class _ChatScreenState extends State<ChatScreen> {
         StringBuffer messageBuffer = StringBuffer();
         String? conversationId;
 
-        final stream = responseBody.stream.map((chunk) => utf8.decode(chunk, allowMalformed: true));
+        final stream = responseBody.stream.transform(utf8.decoder);
         StringBuffer partial = StringBuffer();
 
         await for (final chunk in stream) {

@@ -31,7 +31,6 @@ class ChatHistoryService {
       data: {
         'query': message,
         'user': username,
-        'user_id': username, // Thêm user_id theo yêu cầu
         'inputs': inputs ?? {},
         'conversation_id': conversationId,
         'response_mode': 'streaming',
@@ -52,7 +51,6 @@ class ChatHistoryService {
         data: {
           'task_id': taskId,
           'user': username,
-          'user_id': username,
         },
         options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
       );
@@ -75,7 +73,6 @@ class ChatHistoryService {
           'message_id': messageId,
           'rating': rating,
           'user': username,
-          'user_id': username,
         },
         options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
       );
@@ -105,7 +102,6 @@ class ChatHistoryService {
         path,
         queryParameters: {
           'user': username,
-          'user_id': username,
         },
         options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
       );
@@ -150,7 +146,6 @@ class ChatHistoryService {
         '/api/chat/conversations/$conversationId/delete/',
         data: {
           'user': username,
-          'user_id': username,
         },
         options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
       );
@@ -171,7 +166,6 @@ class ChatHistoryService {
         '/api/chat/conversations/',
         queryParameters: {
           'user': username,
-          'user_id': username,
           'limit': limit,
         },
         options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
