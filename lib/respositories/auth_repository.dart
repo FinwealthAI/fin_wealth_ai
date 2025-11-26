@@ -38,20 +38,56 @@ class AuthRepository {
           }
           return handler.next(options);
         },
+        onResponse: (response, handler) async {
+          // Xử lý 401 ở đây vì validateStatus cho phép < 500 đi qua
+          if (response.statusCode == 401 && _refreshToken != null) {
+            // Tránh loop nếu chính request refresh bị 401
+            if (response.requestOptions.path.contains('/token/refresh/')) {
+               return handler.next(response);
+            }
+
+            try {
+              print('AuthRepository: 401 detected, attempting refresh...');
+              final r = await dio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
+              
+              if (r.statusCode == 200) {
+                _accessToken = r.data['access'] as String;
+                dio.options.headers['Authorization'] = 'Bearer $_accessToken';
+                await _saveTokens();
+                
+                // Retry request cũ
+                final options = response.requestOptions;
+                options.headers['Authorization'] = 'Bearer $_accessToken';
+                
+                final cloned = await dio.fetch(options);
+                return handler.resolve(cloned);
+              } else {
+                // Refresh fail
+                print('AuthRepository: Refresh failed, logging out.');
+                await logout();
+              }
+            } catch (e) {
+              print('AuthRepository: Refresh error: $e');
+              await logout();
+            }
+          }
+          return handler.next(response);
+        },
         onError: (err, handler) async {
-          // Nếu access hết hạn → refresh rồi retry
+          // Giữ lại logic này phòng trường hợp validateStatus thay đổi
           if (err.response?.statusCode == 401 && _refreshToken != null) {
+             if (err.requestOptions.path.contains('/token/refresh/')) {
+               return handler.next(err);
+            }
             try {
               final r = await dio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
-              // Save the new access token
               await _saveTokens();
-              // Retry request cũ
+              
               final cloned = await dio.fetch(err.requestOptions);
               return handler.resolve(cloned);
             } catch (_) {
-              // Refresh fail -> coi như đăng xuất
               await logout();
             }
           }

@@ -7,7 +7,7 @@
 class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development
-  static const bool useRelativePaths = true;
+  static const bool useRelativePaths = false;
   
   static const String websiteUrl = 'https://finwealth.vn';
   

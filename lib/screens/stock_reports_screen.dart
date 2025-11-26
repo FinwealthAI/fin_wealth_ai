@@ -261,7 +261,7 @@ class _StockReportsScreenState extends State<StockReportsScreen> {
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Tìm', style: TextStyle(color: Colors.white)),
+                        child: const Text('Đi', style: TextStyle(color: Colors.white)),
                       ),
                     ),
                   ),

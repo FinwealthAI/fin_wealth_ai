@@ -65,4 +65,9 @@ Future<Map<String, dynamic>> markAllNotifications() async {
 }
 
 
+  Future<Map<String, dynamic>> getTechnicalAnalysis(String ticker) async {
+    final resp = await dio.get('${ApiConfig.api}/quant/latest/$ticker/');
+    return Map<String, dynamic>.from(resp.data);
+  }
+
 }

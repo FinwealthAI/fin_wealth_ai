@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/respositories/investment_opportunities_repository.dart';
@@ -129,22 +130,16 @@ class _MainScreenState extends State<MainScreen> {
                             title: 'Báo cáo đáng chú ý',
                             child: Column(
                               children: [
-                                GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    mainAxisSpacing: 12,
-                                    crossAxisSpacing: 12,
-                                    childAspectRatio: 1.2,
-                                  ),
-                                  itemCount: reportHighlights.length > 4 ? 4 : reportHighlights.length,
-                                  itemBuilder: (context, index) {
-                                    return _ReportHighlightCard(
-                                      report: reportHighlights[index],
-                                      onAskAI: widget.onAskAI,
+                                Column(
+                                  children: reportHighlights.take(3).map((report) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: _ReportHighlightCard(
+                                        report: report,
+                                        onAskAI: widget.onAskAI,
+                                      ),
                                     );
-                                  },
+                                  }).toList(),
                                 ),
                               ],
                             ),
@@ -163,7 +158,7 @@ class _MainScreenState extends State<MainScreen> {
                                 crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
                                 mainAxisSpacing: 12,
                                 crossAxisSpacing: 12,
-                                childAspectRatio: 0.9,
+                                childAspectRatio: 0.65,
                               ),
                               itemCount: bubbleOpportunities.length > 8 ? 8 : bubbleOpportunities.length,
                               itemBuilder: (context, index) {
@@ -1008,7 +1003,7 @@ class _ReportHighlightCard extends StatelessWidget {
                     if (report.valuation != null)
                       _MetaChip(
                         icon: Icons.trending_up,
-                        label: '${report.valuation!.toStringAsFixed(0)}k',
+                        label: NumberFormat('#,###', 'vi_VN').format(report.valuation),
                         color: Colors.green,
                       ),
                   ],
@@ -1027,15 +1022,13 @@ class _ReportHighlightCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 
                 // Summary
-                Expanded(
-                  child: Text(
-                    report.summary ?? 'Đang cập nhật nội dung tóm tắt...',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  report.summary ?? 'Đang cập nhật nội dung tóm tắt...',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 
                 const SizedBox(height: 8),
@@ -1065,7 +1058,7 @@ class _ReportHighlightCard extends StatelessWidget {
                             );
                           },
                           icon: const Icon(Icons.summarize, size: 16),
-                          label: const Text('Xem tóm tắt'),
+                          label: const Text('Tóm tắt', style: TextStyle(fontSize: 11)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: theme.colorScheme.primary,
                             side: BorderSide(color: theme.colorScheme.primary),
@@ -1101,7 +1094,7 @@ class _ReportHighlightCard extends StatelessWidget {
                           }
                         },
                         icon: const Icon(Icons.chat, size: 16),
-                        label: const Text('Hỏi AI'),
+                        label: const Text('Hỏi AI', style: TextStyle(fontSize: 11)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF6366F1),
                           side: const BorderSide(color: Color(0xFF6366F1)),

@@ -21,8 +21,18 @@ class WatchlistRepository {
       );
       
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        return data.map((json) => WatchlistItem.fromJson(json)).toList();
+        // Handle format: {"success": true, "data": [...]}
+        if (response.data is Map && response.data['data'] is List) {
+          final List<dynamic> data = response.data['data'];
+          return data.map((json) => WatchlistItem.fromJson(json)).toList();
+        } 
+        // Handle format: [...] (Direct list)
+        else if (response.data is List) {
+          final List<dynamic> data = response.data;
+          return data.map((json) => WatchlistItem.fromJson(json)).toList();
+        } else {
+          throw Exception('Invalid response format: Expected Map with "data" or List, got ${response.data.runtimeType}');
+        }
       } else {
         throw Exception('Failed to load watchlist: ${response.statusCode}');
       }

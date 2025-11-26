@@ -115,14 +115,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 120,
                         ),
                         const SizedBox(height: 32),
-                        Text(
-                          'FinWealth AI',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
+                        // Text(
+                        //   'FinWealth AI',
+                        //   style: TextStyle(
+                        //     fontSize: 28,
+                        //     fontWeight: FontWeight.w800,
+                        //     color: theme.colorScheme.primary,
+                        //   ),
+                        // ),
                         const SizedBox(height: 8),
                         Text(
                           'Đăng nhập để tiếp tục',

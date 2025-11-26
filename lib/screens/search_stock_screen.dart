@@ -25,7 +25,7 @@ class _SearchStockScreenState extends State<SearchStockScreen>
   void initState() {
     super.initState();
     repo = context.read<SearchStockRepository>();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
   }
 
   @override
@@ -113,6 +113,10 @@ class _SearchStockScreenState extends State<SearchStockScreen>
                   text: 'Tổng quan',
                 ),
                 Tab(
+                  icon: Icon(Icons.show_chart, size: 18),
+                  text: 'PT Kỹ thuật',
+                ),
+                Tab(
                   icon: Icon(Icons.analytics, size: 18),
                   text: 'Định giá CTCK',
                 ),
@@ -121,7 +125,7 @@ class _SearchStockScreenState extends State<SearchStockScreen>
                   text: 'P/E & P/B',
                 ),
                 Tab(
-                  icon: Icon(Icons.show_chart, size: 18),
+                  icon: Icon(Icons.bar_chart, size: 18),
                   text: 'Tăng trưởng',
                 ),
                 Tab(
@@ -152,6 +156,7 @@ class _SearchStockScreenState extends State<SearchStockScreen>
           controller: _tabController,
           children: [
             _OverviewTab(repo: repo, ticker: ticker),
+            _TechnicalTab(repo: repo, ticker: ticker),
             _ValuationTab(repo: repo, ticker: ticker),
             _PERatioTab(repo: repo, ticker: ticker),
             _GrowthTab(repo: repo, ticker: ticker),
@@ -463,6 +468,155 @@ class _StatBox extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+//
+// ────────────────────────────────────────────────
+// TECHNICAL TAB
+// ────────────────────────────────────────────────
+//
+class _TechnicalTab extends StatelessWidget {
+  final SearchStockRepository repo;
+  final String ticker;
+  const _TechnicalTab({required this.repo, required this.ticker});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: repo.getTechnicalAnalysis(ticker),
+      builder: (context, snap) {
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final data = snap.data!['data'] ?? {};
+        final expert = data['expert_view'] ?? {};
+        final trend = expert['trend'] ?? {};
+        final momentum = expert['momentum'] ?? {};
+        final levels = expert['levels'] ?? {};
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildCard(
+                context,
+                title: 'Xu hướng & Động lượng',
+                icon: Icons.trending_up,
+                color: Colors.blue,
+                children: [
+                  _buildRow(context, 'Xu hướng (Trend)', trend['direction'], 
+                    color: _getColor(trend['direction'])),
+                  _buildRow(context, 'MAMA / FAMA', 
+                    '${_fmt(trend['mama'])} / ${_fmt(trend['fama'])}'),
+                  _buildRow(context, 'Độ hỗn loạn (Entropy)', _fmt(trend['entropy'])),
+                  _buildRow(context, 'Phân kỳ (Divergence)', momentum['divergence'] ?? 'Không',
+                    color: _getColor(momentum['divergence'])),
+                  _buildRow(context, 'RSI', _fmt(momentum['rsi'])),
+                  _buildRow(context, 'MACD Hist', _fmt(momentum['macd_hist']),
+                    color: (momentum['macd_hist'] ?? 0) > 0 ? Colors.green : Colors.red),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildCard(
+                context,
+                title: 'Các ngưỡng quan trọng',
+                icon: Icons.layers,
+                color: Colors.green,
+                children: [
+                  _buildRow(context, 'Hỗ trợ gần nhất', _fmt(levels['nearest_support']), 
+                    color: Colors.green, isBold: true),
+                  _buildRow(context, 'Kháng cự gần nhất', _fmt(levels['nearest_resistance']), 
+                    color: Colors.red, isBold: true),
+                  const Divider(),
+                  _buildRow(context, 'Pivot', _fmt(levels['pivot'])),
+                  _buildRow(context, 'MA20', _fmt(levels['ma20'])),
+                  _buildRow(context, 'MA50', _fmt(levels['ma50'])),
+                  _buildRow(context, 'MA200', _fmt(levels['ma200'])),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(BuildContext context, {
+    required String title, 
+    required IconData icon, 
+    required Color color,
+    required List<Widget> children
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+                Icon(icon, color: color, size: 20),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(BuildContext context, String label, String value, {Color? color, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            value, 
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: color,
+              fontFamily: 'monospace',
+            )
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(dynamic val) {
+    if (val == null) return '-';
+    if (val is num) return val.toStringAsFixed(2);
+    return val.toString();
+  }
+
+  Color? _getColor(String? val) {
+    if (val == 'UPTREND' || val == 'BULLISH') return Colors.green;
+    if (val == 'DOWNTREND' || val == 'BEARISH') return Colors.red;
+    if (val == 'SIDEWAY') return Colors.orange;
+    return null;
   }
 }
 
