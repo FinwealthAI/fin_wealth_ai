@@ -24,8 +24,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  late Future<InvestmentOpportunities> _future;
-  late Future<DailySummaryData> _summaryFuture;
+  late Future<InvestmentOpportunities?> _future;
+  late Future<DailySummaryData?> _summaryFuture;
 
   @override
   void initState() {
@@ -65,7 +65,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         child: SafeArea(
-          child: FutureBuilder<DailySummaryData>(
+          child: FutureBuilder<DailySummaryData?>(
             future: _summaryFuture,
             builder: (context, summarySnap) {
               if (summarySnap.connectionState != ConnectionState.done) {
@@ -75,15 +75,15 @@ class _MainScreenState extends State<MainScreen> {
                 return Center(child: Text('Lỗi tải tóm tắt: ${summarySnap.error}'));
               }
 
-              final summaryData = summarySnap.data!;
-              final date = summaryData.date;
-              final aiSummary = summaryData.aiGeneratedSummary;
-              final newsHighlights = summaryData.newsHighlights;
-              final reportHighlights = summaryData.reportHighlights;
-              final bubbleOpportunities = summaryData.bubbleOpportunities;
+              final summaryData = summarySnap.data;
+              final date = summaryData?.date ?? '';
+              final aiSummary = summaryData?.aiGeneratedSummary ?? '';
+              final newsHighlights = summaryData?.newsHighlights ?? [];
+              final reportHighlights = summaryData?.reportHighlights ?? [];
+              final bubbleOpportunities = summaryData?.bubbleOpportunities ?? [];
 
               // sau khi có summary → dựng tiếp dữ liệu chính
-              return FutureBuilder<InvestmentOpportunities>(
+              return FutureBuilder<InvestmentOpportunities?>(
                 future: _future,
                 builder: (context, snap) {
                   if (snap.connectionState != ConnectionState.done) {
@@ -93,14 +93,17 @@ class _MainScreenState extends State<MainScreen> {
                     return Center(child: Text('Lỗi: ${snap.error}'));
                   }
 
-                  final data = snap.data!;
+                  final data = snap.data;
                   final rows = <_StockRow>[];
 
-                  for (var i = 0; i < data.gap.tickers.length; i++) {
-                    final ticker = data.gap.tickers[i];
-                    final cur = (data.gap.current[i]).toDouble();
-                    final safe = (data.gap.safe[i]).toDouble();
-                    rows.add(_StockRow(ticker: ticker, investPrice: safe, currentPrice: cur));
+                  // Only process gap data if available
+                  if (data != null && data.gap.tickers.isNotEmpty) {
+                    for (var i = 0; i < data.gap.tickers.length; i++) {
+                      final ticker = data.gap.tickers[i];
+                      final cur = (data.gap.current[i]).toDouble();
+                      final safe = (data.gap.safe[i]).toDouble();
+                      rows.add(_StockRow(ticker: ticker, investPrice: safe, currentPrice: cur));
+                    }
                   }
 
                   double _max2(double a, double b) => a > b ? a : b;
@@ -173,11 +176,13 @@ class _MainScreenState extends State<MainScreen> {
                         ],
 
                         // --- Phần biểu đồ giữ nguyên ---
+                        if (data != null && data.bubble.isNotEmpty)
                         _SectionCard(
                           title: 'Đánh giá của CTCK (Top cơ hội)',
                           child: _InteractiveBubbleChart(points: data.bubble),
                         ),
-                        const SizedBox(height: 16),
+                        if (data != null && data.bubble.isNotEmpty) const SizedBox(height: 16),
+                        if (rows.isNotEmpty)
                         _SectionCard(
                           title: 'Cổ phiếu đầu tư (Giá hiện tại vs Giá an toàn)',
                           child: Column(
@@ -204,7 +209,8 @@ class _MainScreenState extends State<MainScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        if (rows.isNotEmpty) const SizedBox(height: 16),
+                        if (data != null)
                         _SectionCard(
                           title: 'Xếp hạng nhanh',
                           child: Column(

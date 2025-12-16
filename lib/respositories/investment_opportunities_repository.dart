@@ -7,20 +7,48 @@ class InvestmentOpportunitiesRepository {
   InvestmentOpportunitiesRepository(this.dio);
 
 
-  Future<InvestmentOpportunities> fetch() async {
-    final resp = await dio.get(ApiConfig.unlockWealth); // JWT đã được gắn sẵn bởi AuthRepository
-    if (resp.statusCode == 200) {
-      return InvestmentOpportunities.fromJson(resp.data as Map<String, dynamic>);
+  Future<InvestmentOpportunities?> fetch() async {
+    try {
+      final resp = await dio.get(ApiConfig.unlockWealth);
+      if (resp.statusCode == 200 && resp.data != null) {
+        final data = resp.data;
+        // Check if response has new format {success: true, data: {...}}
+        if (data is Map<String, dynamic> && data['success'] == true && data['data'] != null) {
+          // New API format - extract bubble data from homepage_charts or daily_summary
+          final innerData = data['data'] as Map<String, dynamic>;
+          
+          // If no bubble/gap/rankings in new format, return null and handle gracefully
+          if (innerData['bubble'] == null) {
+            print('unlock-wealth API: No bubble data in new format');
+            return null;
+          }
+          return InvestmentOpportunities.fromJson(innerData);
+        }
+        // Old API format - direct parsing
+        if (data is Map<String, dynamic> && data['bubble'] != null) {
+          return InvestmentOpportunities.fromJson(data);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Failed to load opportunities: $e');
+      return null;
     }
-    throw Exception('Failed to load opportunities: ${resp.statusCode}');
   }
 
-  Future<DailySummaryData> fetchDailySummary() async {
-    final resp = await dio.get(ApiConfig.dailyMarketSummary);
-    if (resp.statusCode == 200 && resp.data['success'] == true) {
-      return DailySummaryData.fromJson(resp.data['data'] as Map<String, dynamic>);
+  Future<DailySummaryData?> fetchDailySummary() async {
+    try {
+      final resp = await dio.get(ApiConfig.dailyMarketSummary);
+      if (resp.statusCode == 200 && resp.data != null && resp.data['success'] == true) {
+        final data = resp.data['data'];
+        if (data != null && data is Map<String, dynamic>) {
+          return DailySummaryData.fromJson(data);
+        }
+      }
+    } catch (e) {
+      print('Failed to load daily summary: $e');
     }
-    throw Exception('Failed to load daily summary');
+    return null;
   }
 }
 
