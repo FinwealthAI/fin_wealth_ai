@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:ui_web' as ui_web;
+
+// Conditional import for web-specific code
+import 'web_stub.dart' if (dart.library.html) 'web_impl.dart';
 
 class ReportViewerScreen extends StatefulWidget {
   final String url;
@@ -26,23 +25,8 @@ class _ReportViewerScreenState extends State<ReportViewerScreen> {
     super.initState();
     if (kIsWeb) {
       _iframeId = 'pdf-viewer-iframe-${widget.url.hashCode}';
-      _registerIframe();
+      registerIframeViewFactory(_iframeId!, widget.url);
     }
-  }
-
-  void _registerIframe() {
-    if (_iframeId == null) return;
-    
-    // Register iframe element for web
-    // ignore: undefined_prefixed_name
-    ui_web.platformViewRegistry.registerViewFactory(
-      _iframeId!,
-      (int viewId) => html.IFrameElement()
-        ..src = widget.url
-        ..style.border = 'none'
-        ..style.width = '100%'
-        ..style.height = '100%',
-    );
   }
 
   @override
@@ -72,7 +56,7 @@ class _ReportViewerScreenState extends State<ReportViewerScreen> {
   }
 
   Widget _buildMobileViewer() {
-    // On mobile, use Syncfusion PDF Viewer
+    // On mobile/desktop, use Syncfusion PDF Viewer
     if (_isPdfError) {
       return Center(
         child: Column(

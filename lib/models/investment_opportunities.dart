@@ -148,3 +148,61 @@ class BubbleOpportunity {
         gapPct: (j['gap_pct'] as num?)?.toDouble() ?? 0.0,
       );
 }
+
+class ChartConfig {
+  final String chartDisplayType; // 'bar', 'line', 'pie', etc.
+  final String color;
+  final int topN;
+  final String title;
+
+  ChartConfig({
+    required this.chartDisplayType,
+    required this.color,
+    required this.topN,
+    required this.title,
+  });
+
+  factory ChartConfig.fromJson(Map<String, dynamic> json) {
+    return ChartConfig(
+      chartDisplayType: json['chart_display_type'] as String? ?? 'bar',
+      color: json['color'] as String? ?? '#4BC0C0',
+      topN: json['top_n'] as int? ?? 15,
+      title: json['chart_title'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'chart_display_type': chartDisplayType,
+      'color': color,
+      'top_n': topN,
+      'chart_title': title,
+    };
+  }
+}
+
+class HomepageChart {
+  final int id; // Preset ID
+  final String name;
+  final ChartConfig config;
+  final bool isActive;
+  final String? chartType; // e.g. 'bubble', 'bar'
+
+  HomepageChart({
+    required this.id,
+    required this.name,
+    required this.config,
+    this.isActive = false,
+    this.chartType,
+  });
+
+  factory HomepageChart.fromJson(Map<String, dynamic> json) {
+    return HomepageChart(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? '',
+      config: ChartConfig.fromJson(json['chart_config'] ?? {}),
+      isActive: json['is_active'] as bool? ?? false,
+      chartType: json['chart_type'] as String?,
+    );
+  }
+}

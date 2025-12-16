@@ -5,13 +5,21 @@ class MarketReport extends Equatable {
   final String source;
   final String date;
 
-  const MarketReport({required this.content, required this.source, required this.date});
+  final String? marketTrend;
+
+  const MarketReport({
+    required this.content,
+    required this.source,
+    required this.date,
+    this.marketTrend,
+  });
 
   factory MarketReport.fromJson(Map<String, dynamic> json) {
     return MarketReport(
-      content: json['content'],
-      source: json['source'],
-      date: json['date'],
+      content: json['content'] ?? json['summaryContent'] ?? '',
+      source: json['source'] ?? 'AI',
+      date: json['date'] ?? '',
+      marketTrend: json['trend'] ?? json['marketTrend'],
     );
   }
 
