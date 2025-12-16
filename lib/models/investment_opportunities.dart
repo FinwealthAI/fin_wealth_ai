@@ -181,28 +181,47 @@ class ChartConfig {
   }
 }
 
-class HomepageChart {
-  final int id; // Preset ID
-  final String name;
-  final ChartConfig config;
-  final bool isActive;
-  final String? chartType; // e.g. 'bubble', 'bar'
+class StrategyCardData {
+  final String cardId;
+  final int presetId;
+  final String title;
+  final String? subtitle;
+  final String? description;
+  final String chartType; // 'bar', 'line', 'card_grid', etc.
+  final Map<String, dynamic> config;
+  final List<dynamic> data; // List of objects (Map<String, dynamic>)
+  final bool isFollowing;
+  final int tickerCount;
+  final List<String> filterCriteria;
 
-  HomepageChart({
-    required this.id,
-    required this.name,
+  StrategyCardData({
+    required this.cardId,
+    required this.presetId,
+    required this.title,
+    this.subtitle,
+    this.description,
+    required this.chartType,
     required this.config,
-    this.isActive = false,
-    this.chartType,
+    required this.data,
+    this.isFollowing = false,
+    this.tickerCount = 0,
+    this.filterCriteria = const [],
   });
 
-  factory HomepageChart.fromJson(Map<String, dynamic> json) {
-    return HomepageChart(
-      id: json['id'] as int,
-      name: json['name'] as String? ?? '',
-      config: ChartConfig.fromJson(json['chart_config'] ?? {}),
-      isActive: json['is_active'] as bool? ?? false,
-      chartType: json['chart_type'] as String?,
+  factory StrategyCardData.fromJson(Map<String, dynamic> json) {
+    return StrategyCardData(
+      cardId: json['card_id'] as String? ?? '',
+      presetId: json['preset_id'] as int? ?? 0,
+      title: json['title'] as String? ?? 'Strategy',
+      subtitle: json['subtitle'] as String?,
+      description: json['description'] as String?,
+      chartType: json['chart_type'] as String? ?? 'bar',
+      config: json['config'] as Map<String, dynamic>? ?? {},
+      data: json['data'] as List<dynamic>? ?? [],
+      isFollowing: json['is_following'] as bool? ?? false,
+      tickerCount: json['ticker_count'] as int? ?? 0,
+      filterCriteria: (json['filter_criteria'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 }
+

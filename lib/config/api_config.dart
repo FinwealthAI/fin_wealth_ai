@@ -23,7 +23,7 @@ class ApiConfig {
   
   // Full endpoint paths
   static String get unlockWealth => '$mobileApi/unlock-wealth/';
-  static String get dailyMarketSummary => '$mobileApi/daily-market-summary/';
+
   static String get userNews => '$mobileApi/user-news/';
   static String get analysisReports => '$mobileApi/analysis-reports/';
   static String get analysisSources => '$mobileApi/analysis-sources/';
