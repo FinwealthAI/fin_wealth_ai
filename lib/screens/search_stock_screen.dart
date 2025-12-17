@@ -8,6 +8,8 @@ import 'package:fin_wealth/widgets/stock_detail/ai_insight_card.dart';
 import 'package:fin_wealth/widgets/stock_detail/main_price_chart.dart';
 import 'package:fin_wealth/widgets/stock_detail/diagnostic_sub_charts.dart';
 import 'package:fin_wealth/widgets/stock_detail/ctck_table.dart';
+import 'package:fin_wealth/respositories/auth_repository.dart';
+import 'package:fin_wealth/screens/chat_screen.dart';
 
 class SearchStockScreen extends StatefulWidget {
   final String ticker;
@@ -19,15 +21,25 @@ class SearchStockScreen extends StatefulWidget {
 
 class _SearchStockScreenState extends State<SearchStockScreen> {
   late SearchStockRepository repo;
+  late Future<Map<String, dynamic>> _overviewFuture;
+  late Future<Map<String, dynamic>> _technicalFuture;
 
   @override
   void initState() {
     super.initState();
     repo = context.read<SearchStockRepository>();
+    _loadData();
+  }
+
+  void _loadData() {
+    _overviewFuture = repo.getOverview(widget.ticker);
+    _technicalFuture = repo.getTechnicalAnalysis(widget.ticker);
   }
 
   Future<void> _refresh() async {
-    setState(() {});
+    setState(() {
+      _loadData();
+    });
   }
 
   List<Widget> _buildBodyItems(BuildContext context) {
@@ -35,8 +47,8 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
         // AI Insight Section
         FutureBuilder(
           future: Future.wait([
-            repo.getOverview(widget.ticker),
-            repo.getTechnicalAnalysis(widget.ticker),
+            _overviewFuture,
+            _technicalFuture,
           ]),
           builder: (context, snapshot) {
             final overview = (snapshot.data?[0] as Map<String, dynamic>?) ?? {};
@@ -45,9 +57,30 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
               overviewData: overview,
               technicalData: technical,
               onChatPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Tính năng Chat AI đang phát triển')),
-                  );
+                final authRepo = context.read<AuthRepository>();
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => Container(
+                    height: MediaQuery.of(context).size.height * 0.95,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF5F6FA),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: ChatScreen(
+                        userData: {'username': authRepo.username ?? 'user'},
+                        chatInputs: {
+                          'ticker': widget.ticker,
+                          'category': 'PORTFOLIO_STRATEGY',
+                          'category_detail': '',
+                        },
+                      ),
+                    ),
+                  ),
+                );
               },
               onReportPressed: () => _generateAiReport(context),
             );
@@ -58,50 +91,80 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
         MainPriceChart(ticker: widget.ticker),
         const SizedBox(height: 16),
         const SizedBox(height: 16),
-        _sectionTitle(context, 'Phân tích chuyên sâu'),
-        SizedBox(
-          height: 450, // Fixed height for chart area
-          child: DefaultTabController(
-            length: 3, 
-            child: Column(
-              children: [
-                TabBar(
-                  labelColor: Theme.of(context).primaryColor,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Theme.of(context).primaryColor,
-                  tabs: const [
-                    Tab(text: 'Định giá'),
-                    Tab(text: 'Tăng trưởng'),
-                    Tab(text: 'Sức khỏe'),
-                  ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Text(
+                'Nhóm biểu đồ khác',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: SubChartValuation(ticker: widget.ticker),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: SubChartGrowth(ticker: widget.ticker),
-                      ),
-                       Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: SubChartSafety(ticker: widget.ticker),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const Spacer(),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.info_outline, color: Colors.grey),
+                onPressed: () => _showOtherCharts(context),
+              ),
+            ],
           ),
         ),
+        SubChartValuation(ticker: widget.ticker),
         const SizedBox(height: 16),
-        _sectionTitle(context, 'Dữ liệu CTCK'),
+        _sectionTitle(context, 'Định giá CTCK'),
         CtckTable(ticker: widget.ticker),
         const SizedBox(height: 32),
       ];
+  }
+
+  void _showOtherCharts(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Các chỉ số khác',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                SubChartGrowth(ticker: widget.ticker),
+                const SizedBox(height: 16),
+                SubChartSafety(ticker: widget.ticker),
+                const SizedBox(height: 30),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -118,13 +181,12 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
           slivers: [
             // 1. Header Section (Overview)
             FutureBuilder<Map<String, dynamic>>(
-              future: repo.getOverview(widget.ticker),
+              future: _overviewFuture,
               builder: (context, snapshot) {
                 final data = snapshot.data ?? {};
                 return StockHeaderSliver(
                   ticker: widget.ticker,
                   overviewData: data,
-                  isFollowing: false, // TODO: Implement follow logic
                 );
               },
             ),

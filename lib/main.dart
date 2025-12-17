@@ -14,11 +14,13 @@ import 'package:fin_wealth/respositories/watchlist_repository.dart';
 // Blocs
 import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
 import 'package:fin_wealth/blocs/auth/auth_event.dart';
+import 'package:fin_wealth/blocs/auth/auth_state.dart';
 import 'package:fin_wealth/blocs/market/market_bloc.dart';
 import 'package:fin_wealth/blocs/search/search_bloc.dart';
 
 // Screens
 import 'package:fin_wealth/screens/log_in_screen.dart';
+import 'package:fin_wealth/screens/splash_screen.dart';
 import 'package:fin_wealth/config/api_config.dart';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -30,6 +32,9 @@ void main() async {
   // 🔹 Không cần khởi tạo InAppWebViewPlatform thủ công trên desktop
   // Flutter và plugin sẽ tự chọn platform khả dụng nếu được hỗ trợ.
   // 1) Tạo 1 Dio dùng chung toàn app
+  // Global Navigator Key
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   final dio = Dio(BaseOptions(
     baseUrl: ApiConfig.baseUrl,
     headers: {'Accept': 'application/json'},
@@ -47,12 +52,14 @@ void main() async {
     responseBody: false,
   ));
 
-  runApp(MyApp(dio: dio));
+  runApp(MyApp(dio: dio, navigatorKey: navigatorKey));
 } // ✅ Đóng hàm main
 
 class MyApp extends StatelessWidget {
   final Dio dio;
-  const MyApp({super.key, required this.dio});
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  const MyApp({super.key, required this.dio, required this.navigatorKey});
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +80,11 @@ class MyApp extends StatelessWidget {
           BlocProvider(create: (ctx) => MarketBloc(marketRepository: ctx.read<MarketRepository>())),
         ],
         child: MaterialApp(
+          navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
-          initialRoute: '/login',
+          initialRoute: '/splash',
           routes: {
+            '/splash': (_) => const SplashScreen(),
             '/login': (_) => LoginScreen(),
           },
         ),

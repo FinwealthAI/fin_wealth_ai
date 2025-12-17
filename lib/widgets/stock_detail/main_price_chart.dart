@@ -229,7 +229,6 @@ class _MainPriceChartState extends State<MainPriceChart> {
                           showTitles: true,
                           reservedSize: 30,
                           getTitlesWidget: (value, meta) {
-                             // Simple logic to show some dates
                              final index = value.toInt();
                              if (index < 0 || index >= labels.length) return const SizedBox();
                              // Show about 4-5 labels
@@ -248,16 +247,7 @@ class _MainPriceChartState extends State<MainPriceChart> {
                         ),
                      ),
                      leftTitles: AxisTitles(
-                       sideTitles: SideTitles(
-                         showTitles: true,
-                         reservedSize: 45,
-                         getTitlesWidget: (value, meta) {
-                            return Text(
-                              NumberFormat.compact().format(value),
-                              style: const TextStyle(fontSize: 10, color: Colors.grey),
-                            );
-                         }
-                       )
+                       sideTitles: SideTitles(showTitles: false),
                      )
                   ),
                   borderData: FlBorderData(show: false),

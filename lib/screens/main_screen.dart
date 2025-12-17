@@ -116,27 +116,20 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        height: 260, 
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: math.min(reportHighlights.length, 2),
-                          separatorBuilder: (context, index) => const SizedBox(width: 12),
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                          itemBuilder: (context, index) {
-                            // Calculate width: (Screen Width - Padding - Separator) / 2
-                            // Padding: 4 (left) + 4 (right) + 12 (separator) = ~20
-                            // Let's rely on a simpler calc: 50% screen width minus margins
-                            final cardWidth = (MediaQuery.of(context).size.width - 24) / 2;
-                            return _ReportHighlightCard(
-                              report: reportHighlights[index],
-                              width: cardWidth,
+                      // Mỗi báo cáo 1 hàng để không bị cắt chữ
+                      Column(
+                        children: reportHighlights.take(2).map((report) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ReportHighlightCard(
+                              report: report,
+                              width: double.infinity,
                               onAskAI: widget.onAskAI,
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                     ],
 
                     // --- Strategy Cards (New Dynamic Dashboard) ---
@@ -227,9 +220,16 @@ class _AISummaryCardState extends State<_AISummaryCard> {
     final theme = Theme.of(context);
     
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: theme.brightness == Brightness.dark 
+            ? const Color(0xFF1E1E2C) 
+            : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -238,175 +238,115 @@ class _AISummaryCardState extends State<_AISummaryCard> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Name & Badge
           Row(
             children: [
-              Icon(Icons.newspaper, size: 20, color: const Color(0xFF6366F1)),
-              const SizedBox(width: 8),
               Text(
-                'Bản tin Wealth ngày ${widget.date}',
-                style: theme.textTheme.titleMedium?.copyWith(
+                'M.A.I',
+                style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
+                  color: const Color(0xFF6366F1),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Finwealth AI',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: const Color(0xFF6366F1),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           
-          // Body
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Avatar
-              const CircleAvatar(
-                radius: 24,
-                backgroundImage: AssetImage('assets/images/mai_avatar.png'),
-                backgroundColor: Colors.transparent,
+          // Title - gọn hơn
+          Text(
+            'Wealth insights ${widget.date}',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Content
+          ClipRect(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 300),
+              alignment: Alignment.topCenter,
+              heightFactor: _isExpanded ? 1.0 : 0.25,
+              child: Html(
+                data: widget.summary,
+                style: {
+                  "body": Style(
+                    fontSize: FontSize(14),
+                    color: theme.colorScheme.onSurface.withOpacity(0.85),
+                    lineHeight: LineHeight(1.5),
+                    margin: Margins.zero,
+                    padding: HtmlPaddings.zero,
+                  ),
+                  "strong": Style(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF6366F1),
+                  ),
+                  "li": Style(
+                    margin: Margins.only(bottom: 6),
+                  ),
+                },
               ),
-              const SizedBox(width: 12),
-              
-              // Chat Bubble
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark 
-                        ? const Color(0xFF1E1E2C) 
-                        : const Color(0xFFF8F9FA),
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(16),
-                      bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
-                    ),
-                    border: Border.all(
-                      color: const Color(0xFF6366F1).withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Name & Badge
-                      Row(
-                        children: [
-                          Text(
-                            'M.A.I',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF6366F1),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6366F1).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Finwealth AI',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: const Color(0xFF6366F1),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Title
-                      Text(
-                        'Tóm tắt Thông tin Tài chính Ngày ${widget.date}',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      // Content
-                      AnimatedSize(
-                         duration: const Duration(milliseconds: 300),
-                         alignment: Alignment.topCenter,
-                         child: ConstrainedBox(
-                           constraints: BoxConstraints(
-                             maxHeight: _isExpanded ? double.infinity : 150,
-                           ),
-                           child: SingleChildScrollView(
-                             physics: const NeverScrollableScrollPhysics(),
-                             child: Html(
-                               data: widget.summary,
-                               style: {
-                                 "body": Style(
-                                   fontSize: FontSize(14),
-                                   color: theme.colorScheme.onSurface.withOpacity(0.85),
-                                   lineHeight: LineHeight(1.5),
-                                   margin: Margins.zero,
-                                   padding: HtmlPaddings.zero,
-                                 ),
-                                 "strong": Style(
-                                   fontWeight: FontWeight.bold,
-                                   color: const Color(0xFF6366F1), // Highlight strong text with brand color
-                                 ),
-                                 "li": Style(
-                                   margin: Margins.only(bottom: 6),
-                                 ),
-                               },
-                             ),
-                           ),
-                         ),
-                      ),
-                      
-                      // Read More Button
-                      if (!_isExpanded) ...[
-                        Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                (theme.brightness == Brightness.dark ? const Color(0xFF1E1E2C) : const Color(0xFFF8F9FA)).withOpacity(0.1),
-                                (theme.brightness == Brightness.dark ? const Color(0xFF1E1E2C) : const Color(0xFFF8F9FA)),
-                              ],
-                              stops: const [0.0, 0.8],
-                            ),
-                          ),
-                        ),
-                      ],
-                      
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _isExpanded = !_isExpanded;
-                            });
-                          },
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(50, 30),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            _isExpanded ? 'Thu gọn' : '... Đọc tiếp',
-                            style: TextStyle(
-                              color: const Color(0xFF6366F1),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            ),
+          ),
+          
+          // Read More Button
+          if (!_isExpanded)
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (theme.brightness == Brightness.dark ? const Color(0xFF1E1E2C) : const Color(0xFFF8F9FA)).withOpacity(0.1),
+                    (theme.brightness == Brightness.dark ? const Color(0xFF1E1E2C) : const Color(0xFFF8F9FA)),
+                  ],
+                  stops: const [0.0, 0.8],
                 ),
               ),
-            ],
+            ),
+          
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(50, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                _isExpanded ? 'Thu gọn' : '... Đọc tiếp',
+                style: const TextStyle(
+                  color: Color(0xFF6366F1),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -459,6 +399,7 @@ class _ReportHighlightCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Header: Ticker Badge + Source
           Row(
@@ -529,16 +470,14 @@ class _ReportHighlightCard extends StatelessWidget {
           const SizedBox(height: 12),
           
           // Summary Content
-          Expanded(
-            child: Text(
-              report.summary ?? 'Đang cập nhật nội dung tóm tắt...',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-                height: 1.4,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          Text(
+            report.summary ?? 'Đang cập nhật nội dung tóm tắt...',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              height: 1.4,
             ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
           
           const SizedBox(height: 16),
@@ -554,13 +493,13 @@ class _ReportHighlightCard extends StatelessWidget {
                 onTap: report.filePresigned != null
                     ? () {
                         // Navigate to report viewer
-                        Navigator.pushNamed(
-                          context,
-                          '/report-viewer',
-                          arguments: {
-                            'url': report.filePresigned,
-                            'title': report.title,
-                          },
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ReportViewerScreen(
+                              url: report.filePresigned!,
+                              title: report.title,
+                            ),
+                          ),
                         );
                       }
                     : null,

@@ -13,6 +13,8 @@ import 'chat_screen.dart';
 import 'search_stock_screen.dart';
 import 'watchlist_screen.dart';
 import 'profile_screen.dart';
+import 'report_viewer_screen.dart';
+import 'investment_profile_screen.dart';
 
 class HomeScreenMultiNav extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -35,10 +37,9 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
 
   List<GlobalKey<NavigatorState>> get _navKeys => [
         _opportunitiesNavKey,
-        _reportsNavKey,
-        _chatNavKey, // 👈 thêm chat
         _stocksNavKey,
-        _watchlistNavKey,
+        _chatNavKey,
+        _reportsNavKey,
       ];
 
   NavigatorState get _currentNavigator => _navKeys[_currentIndex].currentState!;
@@ -73,7 +74,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
     final q = query.trim().toUpperCase();
     if (q.isEmpty) return;
 
-    setState(() => _currentIndex = 3); // sang tab Stocks (index 3)
+    setState(() => _currentIndex = 1); // sang tab Stocks (index 1)
 
     // Đẩy SearchStockScreen mới trong navigator riêng của tab Stocks
     _stocksNavKey.currentState?.pushAndRemoveUntil(
@@ -85,7 +86,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   void _handleAskAI(String ticker) {
     setState(() {
       _chatInitialMessage = ticker;
-      _currentIndex = 2; // Switch to Chat tab
+      _currentIndex = 2; // Switch to Chat tab (index 2)
     });
     
     // Reset message after a short delay to allow re-triggering for same ticker if needed
@@ -181,6 +182,46 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                   child: Column(
                     children: [
                       ListTile(
+                        leading: Icon(Icons.list_alt, color: theme.colorScheme.primary),
+                        title: Text(
+                          'Theo dõi',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => const WatchlistScreen(),
+                              settings: const RouteSettings(name: 'watchlist'),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: Icon(Icons.assessment, color: theme.colorScheme.primary),
+                        title: Text(
+                          'Hồ sơ đầu tư',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => const InvestmentProfileScreen(),
+                              settings: const RouteSettings(name: 'investment_profile'),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
                         leading: Icon(Icons.person, color: theme.colorScheme.primary),
                         title: Text(
                           'Profile',
@@ -220,8 +261,8 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
               builder: (_) => MainScreen(onAskAI: _handleAskAI),
             ),
             _buildTabNavigator(
-              navKey: _reportsNavKey,
-              builder: (_) => const StockReportsScreen(),
+              navKey: _stocksNavKey,
+              builder: (_) => SearchStockScreen(ticker: 'FPT'),
             ),
             _buildTabNavigator(
               navKey: _chatNavKey,
@@ -231,12 +272,8 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
               ), 
             ),
             _buildTabNavigator(
-              navKey: _stocksNavKey,
-              builder: (_) => SearchStockScreen(ticker: 'FPT'),
-            ),
-            _buildTabNavigator(
-              navKey: _watchlistNavKey,
-              builder: (_) => const WatchlistScreen(),
+              navKey: _reportsNavKey,
+              builder: (_) => const StockReportsScreen(),
             ),
           ],
         ),
@@ -277,9 +314,9 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                 label: 'Dashboard',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.description_outlined, size: 22),
-                activeIcon: Icon(Icons.description, size: 22),
-                label: 'Báo cáo',
+                icon: Icon(Icons.search_rounded, size: 22),
+                activeIcon: Icon(Icons.search, size: 22),
+                label: 'Cổ phiếu',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.chat_bubble_outline_rounded, size: 22),
@@ -287,14 +324,9 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                 label: 'Chat',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.search_rounded, size: 22),
-                activeIcon: Icon(Icons.search, size: 22),
-                label: 'Cổ phiếu',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.list_alt_rounded, size: 22),
-                activeIcon: Icon(Icons.list_alt, size: 22),
-                label: 'Theo dõi',
+                icon: Icon(Icons.description_outlined, size: 22),
+                activeIcon: Icon(Icons.description, size: 22),
+                label: 'Báo cáo',
               ),
             ],
           ),

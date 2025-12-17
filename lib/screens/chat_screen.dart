@@ -5,11 +5,13 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/chat_history_service.dart';
 import '../respositories/auth_repository.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
   final String? initialMessage;
-  const ChatScreen({Key? key, required this.userData, this.initialMessage}) : super(key: key);
+  final Map<String, dynamic>? chatInputs;
+  const ChatScreen({Key? key, required this.userData, this.initialMessage, this.chatInputs}) : super(key: key);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -17,11 +19,12 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _tickerController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<Map<String, dynamic>> _messages = [];
-  List<Map<String, dynamic>> _conversations = []; // Danh sách lịch sử chat
+  List<Map<String, dynamic>> _conversations = [];
   
   bool _sending = false;
   bool _isTyping = false;
@@ -30,24 +33,40 @@ class _ChatScreenState extends State<ChatScreen> {
   
   String? _currentConversationId;
   String? _currentTaskId;
+  String _selectedCategory = 'PORTFOLIO_STRATEGY';
+  String? _currentTicker;
+
+  // Smart Tags aligned with smart_tags.html
+  final List<Map<String, String>> _smartTags = [
+    {'id': 'PORTFOLIO_STRATEGY', 'label': 'Chiến lược', 'icon': 'assets/icons/strategy.png'}, 
+    {'id': 'CORPORATE_ANALYST', 'label': 'Phân tích', 'icon': 'assets/icons/analysis.png'},
+    {'id': 'FUNDAMENTAL', 'label': 'Dữ liệu', 'icon': 'assets/icons/data.png'},
+    {'id': 'FINANCE_GENERAL', 'label': 'Kiến thức', 'icon': 'assets/icons/knowledge.png'},
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Set initial message if provided
+    if (widget.chatInputs?['category'] != null) {
+      _selectedCategory = widget.chatInputs!['category'];
+    }
+    if (widget.chatInputs?['ticker'] != null) {
+      _currentTicker = widget.chatInputs!['ticker'];
+      _tickerController.text = _currentTicker ?? '';
+    }
+
     if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
       _controller.text = widget.initialMessage!;
     }
-    _loadConversations(); // Tải danh sách hội thoại
-    _loadChatHistory();   // Tải hội thoại hiện tại/mới nhất
+    
+    _loadConversations();
+    _loadChatHistory();
   }
 
   @override
   void didUpdateWidget(ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialMessage != oldWidget.initialMessage && 
-        widget.initialMessage != null && 
-        widget.initialMessage!.isNotEmpty) {
+    if (widget.initialMessage != null && widget.initialMessage != oldWidget.initialMessage && widget.initialMessage!.isNotEmpty) {
       _controller.text = widget.initialMessage!;
     }
   }
@@ -60,7 +79,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Tải danh sách các cuộc hội thoại
   Future<void> _loadConversations() async {
     setState(() => _loadingConversations = true);
     try {
@@ -79,7 +97,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Tải nội dung cuộc hội thoại
   Future<void> _loadChatHistory({String? conversationId}) async {
     setState(() {
       _loadingHistory = true;
@@ -89,7 +106,6 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final username = widget.userData['username'] ?? 'user123';
       
-      // Nếu chưa có ID, lấy hoặc tạo mới
       if (_currentConversationId == null) {
         _currentConversationId = await ChatHistoryService.getOrCreateConversationId(
           username, 
@@ -119,16 +135,14 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Bắt đầu cuộc trò chuyện mới
   void _startNewChat() {
     setState(() {
       _currentConversationId = null;
       _messages = [];
     });
-    Navigator.of(context).pop(); // Đóng drawer
+    Navigator.of(context).pop(); 
   }
 
-  /// Xóa cuộc hội thoại
   Future<void> _deleteConversation(String conversationId) async {
     try {
       final username = widget.userData['username'] ?? 'user123';
@@ -138,17 +152,31 @@ class _ChatScreenState extends State<ChatScreen> {
         token: _accessToken,
       );
       
-      // Nếu đang xem cuộc hội thoại bị xóa, reset
       if (_currentConversationId == conversationId) {
         _startNewChat();
       } else {
-        // Reload danh sách
         _loadConversations();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi xóa hội thoại: $e')),
       );
+    }
+  }
+
+  void _onCategorySelected(String categoryId) {
+    setState(() {
+      _selectedCategory = categoryId;
+    });
+  }
+
+  void _onTickerSubmitted(String value) {
+    final ticker = value.trim().toUpperCase();
+    if (ticker.length == 3) {
+      setState(() {
+        _currentTicker = ticker;
+        _tickerController.text = ticker;
+      });
     }
   }
 
@@ -170,11 +198,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final username = widget.userData['username'] ?? 'user123';
       
+      // Construct inputs matching ChatInputHandler.getInputs()
+      final inputs = Map<String, dynamic>.from(widget.chatInputs ?? {});
+      inputs['category'] = _selectedCategory;
+      if (_currentTicker != null && _currentTicker!.isNotEmpty) {
+          inputs['ticker'] = _currentTicker;
+          inputs['category_detail'] = 'phân tích cơ hội'; // Enforced by rule
+      } else {
+          inputs['category_detail'] = 'default';
+      }
+
       final response = await ChatHistoryService.sendMessage(
         message: text,
-        username: username, // Sử dụng username trực tiếp
+        username: username,
         conversationId: _currentConversationId,
         token: _accessToken,
+        inputs: inputs,
       );
 
       if (response.statusCode == 200) {
@@ -182,7 +221,7 @@ class _ChatScreenState extends State<ChatScreen> {
         StringBuffer messageBuffer = StringBuffer();
         String? conversationId;
 
-        final stream = responseBody.stream.transform(utf8.decoder);
+        final stream = responseBody.stream.cast<List<int>>().transform(utf8.decoder);
         StringBuffer partial = StringBuffer();
 
         await for (final chunk in stream) {
@@ -190,14 +229,15 @@ class _ChatScreenState extends State<ChatScreen> {
           partial.write(chunk);
           var lines = partial.toString().split('\n');
           partial.clear();
-          if (!lines.last.trim().endsWith('}')) {
-            partial.write(lines.removeLast());
+          if (lines.isNotEmpty && !lines.last.trim().endsWith('}')) {
+             partial.write(lines.removeLast());
           }
 
           for (final line in lines) {
-            if (!line.startsWith('data: ')) continue;
-            final dataStr = line.substring(6).trim();
-            if (dataStr.isEmpty) continue;
+            String cleanLine = line.trim();
+            if (!cleanLine.startsWith('data: ')) continue;
+            final dataStr = cleanLine.substring(6).trim();
+            if (dataStr.isEmpty || dataStr == '[DONE]') continue;
 
             try {
               final jsonData = jsonDecode(dataStr);
@@ -206,7 +246,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 messageBuffer.write(jsonData['answer']);
                 setState(() {
                   _messages[assistantMessageIndex]['content'] = messageBuffer.toString();
-                  // Lưu message_id để feedback nếu cần
                   if (jsonData['message_id'] != null) {
                     _messages[assistantMessageIndex]['id'] = jsonData['message_id'];
                   }
@@ -232,13 +271,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
         if (conversationId != null) {
           await ChatHistoryService.saveConversationId(username, conversationId);
-          _loadConversations(); // Cập nhật danh sách bên sidebar
+          _loadConversations();
         }
 
-        if (messageBuffer.isEmpty) {
-          setState(() {
-            _messages[assistantMessageIndex]['content'] = 'Không nhận được phản hồi từ server';
-          });
+        if (messageBuffer.isEmpty && _isTyping) {
+           setState(() {
+             _messages[assistantMessageIndex]['content'] = 'Không nhận được phản hồi từ server';
+           });
         }
       } else {
         throw 'Lỗi server: ${response.statusCode}';
@@ -276,22 +315,17 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Gửi feedback (Like/Dislike)
   Future<void> _sendFeedback(int index, String messageId, String rating) async {
     try {
       final username = widget.userData['username'] ?? 'user123';
       final currentRating = _messages[index]['rating'];
-      
       String apiRating = rating;
       String? uiRating = rating;
 
-      // Toggle logic
       if (currentRating == rating) {
-        apiRating = ''; // Send empty string to remove evaluation
-        uiRating = null;    // Reset UI
+        apiRating = ''; 
+        uiRating = null;
       }
-
-      // Update UI immediately
       setState(() {
         _messages[index]['rating'] = uiRating;
       });
@@ -309,7 +343,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Copy nội dung tin nhắn
   void _copyMessage(String content) {
     Clipboard.setData(ClipboardData(text: content));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -317,7 +350,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Paste nội dung vào ô nhập liệu
   Future<void> _pasteContent() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null) {
@@ -342,268 +374,163 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Widget _buildMessage(int index, Map<String, dynamic> msg) {
-    final isUser = msg['role'] == 'user';
-    final messageId = msg['id'];
-    final rating = msg['rating']; // 'like', 'dislike', or null
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isUser)
-                Container(
-                  margin: const EdgeInsets.only(right: 8, top: 0),
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: const Color(0xFF6C5DD3),
-                    child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
-                  ),
-                ),
-              
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isUser ? const Color(0xFF5B4DBC) : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: isUser ? const Radius.circular(20) : const Radius.circular(4),
-                      bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(20),
-                    ),
-                    boxShadow: isUser ? [] : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                    border: isUser ? null : Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Text(
-                    msg['content'] ?? '',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isUser ? Colors.white : Colors.black87,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ),
-              
-              if (isUser) const SizedBox(width: 8),
-            ],
-          ),
-          
-          // Action buttons for assistant messages (Bottom Row)
-          if (!isUser && messageId != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 44, top: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Copy Button
-                  IconButton(
-                    icon: const Icon(Icons.copy, size: 18, color: Colors.grey),
-                    onPressed: () => _copyMessage(msg['content'] ?? ''),
-                    tooltip: 'Sao chép',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 16),
-                  
-                  // Like Button
-                  IconButton(
-                    icon: Icon(
-                      rating == 'like' ? Icons.thumb_up_alt : Icons.thumb_up_outlined,
-                      size: 18, 
-                      color: rating == 'like' ? Colors.blue : Colors.grey
-                    ),
-                    onPressed: () => _sendFeedback(index, messageId, 'like'),
-                    tooltip: 'Thích',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 16),
-                  
-                  // Dislike Button
-                  IconButton(
-                    icon: Icon(
-                      rating == 'dislike' ? Icons.thumb_down_alt : Icons.thumb_down_outlined,
-                      size: 18, 
-                      color: rating == 'dislike' ? Colors.red : Colors.grey
-                    ),
-                    onPressed: () => _sendFeedback(index, messageId, 'dislike'),
-                    tooltip: 'Không thích',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'FinWealth AI',
-                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: _startNewChat,
-                  icon: const Icon(Icons.add, color: Color(0xFF6C5DD3)),
-                  label: const Text('Chat mới', style: TextStyle(color: Color(0xFF6C5DD3))),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    minimumSize: const Size(double.infinity, 45),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _loadingConversations
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: _conversations.length,
-                    padding: EdgeInsets.zero,
-                    itemBuilder: (context, index) {
-                      final conv = _conversations[index];
-                      final isSelected = conv['id'] == _currentConversationId;
-                      return ListTile(
-                        selected: isSelected,
-                        selectedTileColor: Colors.purple.withOpacity(0.1),
-                        leading: const Icon(Icons.chat_bubble_outline, color: Colors.grey),
-                        title: Text(
-                          conv['name'] ?? 'Cuộc trò chuyện mới',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          _loadChatHistory(conversationId: conv['id']);
-                        },
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
-                          onPressed: () => _deleteConversation(conv['id']),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFFF5F6FA),
       drawer: _buildDrawer(),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-        child: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.history, color: Colors.white), // Changed to History icon
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Text(
-                      "FinWealth Assistant",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    Text(
-                      "Sẵn sàng hỗ trợ",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          elevation: 0,
-          // Removed actions (Close button)
-        ),
-      ),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        behavior: HitTestBehavior.translucent,
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
+      body: Column(
+        children: [
+            // Header with Gradient
+           Container(
+             padding: const EdgeInsets.only(top: 40, bottom: 12, left: 16, right: 16),
+             decoration: const BoxDecoration(
+               gradient: LinearGradient(
+                 colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
+                 begin: Alignment.topLeft,
+                 end: Alignment.bottomRight,
+               ),
+             ),
+             child: Row(
+               children: [
+                 if (Navigator.of(context).canPop())
+                   IconButton(
+                     icon: const Icon(Icons.arrow_back, color: Colors.white),
+                     onPressed: () => Navigator.of(context).pop(),
+                   ),
+                 Container(
+                   padding: const EdgeInsets.all(1.5),
+                   decoration: BoxDecoration(
+                     color: Colors.white.withOpacity(0.3),
+                     shape: BoxShape.circle,
+                   ),
+                   child: const CircleAvatar(
+                     radius: 18,
+                     backgroundImage: AssetImage('assets/images/mr_wealth_avatar.png'),
+                   ),
+                 ),
+                 const SizedBox(width: 10),
+                 Expanded(
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     mainAxisSize: MainAxisSize.min,
+                     children: const [
+                       Text(
+                         "Mr Wealth",
+                         style: TextStyle(
+                           color: Colors.white,
+                           fontWeight: FontWeight.bold,
+                           fontSize: 16,
+                         ),
+                       ),
+                       Text(
+                         "Sẵn sàng hỗ trợ",
+                         style: TextStyle(
+                           color: Colors.white70,
+                           fontSize: 12,
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+
+               ],
+             ),
+           ),
+           
+           Expanded(
+            child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            behavior: HitTestBehavior.translucent,
+            child: Column(
+              children: [
+                if (_selectedCategory == 'CORPORATE_ANALYST')
+                    _buildTickerPromptBanner(),
+
+                Expanded(
+                  child: Stack(
                 children: [
-                  ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                    itemCount: _messages.length + (_isTyping ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (_isTyping && index == _messages.length) {
-                        return _buildTypingIndicator();
-                      }
-                      return _buildMessage(index, _messages[index]);
-                    },
-                  ),
-                  if (_scrollController.hasClients && _scrollController.offset < _scrollController.position.maxScrollExtent - 100)
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: FloatingActionButton.small(
-                        onPressed: _scrollToBottom,
-                        backgroundColor: Colors.white,
-                        child: const Icon(Icons.arrow_downward, color: Color(0xFF6C5DD3)),
-                      ),
-                    ),
+                  _messages.isEmpty && !_isTyping && !_loadingHistory
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text("👋", style: TextStyle(fontSize: 40)),
+                              const SizedBox(height: 16),
+                              Text(
+                                "Xin chào, ${widget.userData['username'] ?? 'User'}!",
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text("Tôi có thể giúp gì cho danh mục của bạn?", style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          itemCount: _messages.length + (_isTyping ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (_isTyping && index == _messages.length) {
+                              return _buildTypingIndicator();
+                            }
+                            return _buildMessage(index, _messages[index]);
+                          },
+                        ),
+                  // Only show scroll button when not at bottom
+                  // This needs a listener to be reactive, but simple check in build works for initial render
+                  // Usually done with NotificationListener.
                 ],
               ),
+            ), ],
+              ),
             ),
+           ),
+            
+            // Smart Tags
+            Container(
+               height: 40,
+               margin: const EdgeInsets.symmetric(vertical: 8),
+               child: ListView.separated(
+                 padding: const EdgeInsets.symmetric(horizontal: 16),
+                 scrollDirection: Axis.horizontal,
+                 itemCount: _smartTags.length,
+                 separatorBuilder: (_, __) => const SizedBox(width: 8),
+                 itemBuilder: (context, index) {
+                   final tag = _smartTags[index];
+                   final isActive = tag['id'] == _selectedCategory;
+                   return InkWell(
+                     onTap: () => _onCategorySelected(tag['id']!),
+                     borderRadius: BorderRadius.circular(20),
+                     child: Container(
+                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                       decoration: BoxDecoration(
+                         color: isActive ? Colors.blue.withOpacity(0.1) : Colors.white,
+                         border: Border.all(color: isActive ? Colors.blue : Colors.grey.shade300),
+                         borderRadius: BorderRadius.circular(20),
+                       ),
+                       child: Row(
+                         children: [
+                           // Using icon assets if available or fallback
+                           Icon(isActive ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isActive ? Colors.blue : Colors.grey),
+                           const SizedBox(width: 4),
+                           Text(
+                             tag['label']!,
+                             style: TextStyle(
+                               fontSize: 12,
+                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                               color: isActive ? Colors.blue : Colors.grey.shade700,
+                             ),
+                           ),
+                         ],
+                       ),
+                     ),
+                   );
+                 },
+               ),
+            ),
+
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -683,8 +610,234 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-          ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTickerPromptBanner() {
+      return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+              color: const Color(0xFFE3F2FD),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+              children: [
+                  const Icon(Icons.info_outline, size: 20, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: TextField(
+                          controller: _tickerController,
+                          decoration: const InputDecoration(
+                              hintText: "Nhập mã CP (VD: HPG)",
+                              border: InputBorder.none,
+                              isDense: true,
+                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                          textCapitalization: TextCapitalization.characters,
+                          onSubmitted: _onTickerSubmitted,
+                          onChanged: (val) {
+                              if (val.length == 3) _onTickerSubmitted(val);
+                          },
+                      ),
+                  ),
+                  if (_currentTicker != null)
+                      IconButton(
+                          icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                          onPressed: () {
+                              setState(() {
+                                  _currentTicker = null;
+                                  _tickerController.clear();
+                              });
+                          },
+                      )
+              ],
+          ),
+      );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'FinWealth AI',
+                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _startNewChat,
+                  icon: const Icon(Icons.add, color: Color(0xFF6C5DD3)),
+                  label: const Text('Chat mới', style: TextStyle(color: Color(0xFF6C5DD3))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    minimumSize: const Size(double.infinity, 45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loadingConversations
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    itemCount: _conversations.length,
+                    padding: EdgeInsets.zero,
+                    itemBuilder: (context, index) {
+                      final conv = _conversations[index];
+                      final isSelected = conv['id'] == _currentConversationId;
+                      return ListTile(
+                        selected: isSelected,
+                        selectedTileColor: Colors.purple.withOpacity(0.1),
+                        leading: const Icon(Icons.chat_bubble_outline, color: Colors.grey),
+                        title: Text(
+                          conv['name'] ?? 'Cuộc trò chuyện mới',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _loadChatHistory(conversationId: conv['id']);
+                        },
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                          onPressed: () => _deleteConversation(conv['id']),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessage(int index, Map<String, dynamic> msg) {
+    final isUser = msg['role'] == 'user';
+    final messageId = msg['id'];
+    final rating = msg['rating']; 
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isUser)
+                Container(
+                  margin: const EdgeInsets.only(right: 8, top: 0),
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundImage: const AssetImage('assets/images/mr_wealth_avatar.png'),
+                    backgroundColor: const Color(0xFF6C5DD3),
+                  ),
+                ),
+              
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: isUser ? const Color(0xFF5B4DBC) : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
+                      bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+                    ),
+                    boxShadow: isUser ? [] : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                    border: isUser ? null : Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Html(
+                    data: _markdownToHtml(msg['content'] ?? ''),
+                    style: {
+                      "body": Style(
+                        margin: Margins.zero,
+                        padding: HtmlPaddings.zero,
+                        color: isUser ? Colors.white : Colors.black87,
+                        fontSize: FontSize(15),
+                        lineHeight: LineHeight(1.4),
+                        fontFamily: 'Roboto',
+                      ),
+                      "p": Style(margin: Margins.only(bottom: 8)),
+                    },
+                  ),
+                ),
+              ),
+              
+              if (isUser) const SizedBox(width: 8),
+            ],
+          ),
+          
+          if (!isUser && messageId != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 44, top: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.copy, size: 18, color: Colors.grey),
+                    onPressed: () => _copyMessage(msg['content'] ?? ''),
+                    tooltip: 'Sao chép',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  IconButton(
+                    icon: Icon(
+                      rating == 'like' ? Icons.thumb_up_alt : Icons.thumb_up_outlined,
+                      size: 18, 
+                      color: rating == 'like' ? Colors.blue : Colors.grey
+                    ),
+                    onPressed: () => _sendFeedback(index, messageId, 'like'),
+                    tooltip: 'Thích',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  IconButton(
+                    icon: Icon(
+                      rating == 'dislike' ? Icons.thumb_down_alt : Icons.thumb_down_outlined,
+                      size: 18, 
+                      color: rating == 'dislike' ? Colors.red : Colors.grey
+                    ),
+                    onPressed: () => _sendFeedback(index, messageId, 'dislike'),
+                    tooltip: 'Không thích',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -696,46 +849,34 @@ class _ChatScreenState extends State<ChatScreen> {
         margin: const EdgeInsets.only(left: 50, bottom: 10),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text("FinWealth đang trả lời", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            SizedBox(width: 4),
-            AnimatedDots(),
+          children: [
+            _buildDot(0),
+            _buildDot(1),
+            _buildDot(2),
           ],
         ),
       ),
     );
   }
-}
 
-class AnimatedDots extends StatefulWidget {
-  const AnimatedDots({Key? key}) : super(key: key);
-
-  @override
-  State<AnimatedDots> createState() => _AnimatedDotsState();
-}
-
-class _AnimatedDotsState extends State<AnimatedDots> {
-  int _dotCount = 1;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 400), (_) {
-      if (mounted) {
-        setState(() => _dotCount = (_dotCount % 3) + 1);
-      }
-    });
+  Widget _buildDot(int index) {
+      return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          width: 6,
+          height: 6,
+          decoration: const BoxDecoration(
+              color: Colors.grey,
+              shape: BoxShape.circle,
+          ),
+      );
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Text('.' * _dotCount, style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold));
+  String _markdownToHtml(String markdown) {
+    // Basic Markdown processing for consistency with Flutter Html
+    String html = markdown
+        .replaceAllMapped(RegExp(r'\*\*(.*?)\*\*'), (match) => '<b>${match.group(1)}</b>')
+        .replaceAllMapped(RegExp(r'\*(.*?)\*'), (match) => '<i>${match.group(1)}</i>')
+        .replaceAll('\n', '<br/>');
+    return html;
   }
 }

@@ -22,11 +22,8 @@ class AiInsightCard extends StatelessWidget {
     final trend = expertView?['trend']?['direction'] ?? '---';
     
     // Extract Upside (Valuation)
-    // Parse using helper
     final upSizeVal = _parseValue(overviewData['up_size']);
     String upsideStr = '---';
-    
-    // Check if original value exists to decide if we show --- or value
     if (overviewData['up_size'] != null) {
         upsideStr = '${upSizeVal > 0 ? '+' : ''}${NumberFormat("0.##", "en_US").format(upSizeVal)}%';
     }
@@ -53,58 +50,54 @@ class AiInsightCard extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            // Header: Avatar + Title
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Badges Section (Left)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'AI Insight',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildBadge('Kỹ thuật', trend, trendColor),
-                          _buildBadge('Định giá', upsideStr, upsideColor),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Avatar Section (Right)
                 CircleAvatar(
-                  radius: 32,
-                  backgroundImage: const AssetImage('assets/images/mr_wealth_avatar.png'), // Ensure asset exists or use fallback
+                  radius: 16,
+                  backgroundImage: const AssetImage('assets/images/mr_wealth_avatar.png'),
                   backgroundColor: Colors.blueAccent.withOpacity(0.1),
                   onBackgroundImageError: (_, __) {},
-                  child: const Text(''), // Fallback if image fails, transparent
+                  child: const Text(''),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'AI Insight',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            
+            // Badges: Variation -> Technical (Expanded)
+            Row(
+              children: [
+                Expanded(child: _buildBadge('Định giá', upsideStr, upsideColor)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildBadge('Kỹ thuật', trend, trendColor)),
+              ],
+            ),
+
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
+            
             // Actions
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: onChatPressed,
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('Hỏi M.A.I'),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('Chat'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                       foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
                       elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
@@ -112,8 +105,11 @@ class AiInsightCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: onReportPressed,
-                    icon: const Icon(Icons.assessment_outlined),
-                    label: const Text('Xem Báo cáo'),
+                    icon: const Icon(Icons.assessment_outlined, size: 18),
+                    label: const Text('Báo cáo AI'),
+                    style: OutlinedButton.styleFrom(
+                       padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
                   ),
                 ),
               ],
@@ -126,7 +122,7 @@ class AiInsightCard extends StatelessWidget {
 
   Widget _buildBadge(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -138,19 +134,23 @@ class AiInsightCard extends StatelessWidget {
            Text(
              label, 
              style: TextStyle(
-               fontSize: 10, 
+               fontSize: 11, 
                color: Colors.grey[600],
                fontWeight: FontWeight.w500
-             )
+             ),
+             maxLines: 1,
+             overflow: TextOverflow.ellipsis,
            ),
-           const SizedBox(height: 2),
+           const SizedBox(height: 4),
            Text(
              value, 
              style: TextStyle(
                color: color, 
                fontWeight: FontWeight.bold, 
-               fontSize: 13
-             )
+               fontSize: 12, // Reduced from 13
+             ),
+             maxLines: 1,
+             overflow: TextOverflow.ellipsis,
            ),
         ],
       ),

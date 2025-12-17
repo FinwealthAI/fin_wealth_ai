@@ -40,5 +40,8 @@ class ApiConfig {
   static String get watchlistGet => '$watchlist/api/get/';
   static String get watchlistAdd => '$watchlist/add/';
   static String watchlistRemove(int id) => '$watchlist/remove/$id/';
+  
+  // Strategy follow endpoint
+  static String get toggleFollow => '$baseUrl/api/toggle-follow/';
 
 }

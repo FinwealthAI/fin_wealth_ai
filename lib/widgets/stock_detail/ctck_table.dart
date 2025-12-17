@@ -64,40 +64,36 @@ class _CtckTableState extends State<CtckTable> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Khuyến nghị từ CTCK', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 16),
-            SingleChildScrollView( // Horizontal scroll allowed
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 20,
+            DataTable(
+                columnSpacing: 12,
                 headingRowHeight: 40,
+                horizontalMargin: 8,
                 columns: const [
                   DataColumn(label: Text('CTCK')),
                   DataColumn(label: Text('Mục tiêu')),
-                  DataColumn(label: Text('Khuyến nghị')),
                   DataColumn(label: Text('Ngày')),
                 ],
-                rows: _data.map<DataRow>((item) {
-                  // Map backend keys: firm_new, target_price, recommendation, report_date
-                  final price = _parseValue(item['target_price'] ?? item['price_target']); 
+                rows: _data.take(5).map<DataRow>((item) {
+                  // Map backend keys: firm_new, target_price, report_date
+                  final price = _parseValue(item['target_price'] ?? item['price_target'] ?? 0); 
                   final priceFmt = NumberFormat('#,##0', 'vi_VN').format(price);
-                  
-                  // Recommend color
-                  String rec = item['recommendation'] ?? item['recommend'] ?? '';
-                  Color recColor = Colors.black;
-                  if (rec.toUpperCase().contains('MUA') || rec.toUpperCase().contains('BUY') || rec.toUpperCase().contains('KHẢ QUAN')) recColor = Colors.green;
-                  else if (rec.toUpperCase().contains('BÁN') || rec.toUpperCase().contains('SELL') || rec.toUpperCase().contains('KÉM')) recColor = Colors.red;
-                  else recColor = Colors.orange;
 
                   return DataRow(cells: [
-                     DataCell(Text(item['firm_new'] ?? item['ctck_name'] ?? '--', style: const TextStyle(fontWeight: FontWeight.bold))),
+                     DataCell(SizedBox(
+                       width: 100,
+                       child: Text(
+                         item['firm_new'] ?? item['ctck_name'] ?? '--',
+                         style: const TextStyle(fontWeight: FontWeight.bold),
+                         softWrap: true,
+                         maxLines: 2,
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     )),
                      DataCell(Text(priceFmt)),
-                     DataCell(Text(rec, style: TextStyle(color: recColor, fontWeight: FontWeight.bold))),
                      DataCell(Text(item['report_date'] ?? item['date'] ?? '--')),
                   ]);
                 }).toList(),
               ),
-            ),
           ],
         ),
       ),

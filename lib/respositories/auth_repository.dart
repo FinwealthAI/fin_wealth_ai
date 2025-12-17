@@ -5,6 +5,7 @@ import 'package:fin_wealth/config/api_config.dart';
 
 class AuthRepository {
   final Dio dio;
+  late final Dio _tokenDio; // Dio instance riêng để refresh token tránh deadlock
   final String baseUrl;
 
   String? _accessToken;
@@ -27,6 +28,9 @@ class AuthRepository {
       receiveTimeout: const Duration(seconds: 20),
     );
 
+    // Khởi tạo _tokenDio với options tương tự nhưng KHÔNG ADD INTERCEPTOR
+    _tokenDio = Dio(dio.options);
+
     // Load tokens from persistence on initialization
     _loadTokens();
 
@@ -48,7 +52,8 @@ class AuthRepository {
 
             try {
               print('AuthRepository: 401 detected, attempting refresh...');
-              final r = await dio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
+              // Dùng _tokenDio để gọi refresh
+              final r = await _tokenDio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
               
               if (r.statusCode == 200) {
                 _accessToken = r.data['access'] as String;
@@ -80,7 +85,8 @@ class AuthRepository {
                return handler.next(err);
             }
             try {
-              final r = await dio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
+              // Dùng _tokenDio để gọi refresh
+              final r = await _tokenDio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
               await _saveTokens();
@@ -172,15 +178,42 @@ class AuthRepository {
   }
 
   /// Thử đăng nhập tự động bằng token đã lưu
+  /// QUAN TRỌNG: Kiểm tra token hợp lệ trước khi cho phép vào app
   Future<Map<String, dynamic>?> tryAutoLogin() async {
     await _loadTokens();
-    if (_accessToken != null && _accessToken!.isNotEmpty) {
-      return {
-        'username': _username ?? 'User',
-        // Có thể thêm avatar nếu lưu
-      };
+    if (_accessToken == null || _accessToken!.isEmpty) {
+      return null;
     }
-    return null;
+
+    // Verify token bằng cách gọi API nhẹ
+    try {
+      print('AuthRepository: Verifying token...');
+      final response = await _tokenDio.get('/mobile/api/unlock-wealth/');
+      
+      if (response.statusCode == 200) {
+        print('AuthRepository: Token valid!');
+        return {
+          'username': _username ?? 'User',
+        };
+      } else if (response.statusCode == 401) {
+        // Token hết hạn hoặc bị vô hiệu
+        print('AuthRepository: Token expired (401), logging out...');
+        await logout();
+        return null;
+      }
+    } catch (e) {
+      print('AuthRepository: Token verification error: $e');
+      // Nếu có lỗi network thì vẫn cho phép auto-login (offline mode)
+      // Nếu muốn bắt buộc online, uncomment dòng sau:
+      // await logout();
+      // return null;
+    }
+
+    // Fallback: Nếu không verify được nhưng có token, vẫn cho vào
+    // (để hỗ trợ offline mode)
+    return {
+      'username': _username ?? 'User',
+    };
   }
 
   String? get accessToken => _accessToken;

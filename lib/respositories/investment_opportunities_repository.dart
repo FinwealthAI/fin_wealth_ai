@@ -10,6 +10,9 @@ class InvestmentOpportunitiesRepository {
   Future<InvestmentOpportunities?> fetch() async {
     try {
       final resp = await dio.get(ApiConfig.unlockWealth);
+      if (resp.statusCode == 401) {
+        return null; // Session invalid, let UI/AuthBloc handle it
+      }
       if (resp.statusCode == 200 && resp.data != null) {
         final data = resp.data;
         // Check if response has new format {success: true, data: {...}}
@@ -39,6 +42,8 @@ class InvestmentOpportunitiesRepository {
   Future<DailySummaryData?> fetchDailySummary() async {
     try {
       final resp = await dio.get(ApiConfig.unlockWealth);
+      if (resp.statusCode == 401) return null;
+      
       if (resp.statusCode == 200 && resp.data != null && resp.data['success'] == true) {
         final data = resp.data['data'];
         if (data != null && data is Map<String, dynamic>) {
