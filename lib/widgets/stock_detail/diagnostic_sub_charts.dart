@@ -178,17 +178,48 @@ class _SubChartGrowthState extends State<SubChartGrowth> {
                   titlesData: FlTitlesData(
                     rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) {
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) {
                       final i = v.toInt();
-                      if (i >= 0 && i < labels.length && i % 2 == 0) {
+                      if (i >= 0 && i < labels.length && i % 3 == 0) { // Giảm mật độ: 3 điểm hiện 1
+                         String text = labels[i];
+                         try {
+                           // Thử parse date để format ngắn gọn hơn (MM/yy)
+                           final date = DateTime.tryParse(text);
+                           if (date != null) {
+                             text = '${date.month}/${date.year.toString().substring(2)}';
+                           }
+                         } catch (_) {}
+                         
                          return Padding(
                            padding: const EdgeInsets.only(top: 8.0),
-                           child: Text(labels[i], style: const TextStyle(fontSize: 10)),
+                           child: Text(text, style: const TextStyle(fontSize: 10)),
                          );
                       }
                       return const SizedBox();
                     })),
                     leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10)))),
+                  ),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final i = spot.x.toInt();
+                          String label = '';
+                          if (i >= 0 && i < labels.length) label = labels[i];
+                          final val = NumberFormat("#,##0.##").format(spot.y);
+                          return LineTooltipItem(
+                            '$label\n',
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            children: [
+                              TextSpan(
+                                text: val, 
+                                style: const TextStyle(color: Colors.yellowAccent, fontWeight: FontWeight.w800)
+                              ),
+                            ],
+                          );
+                        }).toList();
+                      },
+                    ),
                   ),
                   lineBarsData: [
                     LineChartBarData(spots: _makeSpots(revenue), color: Colors.green, barWidth: 2, isCurved: true, dotData: FlDotData(show: true)),
@@ -278,13 +309,16 @@ class _SubChartSafetyState extends State<SubChartSafety> {
              Text('Sức khỏe tài chính', style: Theme.of(context).textTheme.titleMedium),
              const SizedBox(height: 16),
              SizedBox(
-               height: 120,
-               child: _SimpleLineChart(labels: labels, data: debt, color: Colors.purple, title: 'Nợ/Vốn chủ sở hữu'),
-             ),
-             const SizedBox(height: 16),
-             SizedBox(
-               height: 120,
-               child: _SimpleLineChart(labels: labels, data: cfo, color: Colors.teal, title: 'CFO/Doanh thu'),
+               height: 250, 
+               child: _DualLineChart(
+                 labels: labels, 
+                 data1: debt, 
+                 data2: cfo,
+                 title1: 'Nợ/Vốn chủ sở hữu',
+                 title2: 'CFO/Doanh thu',
+                 color1: Colors.purple,
+                 color2: Colors.teal,
+               ),
              ),
           ],
         ),
@@ -294,6 +328,205 @@ class _SubChartSafetyState extends State<SubChartSafety> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// DUAL LINE CHART (For Safety)
+// ─────────────────────────────────────────────────────────────
+class _DualLineChart extends StatelessWidget {
+  final List<String> labels;
+  final List<num?> data1; // Left Axis
+  final List<num?> data2; // Right Axis
+  final String title1;
+  final String title2;
+  final Color color1;
+  final Color color2;
+
+  const _DualLineChart({
+    super.key,
+    required this.labels,
+    required this.data1,
+    required this.data2,
+    required this.title1,
+    required this.title2,
+    this.color1 = Colors.purple,
+    this.color2 = Colors.teal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. Calculate Min/Max for scaling
+    double min1 = double.maxFinite, max1 = -double.maxFinite;
+    double min2 = double.maxFinite, max2 = -double.maxFinite;
+
+    for (var v in data1) {
+      if (v != null) {
+        if (v < min1) min1 = v.toDouble();
+        if (v > max1) max1 = v.toDouble();
+      }
+    }
+    for (var v in data2) {
+      if (v != null) {
+        if (v < min2) min2 = v.toDouble();
+        if (v > max2) max2 = v.toDouble();
+      }
+    }
+
+    // Handle edge cases
+    if (min1 == double.maxFinite) { min1 = 0; max1 = 100; }
+    if (min2 == double.maxFinite) { min2 = 0; max2 = 100; }
+    if (max1 == min1) { max1 += 1; min1 -= 1; }
+    if (max2 == min2) { max2 += 1; min2 -= 1; }
+    
+    final range1 = max1 - min1;
+    final range2 = max2 - min2;
+    // Normalize data2 to range of data1
+    // val2_norm = (val2 - min2) / range2 * range1 + min1
+    
+    final spots1 = <FlSpot>[];
+    for(int i=0; i<data1.length; i++) {
+      if(data1[i] != null) spots1.add(FlSpot(i.toDouble(), data1[i]!.toDouble()));
+    }
+
+    final spots2 = <FlSpot>[];
+    for(int i=0; i<data2.length; i++) {
+        if(data2[i] != null) {
+          final val = data2[i]!.toDouble();
+          final normalized = (val - min2) / range2 * range1 + min1;
+          spots2.add(FlSpot(i.toDouble(), normalized));
+        }
+    }
+
+    return Column(
+      children: [
+        Row(
+           mainAxisAlignment: MainAxisAlignment.center,
+           children: [
+             Container(width: 10, height: 10, color: color1),
+             const SizedBox(width: 4),
+             Text(title1, style: TextStyle(color: color1, fontWeight: FontWeight.bold, fontSize: 12)),
+             const SizedBox(width: 16),
+             Container(width: 10, height: 10, color: color2),
+             const SizedBox(width: 4),
+             Text(title2, style: TextStyle(color: color2, fontWeight: FontWeight.bold, fontSize: 12)),
+           ],
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: LineChart(
+             LineChartData(
+               gridData: FlGridData(show: true, drawVerticalLine: false),
+               titlesData: FlTitlesData(
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      reservedSize: 22, 
+                      getTitlesWidget: (v, m) {
+                        final i = v.toInt();
+                        if (i < 0 || i >= labels.length) return const SizedBox();
+                        if (i % 3 == 0) {
+                           String text = labels[i];
+                           if (text.contains('-')) {
+                             try {
+                               final date = DateTime.tryParse(text);
+                               if (date != null) {
+                                  text = '${date.month}/${date.year.toString().substring(2)}';
+                               }
+                             } catch (_) {}
+                           } else if (text.length > 4) {
+                             text = text.substring(0, 4);
+                           }
+                           return Padding(
+                             padding: const EdgeInsets.only(top: 4.0),
+                             child: Text(text, style: const TextStyle(fontSize: 9)),
+                           );
+                        }
+                        return const SizedBox();
+                      }
+                    )
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      reservedSize: 40,
+                      getTitlesWidget: (v, m) => Text(NumberFormat.compact().format(v), style: TextStyle(fontSize: 9, color: color1))
+                    )
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      reservedSize: 40,
+                      getTitlesWidget: (v, m) {
+                         // Un-normalize to show correct value
+                         final denorm = (v - min1) / range1 * range2 + min2;
+                         return Text(NumberFormat.compact().format(denorm), style: TextStyle(fontSize: 9, color: color2));
+                      }
+                    )
+                  ),
+               ),
+               borderData: FlBorderData(show: false),
+               lineTouchData: LineTouchData(
+                 touchTooltipData: LineTouchTooltipData(
+                   getTooltipColor: (_) => Colors.blueGrey,
+                   tooltipRoundedRadius: 8,
+                   getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final i = spot.x.toInt();
+                        String dateStr = '';
+                         if (i >= 0 && i < labels.length) {
+                             final rawDate = labels[i];
+                             try {
+                               final d = DateTime.parse(rawDate);
+                               dateStr = DateFormat('dd/MM/yyyy').format(d) + '\n';
+                             } catch (_) {
+                               dateStr = '$rawDate\n';
+                             }
+                        }
+
+                        if (spot.barIndex == 0) {
+                           // Data 1
+                           return LineTooltipItem(
+                             dateStr,
+                             const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                             children: [
+                               TextSpan(
+                                 text: '${title1}: ${NumberFormat("#,##0.##").format(spot.y)}',
+                                 style: TextStyle(color: color1, fontWeight: FontWeight.w800, fontSize: 12),
+                               ),
+                             ],
+                           );
+                        } else {
+                           // Data 2 -> denormalize
+                           final denorm = (spot.y - min1) / range1 * range2 + min2;
+                           return LineTooltipItem(
+                             '', 
+                             const TextStyle(color: Colors.white, fontSize: 0),
+                             children: [
+                               TextSpan(
+                                 text: '${title2}: ${NumberFormat("#,##0.##").format(denorm)}',
+                                 style: TextStyle(color: color2, fontWeight: FontWeight.w800, fontSize: 12),
+                               ),
+                             ],
+                           );
+                        }
+                      }).toList();
+                   }
+                 )
+               ),
+               lineBarsData: [
+                 LineChartBarData(spots: spots1, color: color1, isCurved: true, barWidth: 2, dotData: FlDotData(show: false)),
+                 LineChartBarData(spots: spots2, color: color2, isCurved: true, barWidth: 2, dotData: FlDotData(show: false)),
+               ],
+             )
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SHARED CHART WIDGET
+// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // SHARED CHART WIDGET
 // ─────────────────────────────────────────────────────────────
 class _SimpleLineChart extends StatelessWidget {
@@ -302,13 +535,16 @@ class _SimpleLineChart extends StatelessWidget {
   final Color color;
   final double? avgLine;
   final String? title;
+  final bool showDateTooltip; // New parameter
 
   const _SimpleLineChart({
+    super.key, // Added super.key for linting
     required this.labels,
     required this.data,
     this.color = Colors.blue,
     this.avgLine,
     this.title,
+    this.showDateTooltip = true, // Default to true
   });
 
   @override
@@ -325,6 +561,53 @@ class _SimpleLineChart extends StatelessWidget {
         Expanded(
           child: LineChart(
               LineChartData(
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => Colors.blueGrey, // Fixed: use callback instead of tooltipBgColor
+                    tooltipRoundedRadius: 8,
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final i = spot.x.toInt();
+                        String label = '';
+                        if (showDateTooltip && i >= 0 && i < labels.length) {
+                          final originalLabel = labels[i];
+                           // Try format if needed
+                           if (originalLabel.contains('-')) {
+                             try {
+                               final date = DateTime.tryParse(originalLabel);
+                               if (date != null) {
+                                  label = '${date.day}/${date.month}/${date.year}\n';
+                               }
+                             } catch (_) {}
+                           } else {
+                              label = '$originalLabel\n';
+                           }
+                        }
+                        
+                        // Round and format with thousands (image style)
+                        final val = NumberFormat("#,##0.##").format(spot.y);
+                        return LineTooltipItem(
+                          label,
+                          const TextStyle(
+                            color: Colors.white, 
+                            fontWeight: FontWeight.bold, 
+                            fontSize: 11
+                          ),
+                          children: [
+                            TextSpan(
+                              text: val,
+                              style: TextStyle(
+                                color: color, // Use line color for value like image
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
                 gridData: FlGridData(show: true, drawVerticalLine: false),
                 titlesData: FlTitlesData(
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -335,10 +618,26 @@ class _SimpleLineChart extends StatelessWidget {
                       reservedSize: 22, 
                       getTitlesWidget: (v, m) {
                         final i = v.toInt();
-                        if (i == 0 || i == labels.length - 1 || i == labels.length ~/ 2) {
-                           if (i >= 0 && i < labels.length) {
-                              return Text(labels[i].substring(0, 4), style: const TextStyle(fontSize: 10)); // Just Year for simplicity
+                        if (i < 0 || i >= labels.length) return const SizedBox();
+
+                        // Logic giống chart tăng trưởng: 3 điểm hiện 1
+                        if (i % 3 == 0) {
+                           String text = labels[i];
+                           if (text.contains('-')) {
+                             try {
+                               final date = DateTime.tryParse(text);
+                               if (date != null) {
+                                  text = '${date.month}/${date.year.toString().substring(2)}';
+                               }
+                             } catch (_) {}
+                           } else if (text.length > 4) {
+                             text = text.substring(0, 4);
                            }
+
+                           return Padding(
+                             padding: const EdgeInsets.only(top: 4.0),
+                             child: Text(text, style: const TextStyle(fontSize: 9)),
+                           );
                         }
                         return const SizedBox();
                       }

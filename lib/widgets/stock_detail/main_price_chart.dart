@@ -226,24 +226,7 @@ class _MainPriceChartState extends State<MainPriceChart> {
                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                      bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 30,
-                          getTitlesWidget: (value, meta) {
-                             final index = value.toInt();
-                             if (index < 0 || index >= labels.length) return const SizedBox();
-                             // Show about 4-5 labels
-                             final step = (labels.length / 4).ceil();
-                             if (index % step == 0) {
-                               return Padding(
-                                 padding: const EdgeInsets.only(top: 8.0),
-                                 child: Text(
-                                   _formatDate(labels[index]),
-                                   style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                 ),
-                               );
-                             }
-                             return const SizedBox();
-                          },
+                          showTitles: false, // Ẩn ngày ở trục X theo yêu cầu
                         ),
                      ),
                      leftTitles: AxisTitles(
@@ -251,6 +234,48 @@ class _MainPriceChartState extends State<MainPriceChart> {
                      )
                   ),
                   borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => Colors.blueGrey,
+                      tooltipRoundedRadius: 8,
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final i = spot.x.toInt();
+                          String dateText = '';
+                          if (i >= 0 && i < labels.length) {
+                             // Format ngày hiển thị trong tooltip
+                             final rawDate = labels[i];
+                             try {
+                               final d = DateTime.parse(rawDate);
+                               dateText = DateFormat('dd/MM/yyyy').format(d);
+                             } catch (_) {
+                               dateText = rawDate;
+                             }
+                          }
+
+                          final val = NumberFormat("#,##0.##").format(spot.y);
+                          return LineTooltipItem(
+                            '$dateText\n',
+                            const TextStyle(
+                              color: Colors.white, 
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 11
+                            ),
+                            children: [
+                              TextSpan(
+                                text: val,
+                                style: const TextStyle(
+                                  color: Colors.yellowAccent,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                   extraLinesData: ExtraLinesData(
                     horizontalLines: [
                       if (support != null)

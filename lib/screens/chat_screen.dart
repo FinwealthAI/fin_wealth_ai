@@ -384,7 +384,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
             // Header with Gradient
            Container(
-             padding: const EdgeInsets.only(top: 40, bottom: 12, left: 16, right: 16),
+             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16), // Siêu mỏng: padding 4
              decoration: const BoxDecoration(
                gradient: LinearGradient(
                  colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
@@ -396,45 +396,44 @@ class _ChatScreenState extends State<ChatScreen> {
                children: [
                  if (Navigator.of(context).canPop())
                    IconButton(
-                     icon: const Icon(Icons.arrow_back, color: Colors.white),
+                     padding: EdgeInsets.zero, // Bỏ padding của icon back để gọn hơn
+                     constraints: const BoxConstraints(), // Icon nhỏ gọn nhất có thể
+                     icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
                      onPressed: () => Navigator.of(context).pop(),
                    ),
+                 const SizedBox(width: 12), // Giãn cách sau nút back
                  Container(
-                   padding: const EdgeInsets.all(1.5),
+                   padding: const EdgeInsets.all(1),
                    decoration: BoxDecoration(
                      color: Colors.white.withOpacity(0.3),
                      shape: BoxShape.circle,
                    ),
                    child: const CircleAvatar(
-                     radius: 18,
+                     radius: 14, // Giảm size avatar xuống 14 cho vừa vặn
                      backgroundImage: AssetImage('assets/images/mr_wealth_avatar.png'),
                    ),
                  ),
-                 const SizedBox(width: 10),
-                 Expanded(
-                   child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     mainAxisSize: MainAxisSize.min,
-                     children: const [
-                       Text(
-                         "Mr Wealth",
-                         style: TextStyle(
-                           color: Colors.white,
-                           fontWeight: FontWeight.bold,
-                           fontSize: 16,
-                         ),
-                       ),
-                       Text(
-                         "Sẵn sàng hỗ trợ",
-                         style: TextStyle(
-                           color: Colors.white70,
-                           fontSize: 12,
-                         ),
-                       ),
-                     ],
+                 const SizedBox(width: 8),
+                 const Text(
+                   "Mr Wealth",
+                   style: TextStyle(
+                     color: Colors.white,
+                     fontWeight: FontWeight.bold,
+                     fontSize: 14, // Giảm font size một chút cho cân đối
                    ),
                  ),
-
+                 const SizedBox(width: 6),
+                 // Chấm xanh online ngay cạnh tên
+                 Container(
+                   width: 8,
+                   height: 8,
+                   decoration: BoxDecoration(
+                     color: const Color(0xFF00E676), // Xanh lá sáng hơn
+                     shape: BoxShape.circle,
+                     border: Border.all(color: Colors.white, width: 1.5), // Viền trắng cho nổi bật
+                   ),
+                 ),
+                 const Spacer(), // Đẩy các widget khác (nếu có) sang phải
                ],
              ),
            ),

@@ -72,7 +72,7 @@ class StockReportsRepository {
       final list = (resp.data as List? ?? <dynamic>[])
           .map((e) => StockReportSource.fromJson(e as Map<String, dynamic>))
           .toList();
-      return [StockReportSource(id: 'all', name: 'Tất cả nguồn'), ...list];
+      return [StockReportSource(id: 'all', name: 'Nguồn'), ...list];
     }
     if (resp.statusCode == 401) {
       throw Exception('401: Chưa xác thực hoặc token đã hết hạn.');

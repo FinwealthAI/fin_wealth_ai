@@ -91,80 +91,55 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
         MainPriceChart(ticker: widget.ticker),
         const SizedBox(height: 16),
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
+        // 3 TABS: CHỈ SỐ THỊ TRƯỜNG | TĂNG TRƯỞNG | AN TOÀN
+        const SizedBox(height: 16),
+        DefaultTabController(
+          length: 3,
+          child: Column(
             children: [
-              Text(
-                'Nhóm biểu đồ khác',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: TabBar(
+                  indicator: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.black54,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  padding: const EdgeInsets.all(4),
+                  tabs: const [
+                    Tab(text: "CS Thị trường"),
+                    Tab(text: "Tăng trưởng"),
+                    Tab(text: "An toàn"),
+                  ],
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.info_outline, color: Colors.grey),
-                onPressed: () => _showOtherCharts(context),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 330, // Thu hẹp chiều cao container để giảm khoảng trắng thừa
+                child: TabBarView(
+                  physics: const NeverScrollableScrollPhysics(), // Tránh xung đột cuộn
+                  children: [
+                    SubChartValuation(ticker: widget.ticker),
+                    SubChartGrowth(ticker: widget.ticker),
+                    SubChartSafety(ticker: widget.ticker),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        SubChartValuation(ticker: widget.ticker),
+        
         const SizedBox(height: 16),
         _sectionTitle(context, 'Định giá CTCK'),
         CtckTable(ticker: widget.ticker),
         const SizedBox(height: 32),
       ];
-  }
-
-  void _showOtherCharts(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Text(
-                  'Các chỉ số khác',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                SubChartGrowth(ticker: widget.ticker),
-                const SizedBox(height: 16),
-                SubChartSafety(ticker: widget.ticker),
-                const SizedBox(height: 30),
-              ],
-            ),
-          );
-        },
-      ),
-    );
   }
 
   @override

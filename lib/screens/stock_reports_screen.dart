@@ -175,7 +175,7 @@ class _StockReportsScreenState extends State<StockReportsScreen> {
                       onSubmitted: (_) => _doSearch(),
                       style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
-                        hintText: 'Tìm mã cổ phiếu…',
+                        hintText: 'CP',
                         hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
                         filled: true,
                         fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
@@ -435,7 +435,7 @@ class _ReportRow extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text('Xem báo cáo'),
+                  child: const Text('Xem file'),
                 ),
               ],
             ],
