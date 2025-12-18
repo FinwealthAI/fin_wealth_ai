@@ -18,8 +18,28 @@ class AiInsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Extract Trend
-    final expertView = technicalData['data']?['expert_view'];
-    final trend = expertView?['trend']?['direction'] ?? '---';
+    // Extract Trend
+    var expertView = technicalData['data']?['expert_view'];
+    if (expertView == null) {
+       expertView = technicalData['expert_view'];
+    }
+    String trend = expertView?['trend']?['direction'] ?? '---';
+    
+    // Check for auth error or missing data
+    if (technicalData.containsKey('detail')) {
+        trend = 'Cần đăng nhập';
+    }
+    
+    // Extract Divergence
+    final divergence = expertView?['momentum']?['divergence'];
+    if (divergence != null && divergence != 'NONE') {
+        String divText = '';
+        if (divergence == 'BULLISH') divText = 'Phân kỳ Dương';
+        else if (divergence == 'BEARISH') divText = 'Phân kỳ Âm';
+        else divText = divergence;
+
+        trend = '$trend\n($divText)';
+    }
     
     // Extract Upside (Valuation)
     final upSizeVal = _parseValue(overviewData['up_size']);

@@ -148,9 +148,14 @@ class StockTechnicalData {
   StockTechnicalData({this.expertView});
 
   factory StockTechnicalData.fromJson(Map<String, dynamic> json) {
+    var expertData = json['data']?['expert_view'];
+    if (expertData == null) {
+        expertData = json['expert_view'];
+    }
+    
     return StockTechnicalData(
-      expertView: json['data']?['expert_view'] != null
-          ? ExpertView.fromJson(json['data']['expert_view'])
+      expertView: expertData != null
+          ? ExpertView.fromJson(expertData)
           : null,
     );
   }

@@ -785,6 +785,17 @@ class _ChatScreenState extends State<ChatScreen> {
                         fontFamily: 'Roboto',
                       ),
                       "p": Style(margin: Margins.only(bottom: 8)),
+                      "ul": Style(
+                        margin: Margins.only(left: 0),
+                        padding: HtmlPaddings.only(left: 16),
+                      ),
+                      "ol": Style(
+                        margin: Margins.only(left: 0),
+                        padding: HtmlPaddings.only(left: 16),
+                      ),
+                      "li": Style(
+                        margin: Margins.only(bottom: 4),
+                      ),
                     },
                   ),
                 ),

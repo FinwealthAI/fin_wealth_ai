@@ -301,8 +301,16 @@ class _AISummaryCardState extends State<_AISummaryCard> {
                     fontWeight: FontWeight.bold,
                     color: const Color(0xFF6366F1),
                   ),
+                  "ul": Style(
+                    margin: Margins.only(left: 0),
+                    padding: HtmlPaddings.only(left: 16),
+                  ),
+                  "ol": Style(
+                    margin: Margins.only(left: 0),
+                    padding: HtmlPaddings.only(left: 16),
+                  ),
                   "li": Style(
-                    margin: Margins.only(bottom: 6),
+                    margin: Margins.only(bottom: 4),
                   ),
                 },
               ),

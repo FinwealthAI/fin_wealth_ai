@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SearchStockRepository {
   final Dio dio;
@@ -66,7 +67,18 @@ Future<Map<String, dynamic>> markAllNotifications() async {
 
 
   Future<Map<String, dynamic>> getTechnicalAnalysis(String ticker) async {
-    final resp = await dio.get('${ApiConfig.api}/quant/latest/$ticker/');
+    // Explicitly fetching token to ensure auth header is sent
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    
+    final options = token != null 
+        ? Options(headers: {'Authorization': 'Bearer $token'})
+        : null;
+
+    final resp = await dio.get(
+        '${ApiConfig.api}/quant/latest/$ticker/',
+        options: options
+    );
     return Map<String, dynamic>.from(resp.data);
   }
 
