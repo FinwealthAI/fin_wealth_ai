@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/respositories/investment_opportunities_repository.dart';
+import 'package:fin_wealth/screens/search_stock_screen.dart';
 import 'package:intl/intl.dart';
 
 class StrategyDetailScreen extends StatefulWidget {
   final String title;
+  final List<dynamic>? preloadedData; // Optional pre-loaded data from StrategyCardData
 
   const StrategyDetailScreen({
     super.key,
     required this.title,
+    this.preloadedData,
   });
 
   @override
@@ -27,7 +30,56 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _loadData();
+  }
+
+  void _loadData() {
+    // If preloaded data is available, use it directly
+    if (widget.preloadedData != null && widget.preloadedData!.isNotEmpty) {
+      // Transform and GROUP preloadedData by ticker
+      // The preloadedData from StrategyCardData.data has format: [{ticker: 'ABC', date: '...', value: X}, ...]
+      // We need to group by ticker: [{symbol: 'ABC', criteria_values: {merged values}}, ...]
+      
+      final Map<String, Map<String, dynamic>> groupedData = {};
+      
+      for (final item in widget.preloadedData!) {
+        if (item is Map<String, dynamic>) {
+          final symbol = (item['ticker'] ?? item['symbol'] ?? item['label'] ?? '').toString();
+          if (symbol.isEmpty) continue;
+          
+          if (!groupedData.containsKey(symbol)) {
+            groupedData[symbol] = <String, dynamic>{};
+          }
+          
+          // Merge all non-ticker/symbol/label fields into criteria_values
+          item.forEach((key, value) {
+            if (key != 'ticker' && key != 'symbol' && key != 'label') {
+              // For duplicate keys, keep the latest non-null value
+              if (value != null) {
+                groupedData[symbol]![key] = value;
+              }
+            }
+          });
+        }
+      }
+      
+      // Convert grouped data to list format
+      final transformedData = groupedData.entries.map((entry) {
+        return {
+          'symbol': entry.key,
+          'criteria_values': entry.value,
+        };
+      }).toList();
+      
+      setState(() {
+        _results = transformedData;
+        _isLoading = false;
+      });
+      print('[DEBUG] Using preloaded data: ${widget.preloadedData!.length} items → grouped into ${_results.length} tickers');
+    } else {
+      // Fallback to API call if no preloaded data
+      _fetchData();
+    }
   }
 
   Future<void> _fetchData() async {
@@ -107,17 +159,41 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Đã có lỗi xảy ra', style: theme.textTheme.titleMedium),
+            Text(
+              'Đã có lỗi xảy ra', 
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(_error!, style: theme.textTheme.bodySmall),
-            ElevatedButton(onPressed: _fetchData, child: const Text('Thử lại')),
+            Text(
+              _error!, 
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _fetchData, 
+              icon: const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+            ),
           ],
         ),
       );
     }
 
     if (_results.isEmpty) {
-      return const Center(child: Text('Không có dữ liệu'));
+      return Center(
+        child: Text(
+          'Không có dữ liệu',
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      );
     }
 
     final filteredResults = _filterAndSortResults();
@@ -221,12 +297,41 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            symbol,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
+                          InkWell(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => SearchStockScreen(ticker: symbol),
+                                  settings: const RouteSettings(name: 'search_stock'),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    symbol,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 14,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           Container(
@@ -248,14 +353,18 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
                       ),
                       const Divider(height: 24),
                       
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: keys.map((key) {
-                          return LayoutBuilder(
-                            builder: (context, constraints) {
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Calculate width based on actual available width
+                          // (Total available width - spacing) / 2
+                          final itemWidth = (constraints.maxWidth - 16) / 2;
+                          
+                          return Wrap(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: keys.map((key) {
                               return SizedBox(
-                                  width: (MediaQuery.of(context).size.width - 64 - 16) / 2 - 1,
+                                  width: itemWidth > 0 ? itemWidth : null, // Prevent negative width
                                   child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
@@ -282,9 +391,9 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
                                       ],
                                   ),
                               );
-                            }
+                            }).toList(),
                           );
-                        }).toList(),
+                        }
                       )
                     ],
                   ),

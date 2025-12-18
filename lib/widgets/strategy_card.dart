@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/screens/strategy_detail_screen.dart';
+import 'package:fin_wealth/screens/search_stock_screen.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
 
@@ -220,6 +221,7 @@ class _StrategyCardState extends State<StrategyCard> {
                   MaterialPageRoute(
                     builder: (_) => StrategyDetailScreen(
                       title: widget.data.title,
+                      preloadedData: widget.data.data,
                     ),
                   ),
                 );
@@ -279,26 +281,37 @@ class _StrategyCardState extends State<StrategyCard> {
           final ticker = entry.value;
           final color = colors[idx % colors.length];
           
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  color.withOpacity(0.15),
-                  color.withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          return InkWell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SearchStockScreen(ticker: ticker),
+                  settings: const RouteSettings(name: 'search_stock'),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withOpacity(0.15),
+                    color.withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: color.withOpacity(0.3), width: 1),
               ),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: color.withOpacity(0.3), width: 1),
-            ),
-            child: Text(
-              ticker,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: color.withOpacity(0.9),
+              child: Text(
+                ticker,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: color.withOpacity(0.9),
+                ),
               ),
             ),
           );

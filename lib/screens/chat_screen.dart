@@ -30,6 +30,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isTyping = false;
   bool _loadingHistory = false;
   bool _loadingConversations = false;
+  bool _showScrollToBottom = false;
   
   String? _currentConversationId;
   String? _currentTaskId;
@@ -61,6 +62,33 @@ class _ChatScreenState extends State<ChatScreen> {
     
     _loadConversations();
     _loadChatHistory();
+    
+    // Listen to scroll position to show/hide scroll-to-bottom button
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    // Show button when scrolled up more than 200px from bottom
+    final shouldShow = (maxScroll - currentScroll) > 200;
+    
+    if (shouldShow != _showScrollToBottom) {
+      setState(() {
+        _showScrollToBottom = shouldShow;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _controller.dispose();
+    _tickerController.dispose();
+    super.dispose();
   }
 
   @override
@@ -477,9 +505,22 @@ class _ChatScreenState extends State<ChatScreen> {
                             return _buildMessage(index, _messages[index]);
                           },
                         ),
-                  // Only show scroll button when not at bottom
-                  // This needs a listener to be reactive, but simple check in build works for initial render
-                  // Usually done with NotificationListener.
+                  // Scroll-to-bottom button (Viber style)
+                  if (_showScrollToBottom)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: FloatingActionButton.small(
+                        onPressed: _scrollToBottom,
+                        backgroundColor: const Color(0xFF8E2DE2),
+                        elevation: 4,
+                        child: const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ), ],

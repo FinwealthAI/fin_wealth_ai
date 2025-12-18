@@ -67,35 +67,46 @@ class InvestmentOpportunitiesRepository {
     return null;
   }
   Future<List<dynamic>> fetchStrategyDetails(String name) async {
+    print('[DEBUG] fetchStrategyDetails called with name: "$name"');
+    
     // Try System Screener First
     try {
       // Correct path: filter-stock/api/v1/system-screener/results/
       final resp = await dio.get('/filter-stock/api/v1/system-screener/results/', queryParameters: {'name': name});
+      print('[DEBUG] System Screener Response status: ${resp.statusCode}');
+      print('[DEBUG] System Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
-           return firstSet['tickers'] as List<dynamic>? ?? [];
+           final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
+           print('[DEBUG] System Screener found ${tickers.length} tickers');
+           return tickers;
         }
       }
-    } catch (_) {
-      // Ignore
+    } catch (e) {
+      print('[DEBUG] System Screener error: $e');
     }
 
     // Fallback: User Screener
     try {
       final resp = await dio.get('/filter-stock/api/v1/user-screener/results/', queryParameters: {'name': name});
+      print('[DEBUG] User Screener Response status: ${resp.statusCode}');
+      print('[DEBUG] User Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
-           return firstSet['tickers'] as List<dynamic>? ?? [];
+           final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
+           print('[DEBUG] User Screener found ${tickers.length} tickers');
+           return tickers;
         }
       }
-    } catch (_) {
-       // Ignore
+    } catch (e) {
+       print('[DEBUG] User Screener error: $e');
     }
     
+    print('[DEBUG] No tickers found for strategy: "$name"');
     return [];
   }
 }

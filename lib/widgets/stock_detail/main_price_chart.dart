@@ -339,9 +339,81 @@ class _MainPriceChartState extends State<MainPriceChart> {
                 ),
               ),
             ),
+            // Legend
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                // Support line
+                if (support != null)
+                  _buildLegendItem(
+                    color: Colors.green,
+                    label: 'Hỗ trợ',
+                    isDashed: true,
+                  ),
+                // Resistance line
+                if (resistance != null)
+                  _buildLegendItem(
+                    color: Colors.red,
+                    label: 'Kháng cự',
+                    isDashed: true,
+                  ),
+                // Valuation line
+                if (avgValuation != null)
+                  _buildLegendItem(
+                    color: Colors.orange,
+                    label: 'Định giá TB',
+                    isDashed: true,
+                  ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLegendItem({
+    required Color color,
+    required String label,
+    required bool isDashed,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 3,
+          decoration: BoxDecoration(
+            color: isDashed ? Colors.transparent : color,
+            border: isDashed
+                ? Border(
+                    bottom: BorderSide(
+                      color: color,
+                      width: 2,
+                      style: BorderStyle.solid,
+                    ),
+                  )
+                : null,
+          ),
+          child: isDashed
+              ? CustomPaint(
+                  painter: _DashedLinePainter(color: color),
+                )
+              : null,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -365,4 +437,35 @@ class _MainPriceChartState extends State<MainPriceChart> {
     }
     return spots;
   }
+}
+
+/// Custom painter for drawing dashed lines in legend
+class _DashedLinePainter extends CustomPainter {
+  final Color color;
+
+  _DashedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 4.0;
+    const dashSpace = 2.0;
+    double startX = 0;
+
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, size.height / 2),
+        Offset(startX + dashWidth, size.height / 2),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
