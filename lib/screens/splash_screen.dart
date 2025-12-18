@@ -103,9 +103,9 @@ class _SplashScreenState extends State<SplashScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                theme.colorScheme.primary,
-                theme.colorScheme.secondary.withOpacity(0.8),
-                theme.colorScheme.surface,
+                Colors.deepPurple.shade900, // Tím đậm ở trên
+                Colors.purple.shade800,     // Chuyển sang tím vừa
+                Colors.deepPurple.shade900, // Kết thúc vẫn là tím đậm (thay vì trắng)
               ],
             ),
           ),
@@ -120,70 +120,45 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo - tròn mượt mà
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 20,
-                                spreadRadius: 2,
+                        // Stack để xếp chồng Loading bao quanh Logo
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // 1. Loading Indicator bao bên ngoài
+                            SizedBox(
+                              width: 250, // Lớn hơn logo
+                              height: 250,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white.withOpacity(0.5),
+                                ),
                               ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/images/logo.jpg',
-                              fit: BoxFit.cover,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // App Name
-                        Text(
-                          'FinWealth',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 1.2,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                            
+                            // 2. Logo ở giữa
+                            Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Tagline
-                        Text(
-                          'AI-Smart Wealth Insight',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.9),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 48),
-
-                        // Loading indicator
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white.withOpacity(0.9),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/logo.jpg',
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

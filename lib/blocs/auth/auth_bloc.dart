@@ -30,8 +30,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final userData = await authRepository.tryAutoLogin();
     if (userData != null) {
       emit(AuthSuccess(userData: userData));
+    } else {
+      // FIX: Emit Failure để Splash Screen biết đường chuyển sang Login
+      emit(const AuthFailure(error: "Not logged in"));
     }
-    // Nếu null thì giữ nguyên state (AuthInitial) -> LoginScreen sẽ hiển thị
   }
 
   Future<void> _onLoginEvent(LoginEvent event, Emitter<AuthState> emit) async {
