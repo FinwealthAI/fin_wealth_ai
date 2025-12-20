@@ -7,11 +7,13 @@ import 'package:intl/intl.dart';
 class StrategyDetailScreen extends StatefulWidget {
   final String title;
   final List<dynamic>? preloadedData; // Optional pre-loaded data from StrategyCardData
+  final int? presetId;
 
   const StrategyDetailScreen({
     super.key,
     required this.title,
     this.preloadedData,
+    this.presetId,
   });
 
   @override
@@ -85,7 +87,17 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
   Future<void> _fetchData() async {
     try {
       final repo = context.read<InvestmentOpportunitiesRepository>();
-      final results = await repo.fetchStrategyDetails(widget.title);
+      List<dynamic> results = [];
+      
+      // Try fetching by ID first if available
+      if (widget.presetId != null) {
+         results = await repo.fetchStrategyDetailsById(widget.presetId!);
+      }
+      
+      // Fallback to name-based fetch if ID failed or not provided
+      if (results.isEmpty) {
+         results = await repo.fetchStrategyDetails(widget.title);
+      }
 
       if (mounted) {
         setState(() {

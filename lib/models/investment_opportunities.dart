@@ -193,6 +193,11 @@ class StrategyCardData {
   final bool isFollowing;
   final int tickerCount;
   final List<String> filterCriteria;
+  final String? author;
+  final String? riskLevel;
+  final String? investPeriod;
+  final List<String> targetInvestor;
+  final int followerCount;
 
   StrategyCardData({
     required this.cardId,
@@ -206,9 +211,32 @@ class StrategyCardData {
     this.isFollowing = false,
     this.tickerCount = 0,
     this.filterCriteria = const [],
+    this.author,
+    this.riskLevel,
+    this.investPeriod,
+    this.targetInvestor = const [],
+    this.followerCount = 0,
   });
 
   factory StrategyCardData.fromJson(Map<String, dynamic> json) {
+    // Parse target_investor which might be a JSON string or List
+    List<String> parsedTargetInvestor = [];
+    final rawTarget = json['target_investor'];
+    if (rawTarget is List) {
+      parsedTargetInvestor = rawTarget.map((e) => e.toString()).toList();
+    } else if (rawTarget is String) {
+        // Simple clean up for string representation of list "['a', 'b']"
+        // This is a basic parser, similar to web JS logic
+        try {
+           parsedTargetInvestor = rawTarget
+               .replaceAll(RegExp(r"[\[\]']"), '')
+               .split(',')
+               .map((e) => e.trim())
+               .where((e) => e.isNotEmpty)
+               .toList();
+        } catch (_) {}
+    }
+
     return StrategyCardData(
       cardId: json['card_id'] as String? ?? '',
       presetId: json['preset_id'] as int? ?? 0,
@@ -221,6 +249,11 @@ class StrategyCardData {
       isFollowing: json['is_following'] as bool? ?? false,
       tickerCount: json['ticker_count'] as int? ?? 0,
       filterCriteria: (json['filter_criteria'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      author: json['owner'] as String?, // Assuming API sends 'owner'
+      riskLevel: json['risk_level'] as String?,
+      investPeriod: json['invest_period'] as String?,
+      targetInvestor: parsedTargetInvestor,
+      followerCount: json['followers_count'] as int? ?? 0, 
     );
   }
 }

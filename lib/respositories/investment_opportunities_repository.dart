@@ -109,6 +109,54 @@ class InvestmentOpportunitiesRepository {
     print('[DEBUG] No tickers found for strategy: "$name"');
     return [];
   }
+
+  Future<List<dynamic>> fetchStrategyDetailsById(int id) async {
+    try {
+      // Use marketplace endpoint with ID and full_data=true
+      // querying both 'community' (public) and 'following' (system/private) implies we might need to know the tab
+      // But filtering by ID is specific. 'community' tab often includes public ones.
+      // Let's try 'community' first as it's for public/marketplace strategies.
+      final resp = await dio.get(
+        '/filter-stock/api/v1/marketplace/results/',
+        queryParameters: {'id': id, 'tab': 'community', 'full_data': 'true'},
+      );
+      
+      if (resp.statusCode == 200) {
+        final data = resp.data;
+        if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
+           final strategyData = data['results'][0]; // The strategy object
+           // The ticker list is usually in 'data' field or 'tickers'
+           // StrategyCardService.get_card_data usually puts tickers in 'data' for charts, or we might need to check.
+           // However based on 'StrategyCardData.fromJson', it maps 'data' from JSON.
+           return strategyData['data'] ?? [];
+        }
+      }
+    } catch (e) {
+      print('Failed to load strategy details by ID $id: $e');
+    }
+    return [];
+  }
+
+  Future<List<StrategyCardData>> fetchStrategies({required String tab}) async {
+    try {
+      final resp = await dio.get(
+        '/filter-stock/api/v1/marketplace/results/',
+        queryParameters: {'tab': tab},
+      );
+      
+      if (resp.statusCode == 200 && resp.data != null) {
+        final data = resp.data;
+        if (data is Map && data['results'] is List) {
+          return (data['results'] as List)
+              .map((e) => StrategyCardData.fromJson(e))
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Failed to load strategies for tab $tab: $e');
+    }
+    return [];
+  }
 }
 
 /// Data structure for daily market summary

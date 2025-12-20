@@ -2,6 +2,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'dart:math' as math;
 import 'package:fin_wealth/widgets/strategy_card.dart';
 import 'package:fin_wealth/widgets/strategy_card_list.dart';
+import 'package:fin_wealth/widgets/strategy_promo_card.dart';
 import 'package:fin_wealth/screens/search_stock_screen.dart';
 
 import 'package:flutter/material.dart';
@@ -29,6 +30,10 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   Future<DailySummaryData?>? _summaryFuture;
+  int _selectedTabIndex = 0; // 0: Following, 1: Community
+  List<StrategyCardData> _followingStrategies = [];
+  List<StrategyCardData> _communityStrategies = [];
+  bool _isLoadingStrategies = true;
 
   @override
   void initState() {
@@ -40,7 +45,26 @@ class _MainScreenState extends State<MainScreen> {
     final repo = context.read<InvestmentOpportunitiesRepository>();
     setState(() {
       _summaryFuture = repo.fetchDailySummary();
+      _isLoadingStrategies = true;
     });
+
+    try {
+      final results = await Future.wait([
+        repo.fetchStrategies(tab: 'following'),
+        repo.fetchStrategies(tab: 'community'),
+      ]);
+      
+      if (mounted) {
+        setState(() {
+          _followingStrategies = results[0];
+          _communityStrategies = results[1];
+          _isLoadingStrategies = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching strategies: $e');
+      if (mounted) setState(() => _isLoadingStrategies = false);
+    }
   }
 
   @override
@@ -132,11 +156,11 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 12),
                     ],
 
-                    // --- Strategy Cards (New Dynamic Dashboard) ---
-                    if (summaryData != null && summaryData.strategyCards.isNotEmpty)
-                       StrategyCardList(
-                         strategyCards: summaryData.strategyCards,
-                       ),
+                    // --- Strategy Tabs & List ---
+                    const SizedBox(height: 24),
+                    _buildStrategyTabs(theme),
+                    const SizedBox(height: 16),
+                    _buildSelectedStrategyList(),
                   ],
                 ),
               );
@@ -144,6 +168,97 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
       ),
+    );
+  }
+  Widget _buildStrategyTabs(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(25),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          _buildTabItem(theme, 'Đã theo dõi', 0),
+          _buildTabItem(theme, 'Cộng đồng', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem(ThemeData theme, String title, int index) {
+    final isSelected = _selectedTabIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTabIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(21),
+            boxShadow: isSelected 
+                ? [BoxShadow(color: theme.colorScheme.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedStrategyList() {
+    if (_isLoadingStrategies) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: CircularProgressIndicator(),
+      ));
+    }
+
+    final list = _selectedTabIndex == 0 ? _followingStrategies : _communityStrategies;
+
+    if (list.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            children: [
+              Icon(Icons.folder_open, size: 48, color: Colors.grey.withOpacity(0.5)),
+              const SizedBox(height: 8),
+              Text(
+                'Chưa có dữ liệu',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      itemCount: list.length,
+      separatorBuilder: (ctx, i) => const SizedBox(height: 16),
+      itemBuilder: (ctx, i) {
+        if (_selectedTabIndex == 1) { // Community / Promo Tab
+           return StrategyPromoCard(
+             data: list[i],
+             width: double.infinity,
+           );
+        }
+        return StrategyCard(
+          data: list[i],
+          width: double.infinity,
+        );
+      },
     );
   }
 }
