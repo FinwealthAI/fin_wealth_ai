@@ -36,15 +36,28 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
   }
 
   void _loadData() {
-    // If preloaded data is available, use it directly
+    // If preloaded data is available, show it first (cache first)
     if (widget.preloadedData != null && widget.preloadedData!.isNotEmpty) {
-      // Transform and GROUP preloadedData by ticker
-      // The preloadedData from StrategyCardData.data has format: [{ticker: 'ABC', date: '...', value: X}, ...]
-      // We need to group by ticker: [{symbol: 'ABC', criteria_values: {merged values}}, ...]
-      
+       setState(() {
+         _results = _transformData(widget.preloadedData!);
+         _isLoading = false;
+       });
+    }
+    
+    // If we have an ID, always try to fetch fresh/full data to ensure we have everything
+    if (widget.presetId != null) {
+      _fetchData();
+    } else if (widget.preloadedData == null || widget.preloadedData!.isEmpty) {
+      // Only fetch if no preloaded data and no ID (fallback to title)
+      // Actually if no ID and no preloaded, likely title fetch is needed.
+      _fetchData();
+    }
+  }
+
+  List<dynamic> _transformData(List<dynamic> rawData) {
       final Map<String, Map<String, dynamic>> groupedData = {};
       
-      for (final item in widget.preloadedData!) {
+      for (final item in rawData) {
         if (item is Map<String, dynamic>) {
           final symbol = (item['ticker'] ?? item['symbol'] ?? item['label'] ?? '').toString();
           if (symbol.isEmpty) continue;
@@ -66,22 +79,12 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
       }
       
       // Convert grouped data to list format
-      final transformedData = groupedData.entries.map((entry) {
+      return groupedData.entries.map((entry) {
         return {
           'symbol': entry.key,
           'criteria_values': entry.value,
         };
       }).toList();
-      
-      setState(() {
-        _results = transformedData;
-        _isLoading = false;
-      });
-      print('[DEBUG] Using preloaded data: ${widget.preloadedData!.length} items → grouped into ${_results.length} tickers');
-    } else {
-      // Fallback to API call if no preloaded data
-      _fetchData();
-    }
   }
 
   Future<void> _fetchData() async {
@@ -94,21 +97,33 @@ class _StrategyDetailScreenState extends State<StrategyDetailScreen> {
          results = await repo.fetchStrategyDetailsById(widget.presetId!);
       }
       
-      // Fallback to name-based fetch if ID failed or not provided
-      if (results.isEmpty) {
+      // Fallback to name-based fetch if ID failed or not provided and we don't have results yet
+      if (results.isEmpty && widget.presetId == null) {
          results = await repo.fetchStrategyDetails(widget.title);
       }
-
-      if (mounted) {
+      
+      // If we got results (either from ID or name), assume they are RAW and need transformation
+      // UNLESS fetchStrategyDetails (name-based) already returns simple list of tickers (it does return List<dynamic> tickers?).
+      // Repo `fetchStrategyDetails` returns `tweets` (tickers list? or full objects?).
+      // Checked Repo: name-based returns `tickers` (List<dynamic>).
+      // `fetchStrategyDetailsById` returns `strategyData['data']`.
+      
+      if (mounted && results.isNotEmpty) {
         setState(() {
-          _results = results;
+          _results = _transformData(results);
           _isLoading = false;
         });
+      } else if (mounted && _results.isEmpty) {
+         // Nothing found and no preloaded data
+         setState(() => _isLoading = false);
       }
     } catch (e) {
+      print('Error fetching details: $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          // don't overwrite error if we already showing preloaded data?
+          // just show snackbar? or overwrite?
+          if (_results.isEmpty) _error = e.toString();
           _isLoading = false;
         });
       }
