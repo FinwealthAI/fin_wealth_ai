@@ -10,6 +10,7 @@ import 'package:fin_wealth/screens/sign_up_screen.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/screens/blog_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -357,6 +358,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text(
                             'Chưa có tài khoản? Đăng ký ngay',
                             style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const Divider(),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const BlogScreen()),
+                            );
+                          },
+                          icon: Icon(Icons.article_outlined, color: theme.colorScheme.primary),
+                          label: Text(
+                            'Xem Blog đầu tư (Không cần đăng nhập)',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
 

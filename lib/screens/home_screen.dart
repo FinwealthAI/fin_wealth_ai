@@ -15,6 +15,7 @@ import 'watchlist_screen.dart';
 import 'profile_screen.dart';
 import 'report_viewer_screen.dart';
 import 'investment_profile_screen.dart';
+import 'blog_screen.dart';
 
 class HomeScreenMultiNav extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -34,10 +35,12 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   final _stocksNavKey = GlobalKey<NavigatorState>();
   final _watchlistNavKey = GlobalKey<NavigatorState>();
   final _chatNavKey = GlobalKey<NavigatorState>();
+  final _blogNavKey = GlobalKey<NavigatorState>();
 
   List<GlobalKey<NavigatorState>> get _navKeys => [
         _opportunitiesNavKey,
         _stocksNavKey,
+        _blogNavKey,
         _chatNavKey,
         _reportsNavKey,
       ];
@@ -86,7 +89,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   void _handleAskAI(String ticker) {
     setState(() {
       _chatInitialMessage = ticker;
-      _currentIndex = 2; // Switch to Chat tab (index 2)
+      _currentIndex = 3; // Switch to Chat tab (index 3)
     });
     
     // Reset message after a short delay to allow re-triggering for same ticker if needed
@@ -221,6 +224,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                         },
                       ),
                       const Divider(height: 1),
+                      const Divider(height: 1),
                       ListTile(
                         leading: Icon(Icons.person, color: theme.colorScheme.primary),
                         title: Text(
@@ -263,6 +267,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
             _buildTabNavigator(
               navKey: _stocksNavKey,
               builder: (_) => SearchStockScreen(ticker: 'FPT'),
+            ),
+            _buildTabNavigator(
+              navKey: _blogNavKey,
+              builder: (_) => const BlogScreen(),
             ),
             _buildTabNavigator(
               navKey: _chatNavKey,
@@ -317,6 +325,11 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                 icon: Icon(Icons.search_rounded, size: 22),
                 activeIcon: Icon(Icons.search, size: 22),
                 label: 'Cổ phiếu',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.article_outlined, size: 22),
+                activeIcon: Icon(Icons.article, size: 22),
+                label: 'Blog',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.chat_bubble_outline_rounded, size: 22),

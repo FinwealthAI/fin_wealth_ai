@@ -44,26 +44,27 @@ class InvestmentOpportunitiesRepository {
       final resp = await dio.get(ApiConfig.unlockWealth);
       if (resp.statusCode == 401) return null;
       
-      if (resp.statusCode == 200 && resp.data != null && resp.data['success'] == true) {
-        final data = resp.data['data'];
-        if (data != null && data is Map<String, dynamic>) {
-          // Flatten data: merge daily_summary + homepage_charts
-          final flattened = <String, dynamic>{};
-          
-          if (data['daily_summary'] != null && data['daily_summary'] is Map<String, dynamic>) {
-            flattened.addAll(data['daily_summary']);
-          }
-          
-          if (data['homepage_charts'] != null) {
-            flattened['homepage_charts'] = data['homepage_charts'];
-          }
+      if (resp.statusCode == 200 && resp.data != null) {
+        final Map<String, dynamic> data = (resp.data is Map && resp.data['success'] == true) 
+            ? (resp.data['data'] as Map<String, dynamic>) 
+            : (resp.data as Map<String, dynamic>);
+            
+        // Flatten data: merge daily_summary + homepage_charts
+        final flattened = <String, dynamic>{};
+        
+        if (data['daily_summary'] != null && data['daily_summary'] is Map<String, dynamic>) {
+          flattened.addAll(data['daily_summary'] as Map<String, dynamic>);
+        }
+        
+        if (data['homepage_charts'] != null) {
+          flattened['homepage_charts'] = data['homepage_charts'];
+        }
           
           return DailySummaryData.fromJson(flattened);
         }
+      } catch (e) {
+        print('Failed to load daily summary: $e');
       }
-    } catch (e) {
-      print('Failed to load daily summary: $e');
-    }
     return null;
   }
   Future<List<dynamic>> fetchStrategyDetails(String name) async {
@@ -117,7 +118,7 @@ class InvestmentOpportunitiesRepository {
       // But filtering by ID is specific. 'community' tab often includes public ones.
       // Let's try 'community' first as it's for public/marketplace strategies.
       final resp = await dio.get(
-        '/filter-stock/api/v1/marketplace/results/',
+        ApiConfig.marketplaceResults,
         queryParameters: {'id': id, 'tab': 'community', 'full_data': 'true'},
       );
       
@@ -140,7 +141,7 @@ class InvestmentOpportunitiesRepository {
   Future<List<StrategyCardData>> fetchStrategies({required String tab}) async {
     try {
       final resp = await dio.get(
-        '/filter-stock/api/v1/marketplace/results/',
+        ApiConfig.marketplaceResults,
         queryParameters: {'tab': tab},
       );
       

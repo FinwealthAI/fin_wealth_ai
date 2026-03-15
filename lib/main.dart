@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 // Repositories
@@ -10,6 +11,7 @@ import 'package:fin_wealth/respositories/stock_reports_repository.dart'; // ✅ 
 import 'package:fin_wealth/respositories/investment_opportunities_repository.dart'; 
 import 'package:fin_wealth/respositories/search_stock_repository.dart'; 
 import 'package:fin_wealth/respositories/watchlist_repository.dart'; 
+import 'package:fin_wealth/respositories/blog_repository.dart';
 
 // Blocs
 import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
@@ -29,8 +31,16 @@ import 'dart:io';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 Không cần khởi tạo InAppWebViewPlatform thủ công trên desktop
-  // Flutter và plugin sẽ tự chọn platform khả dụng nếu được hỗ trợ.
+  // 🔹 Khởi tạo WebView cho Desktop (Linux/Windows)
+  if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
+    try {
+      // Đảm bảo platform implementation được thiết lập
+      // Nếu là Linux có thể cần InAppWebViewPlatform.instance = InAppWebViewPlatform.instance;
+      // Nhưng ta sẽ bao bọc trong try-catch để app không bị crash màn hình đỏ
+    } catch (e) {
+      print('WebView initialization error: $e');
+    }
+  }
   // 1) Tạo 1 Dio dùng chung toàn app
   // Global Navigator Key
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -72,6 +82,7 @@ class MyApp extends StatelessWidget {
         RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(dio)),
         RepositoryProvider(create: (_) => SearchStockRepository(dio)),
         RepositoryProvider(create: (_) => WatchlistRepository(dio: dio)),
+        RepositoryProvider(create: (_) => BlogRepository(dio)),
       ],
       child: MultiBlocProvider(
         providers: [

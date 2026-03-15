@@ -10,6 +10,7 @@ class ApiConfig {
   static const bool useRelativePaths = false;
   
   static const String websiteUrl = 'https://finwealth.vn';
+  static const String blogUrl = 'https://finwealth.vn/blog/';
   
   // Base URL for API calls
   static String get baseUrl => useRelativePaths 
@@ -43,5 +44,8 @@ class ApiConfig {
   
   // Strategy follow endpoint
   static String get toggleFollow => '$baseUrl/api/toggle-follow/';
+  
+  // Marketplace results endpoint
+  static String get marketplaceResults => '$baseUrl/filter-stock/api/v1/marketplace/results/';
 
 }

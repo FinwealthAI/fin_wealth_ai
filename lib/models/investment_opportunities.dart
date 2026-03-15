@@ -249,9 +249,9 @@ class StrategyCardData {
       isFollowing: json['is_following'] as bool? ?? false,
       tickerCount: json['ticker_count'] as int? ?? 0,
       filterCriteria: (json['filter_criteria'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      author: json['owner'] as String?, // Assuming API sends 'owner'
+      author: json['owner_name'] as String? ?? json['owner'] as String?, 
       riskLevel: json['risk_level'] as String?,
-      investPeriod: json['invest_period'] as String?,
+      investPeriod: json['investment_period'] as String? ?? json['invest_period'] as String?,
       targetInvestor: parsedTargetInvestor,
       followerCount: json['followers_count'] as int? ?? 0, 
     );
