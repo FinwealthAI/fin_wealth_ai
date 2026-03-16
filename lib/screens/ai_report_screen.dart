@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:fin_wealth/utils/url_handler.dart';
 
 class AiReportScreen extends StatefulWidget {
   final String ticker;
@@ -86,7 +86,7 @@ class _AiReportScreenState extends State<AiReportScreen> {
             child: Html(
               data: html,
               onLinkTap: (url, attributes, element) {
-                if (url != null) _launchURL(url);
+                UrlHandler.openUrl(context, url);
               },
               style: {
                 "body": Style(
@@ -159,14 +159,4 @@ class _AiReportScreenState extends State<AiReportScreen> {
     }
   }
 
-  Future<void> _launchURL(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể mở liên kết: $url')),
-      );
-    }
-  }
 }

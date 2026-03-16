@@ -19,6 +19,8 @@ import 'package:fin_wealth/models/stock_reports.dart';
 import 'package:fin_wealth/respositories/search_stock_repository.dart';
 import 'package:fin_wealth/screens/ai_report_screen.dart';
 
+import 'package:fin_wealth/utils/url_handler.dart';
+
 class MainScreen extends StatefulWidget {
   final Function(String ticker)? onAskAI;
 
@@ -404,6 +406,9 @@ class _AISummaryCardState extends State<_AISummaryCard> {
               heightFactor: _isExpanded ? 1.0 : 0.25,
               child: Html(
                 data: widget.summary,
+                onLinkTap: (url, _, __) {
+                  UrlHandler.openUrl(context, url);
+                },
                 style: {
                   "body": Style(
                     fontSize: FontSize(14),

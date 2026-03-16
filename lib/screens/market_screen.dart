@@ -135,6 +135,7 @@ class MarketScreen extends StatelessWidget {
                             ],
                           ),
                           subtitle: TextParser.buildRichText(
+                            context,
                             report.content,
                             baseStyle: TextStyle(
                               color: theme.colorScheme.onSurface.withOpacity(0.7),

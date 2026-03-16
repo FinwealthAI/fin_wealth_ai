@@ -8,14 +8,21 @@ class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development
   static const bool useRelativePaths = false;
+
+  // Toggle this to use local backend instead of production
+  static const bool useLocalBackend = true;
   
-  static const String websiteUrl = 'https://finwealth.vn';
-  static const String blogUrl = 'https://finwealth.vn/blog/';
+  static const String _productionUrl = 'https://finwealth.vn';
+  static const String _localUrl = 'http://localhost:8000';
+  
+  static String get websiteUrl => useLocalBackend ? _localUrl : _productionUrl;
+  static String get blogUrl => '$websiteUrl/blog/';
   
   // Base URL for API calls
-  static String get baseUrl => useRelativePaths 
-      ? '' // Relative path - same origin, no CORS
-      : 'https://finwealth.vn'; // Absolute URL for development
+  static String get baseUrl {
+    if (useLocalBackend) return _localUrl;
+    return useRelativePaths ? '' : _productionUrl;
+  }
   
   // Specific endpoints
   static String get mobileApi => '$baseUrl/mobile/api';

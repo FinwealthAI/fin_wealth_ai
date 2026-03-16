@@ -91,7 +91,13 @@ class _SplashScreenState extends State<SplashScreen>
           if (state is AuthSuccess) {
             _navigateToHome(state.userData);
           } else if (state is AuthInitial || state is AuthFailure) {
-            _navigateToLogin();
+            // Thay vì ép login, ta cho vào Home với tư cách khách (Guest)
+            // để người dùng xem được Blog và Dashboard cơ bản.
+            _navigateToHome({
+              'username': 'Guest',
+              'avatar': null,
+              'is_guest': true,
+            });
           }
           // AuthLoading -> không làm gì, chờ tiếp
         });

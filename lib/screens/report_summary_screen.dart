@@ -3,6 +3,7 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/respositories/stock_reports_repository.dart';
 import 'package:fin_wealth/models/stock_reports.dart';
+import 'package:fin_wealth/utils/url_handler.dart';
 
 class ReportSummaryScreen extends StatefulWidget {
   const ReportSummaryScreen({
@@ -145,7 +146,12 @@ class _ReportSummaryScreenState extends State<ReportSummaryScreen> {
                     ],
                   ),
                   const Divider(height: 24),
-                  Html(data: html), // render nội dung tóm tắt
+                  Html(
+                    data: html,
+                    onLinkTap: (url, _, __) {
+                      UrlHandler.openUrl(context, url);
+                    },
+                  ), // render nội dung tóm tắt
                 ],
               ),
             ),

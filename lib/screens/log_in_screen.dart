@@ -363,6 +363,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Divider(),
                         TextButton.icon(
                           onPressed: () {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const HomeScreenMultiNav(userData: {
+                                  'username': 'Guest',
+                                  'avatar': null,
+                                  'is_guest': true,
+                                }),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                          icon: Icon(Icons.dashboard_outlined, color: theme.colorScheme.primary),
+                          label: Text(
+                            'Tiếp tục mà không đăng nhập',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const Divider(),
+                        TextButton.icon(
+                          onPressed: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const BlogScreen()),
@@ -370,7 +393,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                           icon: Icon(Icons.article_outlined, color: theme.colorScheme.primary),
                           label: Text(
-                            'Xem Blog đầu tư (Không cần đăng nhập)',
+                            'Xem Blog đầu tư',
                             style: TextStyle(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.bold,

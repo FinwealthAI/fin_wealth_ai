@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 
+import 'package:fin_wealth/utils/url_handler.dart';
+
 class TextParser {
   static List<TextSpan> parseMixedText(String text) {
     final List<TextSpan> spans = [];
@@ -65,11 +67,14 @@ class TextParser {
     return spans;
   }
 
-  static Widget buildRichText(String text, {TextStyle? baseStyle}) {
+  static Widget buildRichText(BuildContext context, String text, {TextStyle? baseStyle}) {
     // Nếu chuỗi có chứa HTML phức tạp (thẻ <table>, <tr>, <td>, <th>, <p>, ...)
     if (_containsComplexHtml(text)) {
       return Html(
         data: text,
+        onLinkTap: (url, _, __) {
+          UrlHandler.openUrl(context, url);
+        },
         style: {
           "table": Style(
             border: const Border.fromBorderSide(BorderSide(color: Colors.black26)),
@@ -89,7 +94,6 @@ class TextParser {
             alignment: Alignment.centerLeft,
           ),
         },
-
       );
     }
     final spans = parseMixedText(text);

@@ -42,24 +42,31 @@ class BlogRepository {
             String categoryName = catElement?.text.trim() ?? '';
             String categoryIcon = catElement?.querySelector('i')?.attributes['class'] ?? '';
 
-            // Author & Date
+            // Author & Views
             var metaDivision = element.querySelector('.blog-card-meta');
-            var metaItems = metaDivision?.querySelectorAll('small.text-muted') ?? [];
             
-            String authorName = '';
-            String publishedAt = '';
-            int viewsCount = 0;
+            // Author Name
+            String authorName = metaDivision?.querySelector('.d-flex.align-items-center .text-muted.small')?.text.trim() ?? 'FinWealth';
+            
+            // Author Avatar
+            String? authorAvatarUrl;
+            var avatarImg = metaDivision?.querySelector('img.blog-author-avatar-sm');
+            if (avatarImg != null) {
+              String avatarSrc = avatarImg.attributes['src'] ?? '';
+              authorAvatarUrl = avatarSrc.startsWith('http') ? avatarSrc : '${ApiConfig.websiteUrl}$avatarSrc';
+            }
 
-            if (metaItems.isNotEmpty) {
-              authorName = metaItems[0].text.trim();
-            }
-            if (metaItems.length >= 2) {
-              publishedAt = metaItems[1].text.trim();
-            }
-            if (metaItems.length >= 3) {
-              String viewsText = metaItems[2].text.trim();
+            // Views Count
+            int viewsCount = 0;
+            var viewsElement = metaDivision?.querySelector('.text-muted.small:last-child');
+            if (viewsElement != null) {
+              String viewsText = viewsElement.text.trim();
               viewsCount = int.tryParse(viewsText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
             }
+
+            // Published date is not explicitly in the new compact layout yet, but could be added
+            // For now, keep it empty or use viewsCount as placeholder if needed
+            String publishedAt = "";
 
             posts.add(BlogPost(
               title: title,
@@ -69,6 +76,7 @@ class BlogRepository {
               categoryName: categoryName,
               categoryIcon: categoryIcon,
               authorName: authorName,
+              authorAvatarUrl: authorAvatarUrl,
               publishedAt: publishedAt,
               viewsCount: viewsCount,
             ));

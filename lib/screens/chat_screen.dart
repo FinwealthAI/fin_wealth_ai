@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../services/chat_history_service.dart';
 import '../respositories/auth_repository.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:fin_wealth/utils/url_handler.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -60,8 +61,15 @@ class _ChatScreenState extends State<ChatScreen> {
       _controller.text = widget.initialMessage!;
     }
     
-    _loadConversations();
-    _loadChatHistory();
+    if (widget.userData['is_guest'] == true) {
+      setState(() {
+        _loadingConversations = false;
+        _loadingHistory = false;
+      });
+    } else {
+      _loadConversations();
+      _loadChatHistory();
+    }
     
     // Listen to scroll position to show/hide scroll-to-bottom button
     _scrollController.addListener(_onScroll);
@@ -816,6 +824,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   child: Html(
                     data: _markdownToHtml(msg['content'] ?? ''),
+                    onLinkTap: (url, _, __) {
+                      UrlHandler.openUrl(context, url);
+                    },
                     style: {
                       "body": Style(
                         margin: Margins.zero,
