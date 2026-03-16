@@ -217,6 +217,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendMessage() async {
+    if (widget.userData['is_guest'] == true) {
+      _showLoginPrompt();
+      return;
+    }
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
@@ -377,6 +381,29 @@ class _ChatScreenState extends State<ChatScreen> {
         SnackBar(content: Text('Lỗi gửi đánh giá: $e')),
       );
     }
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _copyMessage(String content) {

@@ -14,7 +14,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 
 class StockReportsScreen extends StatefulWidget {
-  const StockReportsScreen({super.key});
+  final bool isGuest;
+  const StockReportsScreen({super.key, this.isGuest = false});
   @override
   State<StockReportsScreen> createState() => _StockReportsScreenState();
 }
@@ -51,10 +52,37 @@ class _StockReportsScreenState extends State<StockReportsScreen> {
   }
 
   void _doSearch() {
+    if (widget.isGuest) {
+      _showLoginPrompt(context);
+      return;
+    }
     _bloc.add(StockReportsInitialLoad(
       stock: _searchCtrl.text.trim().toUpperCase(),
       sourceId: _selectedSource,
     ));
+  }
+
+  void _showLoginPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showSummaryDialog(BuildContext context, StockReport report) async {
@@ -307,6 +335,7 @@ class _StockReportsScreenState extends State<StockReportsScreen> {
                         final r = items[i];
                         return _ReportRow(
                           report: r,
+                          isGuest: widget.isGuest,
                           onSummary: () => _showSummaryDialog(context, r), // 🔹 gọi tóm tắt
                         );
                       },
@@ -323,9 +352,10 @@ class _StockReportsScreenState extends State<StockReportsScreen> {
 }
 
 class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.report, required this.onSummary});
+  const _ReportRow({required this.report, required this.onSummary, this.isGuest = false});
   final StockReport report;
   final VoidCallback onSummary;
+  final bool isGuest;
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
@@ -413,6 +443,10 @@ class _ReportRow extends StatelessWidget {
             children: [
               FilledButton(
                 onPressed: () {
+                  if (isGuest) {
+                    _showLoginPrompt(context);
+                    return;
+                  }
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ReportSummaryScreen(report: report),
@@ -426,6 +460,10 @@ class _ReportRow extends StatelessWidget {
                 const SizedBox(height: 6),
                 OutlinedButton(
                   onPressed: () async {
+                    if (isGuest) {
+                      _showLoginPrompt(context);
+                      return;
+                    }
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ReportViewerScreen(
@@ -439,6 +477,29 @@ class _ReportRow extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLoginPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
           ),
         ],
       ),

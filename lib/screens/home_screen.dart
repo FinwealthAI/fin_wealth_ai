@@ -28,6 +28,13 @@ class HomeScreenMultiNav extends StatefulWidget {
 class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   int _currentIndex = 0;
   String? _chatInitialMessage;
+  late bool _isGuest;
+
+  @override
+  void initState() {
+    super.initState();
+    _isGuest = widget.userData['is_guest'] == true;
+  }
 
   // Navigator keys cho từng tab
   final _opportunitiesNavKey = GlobalKey<NavigatorState>();
@@ -47,7 +54,36 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
 
   NavigatorState get _currentNavigator => _navKeys[_currentIndex].currentState!;
 
-  void _onTabTapped(int index) => setState(() => _currentIndex = index);
+  void _onTabTapped(int index) {
+    if (_isGuest && index == 1) {
+      _showLoginPrompt();
+      return;
+    }
+    setState(() => _currentIndex = index);
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<bool> _onWillPop() async {
     final canPop = _currentNavigator.canPop();
@@ -63,6 +99,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   }
 
   void _openProfile() {
+    if (_isGuest) {
+      _showLoginPrompt();
+      return;
+    }
     Navigator.of(context).pop(); // đóng Drawer trước
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
@@ -74,6 +114,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
 
   /// Khi người dùng search trên AppBar
   void _handleSearchSubmit(String query) {
+    if (_isGuest) {
+      _showLoginPrompt();
+      return;
+    }
     final q = query.trim().toUpperCase();
     if (q.isEmpty) return;
 
@@ -87,13 +131,14 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   }
 
   void _handleAskAI(String ticker) {
+    if (_isGuest) {
+      _showLoginPrompt();
+      return;
+    }
     setState(() {
       _chatInitialMessage = ticker;
       _currentIndex = 3; // Switch to Chat tab (index 3)
     });
-    
-    // Reset message after a short delay to allow re-triggering for same ticker if needed
-    // But for now, let's keep it simple.
   }
 
   void _logout(BuildContext context) {
@@ -118,6 +163,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
         appBar: _SearchAppBar(
           onSubmit: _handleSearchSubmit,
           title: 'FinWealth',
+          isGuest: _isGuest,
         ),
         drawer: Drawer(
           child: Container(
@@ -195,6 +241,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                         ),
                         onTap: () {
                           Navigator.of(context).pop();
+                          if (_isGuest) {
+                            _showLoginPrompt();
+                            return;
+                          }
                           Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
                               builder: (_) => const WatchlistScreen(),
@@ -215,6 +265,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                         ),
                         onTap: () {
                           Navigator.of(context).pop();
+                          if (_isGuest) {
+                            _showLoginPrompt();
+                            return;
+                          }
                           Navigator.of(context, rootNavigator: true).push(
                             MaterialPageRoute(
                               builder: (_) => const InvestmentProfileScreen(),
@@ -238,11 +292,14 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
                       ),
                       const Divider(height: 1),
                       ListTile(
-                        leading: Icon(Icons.logout, color: Colors.redAccent),
+                        leading: Icon(
+                          _isGuest ? Icons.login : Icons.logout, 
+                          color: _isGuest ? theme.colorScheme.primary : Colors.redAccent
+                        ),
                         title: Text(
-                          'Đăng xuất',
+                          _isGuest ? 'Đăng nhập' : 'Đăng xuất',
                           style: TextStyle(
-                            color: Colors.redAccent,
+                            color: _isGuest ? theme.colorScheme.primary : Colors.redAccent,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -262,7 +319,10 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
           children: [
             _buildTabNavigator(
               navKey: _opportunitiesNavKey,
-              builder: (_) => MainScreen(onAskAI: _handleAskAI),
+              builder: (_) => MainScreen(
+                onAskAI: _handleAskAI,
+                isGuest: _isGuest,
+              ),
             ),
             _buildTabNavigator(
               navKey: _stocksNavKey,
@@ -281,7 +341,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
             ),
             _buildTabNavigator(
               navKey: _reportsNavKey,
-              builder: (_) => const StockReportsScreen(),
+              builder: (_) => StockReportsScreen(isGuest: _isGuest),
             ),
           ],
         ),
@@ -373,11 +433,13 @@ class _SearchAppBar extends StatefulWidget implements PreferredSizeWidget {
   final ValueChanged<String> onSubmit;
   final String title;
   final String? hint;
+  final bool isGuest;
 
   const _SearchAppBar({
     required this.onSubmit,
     required this.title,
     this.hint,
+    this.isGuest = false,
   });
 
   @override
@@ -419,12 +481,39 @@ class _SearchAppBarState extends State<_SearchAppBar> {
   }
 
   void _openNotiScreen() async {
+    if (widget.isGuest) {
+      _showLoginPrompt();
+      return;
+    }
     final result = await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const NotificationScreen()),
     );
     if (result == true) {
       _fetchUnread(); // Refresh unread after return
     }
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -23,8 +23,9 @@ import 'package:fin_wealth/utils/url_handler.dart';
 
 class MainScreen extends StatefulWidget {
   final Function(String ticker)? onAskAI;
+  final bool isGuest;
 
-  const MainScreen({super.key, this.onAskAI});
+  const MainScreen({super.key, this.onAskAI, this.isGuest = false});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -148,10 +149,11 @@ class _MainScreenState extends State<MainScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _ReportHighlightCard(
-                              report: report,
-                              width: double.infinity,
-                              onAskAI: widget.onAskAI,
-                            ),
+                                report: report,
+                                width: double.infinity,
+                                onAskAI: widget.onAskAI,
+                                isGuest: widget.isGuest,
+                              ),
                           );
                         }).toList(),
                       ),
@@ -490,11 +492,13 @@ class _ReportHighlightCard extends StatelessWidget {
     required this.report,
     this.width,
     this.onAskAI,
+    this.isGuest = false,
   });
 
   final ReportHighlight report;
   final double? width;
   final Function(String ticker)? onAskAI;
+  final bool isGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -620,6 +624,10 @@ class _ReportHighlightCard extends StatelessWidget {
               InkWell(
                 onTap: report.filePresigned != null
                     ? () {
+                        if (isGuest) {
+                          _showLoginPrompt(context);
+                          return;
+                        }
                         // Navigate to report viewer
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -658,6 +666,10 @@ class _ReportHighlightCard extends StatelessWidget {
               // 2. Summary
               InkWell(
                 onTap: () {
+                    if (isGuest) {
+                      _showLoginPrompt(context);
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -691,6 +703,10 @@ class _ReportHighlightCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: InkWell(
                   onTap: () {
+                     if (isGuest) {
+                       _showLoginPrompt(context);
+                       return;
+                     }
                      final tickers = report.tags.join(' ');
                      if (onAskAI != null) {
                        onAskAI!(tickers);
@@ -749,6 +765,29 @@ class _ReportHighlightCard extends StatelessWidget {
     } catch (_) {
       return date;
     }
+  }
+
+  void _showLoginPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
