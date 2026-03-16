@@ -55,9 +55,12 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
   NavigatorState get _currentNavigator => _navKeys[_currentIndex].currentState!;
 
   void _onTabTapped(int index) {
-    if (_isGuest && index == 1) {
-      _showLoginPrompt();
-      return;
+    if (index == 1) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthSuccess) {
+        _showLoginPrompt();
+        return;
+      }
     }
     setState(() => _currentIndex = index);
   }
@@ -326,7 +329,7 @@ class _HomeScreenMultiNavState extends State<HomeScreenMultiNav> {
             ),
             _buildTabNavigator(
               navKey: _stocksNavKey,
-              builder: (_) => SearchStockScreen(ticker: 'FPT'),
+              builder: (_) => SearchStockScreen(ticker: 'FPT', isGuest: _isGuest),
             ),
             _buildTabNavigator(
               navKey: _blogNavKey,

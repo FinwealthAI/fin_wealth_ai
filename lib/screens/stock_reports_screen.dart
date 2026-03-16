@@ -381,9 +381,16 @@ class _ReportRow extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () {
+              if (isGuest) {
+                _showLoginPrompt(context);
+                return;
+              }
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => SearchStockScreen(ticker: report.ticker),
+                  builder: (_) => SearchStockScreen(
+                    ticker: report.ticker,
+                    isGuest: isGuest,
+                  ),
                   settings: const RouteSettings(name: 'search_stock'),
                 ),
               );

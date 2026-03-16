@@ -8,6 +8,8 @@ import 'package:fin_wealth/screens/search_stock_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
+import 'package:fin_wealth/blocs/auth/auth_state.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/respositories/investment_opportunities_repository.dart';
 import 'package:fin_wealth/screens/report_viewer_screen.dart';
@@ -537,18 +539,35 @@ class _ReportHighlightCard extends StatelessWidget {
           Row(
             children: [
                if (report.tags.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      report.tags.first,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurfaceVariant,
+                  GestureDetector(
+                    onTap: () {
+                      if (isGuest) {
+                        _showLoginPrompt(context);
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SearchStockScreen(
+                            ticker: report.tags.first,
+                            isGuest: isGuest,
+                          ),
+                          settings: const RouteSettings(name: 'search_stock'),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        report.tags.first,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ),
@@ -839,6 +858,33 @@ class _TickerChip extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(6),
       onTap: () {
+        final authState = context.read<AuthBloc>().state;
+        if (authState is! AuthSuccess) {
+          // Find the ancestor state to call _showLoginPrompt
+          // Or we can just use a generic showDialog here if we don't have access to the method easily
+          // Since _TickerChip is likely outside the main state that has _showLoginPrompt
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Yêu cầu đăng nhập'),
+              content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+                  },
+                  child: const Text('Đăng nhập ngay'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(

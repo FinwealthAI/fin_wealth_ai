@@ -13,7 +13,8 @@ import 'package:fin_wealth/screens/chat_screen.dart';
 
 class SearchStockScreen extends StatefulWidget {
   final String ticker;
-  const SearchStockScreen({super.key, required this.ticker});
+  final bool isGuest;
+  const SearchStockScreen({super.key, required this.ticker, this.isGuest = false});
 
   @override
   State<SearchStockScreen> createState() => _SearchStockScreenState();
@@ -57,6 +58,10 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
               overviewData: overview,
               technicalData: technical,
               onChatPressed: () {
+                if (widget.isGuest) {
+                  _showLoginPrompt(context);
+                  return;
+                }
                 final authRepo = context.read<AuthRepository>();
                 showModalBottomSheet(
                   context: context,
@@ -64,9 +69,9 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
                   backgroundColor: Colors.transparent,
                   builder: (_) => Container(
                     height: MediaQuery.of(context).size.height * 0.95,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF5F6FA),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F6FA),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: ClipRRect(
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -82,7 +87,13 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
                   ),
                 );
               },
-              onReportPressed: () => _generateAiReport(context),
+              onReportPressed: () {
+                if (widget.isGuest) {
+                  _showLoginPrompt(context);
+                  return;
+                }
+                _generateAiReport(context);
+              },
             );
           },
         ),
@@ -278,6 +289,29 @@ class _SearchStockScreenState extends State<SearchStockScreen> {
   void _showError(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  void _showLoginPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
     );
   }
 }
