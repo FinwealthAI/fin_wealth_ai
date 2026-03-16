@@ -6,6 +6,8 @@ import 'package:fin_wealth/screens/strategy_detail_screen.dart';
 import 'package:fin_wealth/screens/search_stock_screen.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
+import 'package:fin_wealth/blocs/auth/auth_state.dart';
 
 class StrategyCard extends StatefulWidget {
   final StrategyCardData data;
@@ -34,6 +36,11 @@ class _StrategyCardState extends State<StrategyCard> {
   }
 
   Future<void> _toggleFollow() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthSuccess) {
+      _showLoginPrompt();
+      return;
+    }
     if (_isLoading) return;
 
     setState(() => _isLoading = true);
@@ -216,6 +223,11 @@ class _StrategyCardState extends State<StrategyCard> {
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () {
+                final authState = context.read<AuthBloc>().state;
+                if (authState is! AuthSuccess) {
+                  _showLoginPrompt();
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -283,6 +295,11 @@ class _StrategyCardState extends State<StrategyCard> {
           
           return InkWell(
             onTap: () {
+              final authState = context.read<AuthBloc>().state;
+              if (authState is! AuthSuccess) {
+                _showLoginPrompt();
+                return;
+              }
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => SearchStockScreen(ticker: ticker),
@@ -334,6 +351,29 @@ class _StrategyCardState extends State<StrategyCard> {
             ),
           ),
       ],
+    );
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
     );
   }
 }

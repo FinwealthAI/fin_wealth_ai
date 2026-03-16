@@ -5,6 +5,8 @@ import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/screens/strategy_detail_screen.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
+import 'package:fin_wealth/blocs/auth/auth_state.dart';
 
 class StrategyPromoCard extends StatefulWidget {
   final StrategyCardData data;
@@ -33,6 +35,11 @@ class _StrategyPromoCardState extends State<StrategyPromoCard> {
   }
 
   Future<void> _toggleFollow() async {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is! AuthSuccess) {
+      _showLoginPrompt();
+      return;
+    }
     if (_isLoading) return;
     setState(() => _isLoading = true);
 
@@ -84,6 +91,11 @@ class _StrategyPromoCardState extends State<StrategyPromoCard> {
   }
   
   void _viewResults() {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthSuccess) {
+        _showLoginPrompt();
+        return;
+      }
       // Navigate to detail similar to StrategyCard
       // Assuming detail screen needs title + preloadedData (even if empty initially?)
       // Actually StrategyDetailScreen usually does its own fetch or uses passed data.
@@ -267,6 +279,29 @@ class _StrategyPromoCardState extends State<StrategyPromoCard> {
       child: Text(
         text,
         style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
       ),
     );
   }

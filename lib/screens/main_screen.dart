@@ -43,6 +43,10 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    // Default to 'Community' (index 1) for guests
+    if (widget.isGuest) {
+      _selectedTabIndex = 1;
+    }
     _refreshData();
   }
 
@@ -196,7 +200,13 @@ class _MainScreenState extends State<MainScreen> {
     final isSelected = _selectedTabIndex == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTabIndex = index),
+        onTap: () {
+          if (index == 0 && widget.isGuest) {
+            _showLoginPrompt();
+            return;
+          }
+          setState(() => _selectedTabIndex = index);
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
@@ -265,6 +275,29 @@ class _MainScreenState extends State<MainScreen> {
           width: double.infinity,
         );
       },
+    );
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Để sử dụng tính năng này, vui lòng đăng nhập vào tài khoản của bạn.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập ngay'),
+          ),
+        ],
+      ),
     );
   }
 }
