@@ -10,7 +10,7 @@ class ApiConfig {
   static const bool useRelativePaths = false;
 
   // Toggle this to use local backend instead of production
-  static const bool useLocalBackend = true;
+  static const bool useLocalBackend = false;
   
   static const String _productionUrl = 'https://finwealth.vn';
   static const String _localUrl = 'http://localhost:8000';
