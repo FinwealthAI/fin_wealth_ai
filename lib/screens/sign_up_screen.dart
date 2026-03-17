@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fin_wealth/screens/home_screen.dart';
+import 'package:fin_wealth/config/api_config.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -15,11 +17,14 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
+    serverClientId: kIsWeb ? null : ApiConfig.googleServerClientId,
+    clientId: kIsWeb ? ApiConfig.googleServerClientId : null,
   );
   
   bool _isLoading = false;
@@ -31,6 +36,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -40,9 +46,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _signUp() async {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
         _phoneController.text.isEmpty ||
         _passwordController.text.isEmpty) {
-      _showError('Vui lòng điền đầy đủ thông tin');
+      _showError('Vui lòng điền đầy đủ thông tin (Họ, Tên, Email, SĐT, Mật khẩu)');
       return;
     }
 
@@ -58,6 +65,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final success = await authRepo.signUp(
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
+        email: _emailController.text,
         phone: _phoneController.text,
         password: _passwordController.text,
         confirmPassword: _confirmPasswordController.text,
@@ -193,6 +201,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    icon: Icons.email,
+                    keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
                   _buildTextField(

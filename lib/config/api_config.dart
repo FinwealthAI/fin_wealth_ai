@@ -4,6 +4,8 @@
 /// Use relative paths when web app is deployed on same server as backend
 /// to avoid CORS issues.
 
+import 'package:fin_wealth/config/secrets.dart';
+
 class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development
@@ -11,6 +13,9 @@ class ApiConfig {
 
   // Toggle this to use local backend instead of production
   static const bool useLocalBackend = false;
+
+  // Google OAuth Client ID (from Secrets)
+  static const String googleServerClientId = Secrets.googleServerClientId;
   
   static const String _productionUrl = 'https://finwealth.vn';
   static const String _localUrl = 'http://localhost:8000';

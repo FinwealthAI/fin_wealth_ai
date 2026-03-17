@@ -11,6 +11,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
 import 'package:fin_wealth/screens/blog_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -24,6 +25,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final FocusNode _passwordFocusNode = FocusNode();
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
+    serverClientId: kIsWeb ? null : ApiConfig.googleServerClientId,
+    clientId: kIsWeb ? ApiConfig.googleServerClientId : null,
   );
 
   bool _rememberMe = false; // Changed to "Remember Me"

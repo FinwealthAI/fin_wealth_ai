@@ -231,6 +231,7 @@ class AuthRepository {
   Future<bool> signUp({
     required String firstName,
     required String lastName,
+    required String email,
     required String phone,
     required String password,
     required String confirmPassword,
@@ -241,6 +242,7 @@ class AuthRepository {
         data: {
           'first_name': firstName,
           'last_name': lastName,
+          'email': email,
           'phone': phone,
           'password': password,
           'password_confirm': confirmPassword,
