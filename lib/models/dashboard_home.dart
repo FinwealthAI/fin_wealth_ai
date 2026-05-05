@@ -59,16 +59,34 @@ class OpenPosition {
   final String ticker;
   final String entryDate;
   final double? entryPrice;
+  final double? currentPrice;
+  final double? unrealizedPct;
   final int? presetId;
   final String? presetName;
+  final String? presetIcon;
+  final String? presetColor;
+  final double? stopLoss;
+  final double? takeProfit;
+  final double? winRate;
+  final double? profitFactor;
+  final double? maxDrawdown;
   final String status;
 
   OpenPosition({
     required this.ticker,
     required this.entryDate,
     this.entryPrice,
+    this.currentPrice,
+    this.unrealizedPct,
     this.presetId,
     this.presetName,
+    this.presetIcon,
+    this.presetColor,
+    this.stopLoss,
+    this.takeProfit,
+    this.winRate,
+    this.profitFactor,
+    this.maxDrawdown,
     required this.status,
   });
 
@@ -76,8 +94,17 @@ class OpenPosition {
         ticker: (j['ticker'] ?? '').toString(),
         entryDate: (j['entry_date'] ?? '').toString(),
         entryPrice: _toD(j['entry_price']),
+        currentPrice: _toD(j['current_price']),
+        unrealizedPct: _toD(j['unrealized_pct']),
         presetId: j['preset_id'] is num ? (j['preset_id'] as num).toInt() : null,
         presetName: j['preset_name'] as String?,
+        presetIcon: j['preset_icon'] as String?,
+        presetColor: j['preset_color'] as String?,
+        stopLoss: _toD(j['stop_loss']),
+        takeProfit: _toD(j['take_profit']),
+        winRate: _toD(j['win_rate']),
+        profitFactor: _toD(j['profit_factor']),
+        maxDrawdown: _toD(j['max_drawdown']),
         status: (j['status'] ?? '').toString(),
       );
 }

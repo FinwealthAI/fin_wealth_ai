@@ -43,14 +43,15 @@ class BlogRepository {
             String categoryIcon = catElement?.querySelector('i')?.attributes['class'] ?? '';
 
             // Author & Views
-            var metaDivision = element.querySelector('.blog-card-meta');
+            // In new layout, these are in the footer div of card-body
+            var footer = element.querySelector('.card-body')?.children.last;
             
             // Author Name
-            String authorName = metaDivision?.querySelector('.d-flex.align-items-center .text-muted.small')?.text.trim() ?? 'FinWealth';
+            String authorName = footer?.querySelector('.font-bold')?.text.trim() ?? 'FinWealth';
             
             // Author Avatar
             String? authorAvatarUrl;
-            var avatarImg = metaDivision?.querySelector('img.blog-author-avatar-sm');
+            var avatarImg = footer?.querySelector('img');
             if (avatarImg != null) {
               String avatarSrc = avatarImg.attributes['src'] ?? '';
               authorAvatarUrl = avatarSrc.startsWith('http') ? avatarSrc : '${ApiConfig.websiteUrl}$avatarSrc';
@@ -58,7 +59,9 @@ class BlogRepository {
 
             // Views Count
             int viewsCount = 0;
-            var viewsElement = metaDivision?.querySelector('.text-muted.small:last-child');
+            // The views div has class 'flex items-center gap-1.5' (Tailwind)
+            // or just look for the last div in footer
+            var viewsElement = footer?.children.last;
             if (viewsElement != null) {
               String viewsText = viewsElement.text.trim();
               viewsCount = int.tryParse(viewsText.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;

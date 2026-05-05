@@ -211,11 +211,15 @@ class DailySummaryData {
     if (raw is Map) {
       raw.forEach((presetName, val) {
         if (val is Map && val['tickers'] is List) {
+          final meta = val['meta'] is Map
+              ? Map<String, dynamic>.from(val['meta'] as Map)
+              : null;
           for (final t in (val['tickers'] as List)) {
             if (t is Map) {
               aiOpps.add(AiOpportunitySignal.fromJson(
                 presetName.toString(),
                 Map<String, dynamic>.from(t),
+                meta: meta,
               ));
             }
           }
@@ -256,22 +260,37 @@ class DailySummaryData {
 class AiOpportunitySignal {
   final String ticker;
   final String presetName;
+  final String? presetIcon;
+  final String? presetColor;
   final String? signalDate;
   final double? entryPrice;
   final double? stopLoss;
   final double? takeProfit;
+  final String? faTier;
+  final String? taTier;
+  final double? winRate;
+  final double? profitFactor;
+  final double? maxDrawdown;
 
   AiOpportunitySignal({
     required this.ticker,
     required this.presetName,
+    this.presetIcon,
+    this.presetColor,
     this.signalDate,
     this.entryPrice,
     this.stopLoss,
     this.takeProfit,
+    this.faTier,
+    this.taTier,
+    this.winRate,
+    this.profitFactor,
+    this.maxDrawdown,
   });
 
   factory AiOpportunitySignal.fromJson(
-      String presetName, Map<String, dynamic> j) {
+      String presetName, Map<String, dynamic> j,
+      {Map<String, dynamic>? meta}) {
     final pos = j['open_position'];
     double? toD(dynamic v) {
       if (v == null) return null;
@@ -285,10 +304,17 @@ class AiOpportunitySignal {
     return AiOpportunitySignal(
       ticker: (j['ticker'] ?? '').toString(),
       presetName: presetName,
+      presetIcon: meta?['icon'] as String?,
+      presetColor: meta?['color'] as String?,
       signalDate: j['signal_date'] as String?,
       entryPrice: pos is Map ? toD(pos['entry_price']) : null,
       stopLoss: pos is Map ? toD(pos['stop_loss']) : null,
       takeProfit: pos is Map ? toD(pos['take_profit']) : null,
+      faTier: j['fa_tier'] as String?,
+      taTier: j['ta_tier'] as String?,
+      winRate: toD(meta?['win_rate']),
+      profitFactor: toD(meta?['profit_factor']),
+      maxDrawdown: toD(meta?['max_drawdown']),
     );
   }
 }

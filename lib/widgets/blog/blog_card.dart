@@ -46,7 +46,7 @@ class BlogCard extends StatelessWidget {
                 child: Stack(
                   children: [
                     Container(
-                      height: 120,
+                      height: 90,
                       width: double.infinity,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -77,17 +77,15 @@ class BlogCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
                         style: text.titleSmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Text(summary,
-                        style: text.bodySmall,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: AppSpacing.sm),

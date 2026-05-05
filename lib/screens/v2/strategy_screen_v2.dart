@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../models/dashboard_home.dart';
 import '../../models/investment_opportunities.dart';
 import '../../respositories/auth_repository.dart';
 import '../../respositories/investment_opportunities_repository.dart';
@@ -26,8 +27,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
       context.read<InvestmentOpportunitiesRepository>();
   late final AuthRepository _authRepo = context.read<AuthRepository>();
 
-  // Top Wealth — opportunities derived from bubble.points
-  List<BubblePoint> _bubble = const [];
+  // Top Wealth — items from new /dashboard-home/ ws_* zones
+  DashboardHome? _dash;
   bool _loadingBubble = true;
   Object? _bubbleErr;
 
@@ -60,10 +61,10 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
       _bubbleErr = null;
     });
     try {
-      final ops = await _opsRepo.fetch();
+      final dash = await _opsRepo.fetchDashboardHome();
       if (!mounted) return;
       setState(() {
-        _bubble = ops?.bubble ?? const [];
+        _dash = dash;
         _loadingBubble = false;
       });
     } catch (e) {
@@ -73,6 +74,17 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
         _loadingBubble = false;
       });
     }
+  }
+
+  List<({WealthScoreItem item, OpportunityKind kind})> _wsItems() {
+    final dash = _dash;
+    if (dash == null) return const [];
+    return [
+      ...dash.wsGolden.map((w) => (item: w, kind: OpportunityKind.golden)),
+      ...dash.wsRising.map((w) => (item: w, kind: OpportunityKind.value)),
+      ...dash.wsWave.map((w) => (item: w, kind: OpportunityKind.wave)),
+      ...dash.wsValue.map((w) => (item: w, kind: OpportunityKind.waiting)),
+    ];
   }
 
   Future<void> _loadCommunity() async {
@@ -124,17 +136,15 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
     );
   }
 
-  static OpportunityKind _kindFromGap(double y) {
-    if (y > 15) return OpportunityKind.golden;
-    if (y > 5) return OpportunityKind.value;
-    if (y >= 0) return OpportunityKind.wave;
-    return OpportunityKind.waiting;
+  static String _tier(double score) {
+    if (score < 5) return 'unranked';
+    if (score < 30) return 'chu_y';
+    return 'manh';
   }
 
   @override
   Widget build(BuildContext context) {
-    final sortedBubble = _bubble.toList()
-      ..sort((a, b) => b.y.abs().compareTo(a.y.abs()));
+    final wsAll = _wsItems();
 
     return Scaffold(
       appBar: const FwAppBar(
@@ -152,36 +162,42 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
               onChanged: (i) => setState(() => _tab = i),
             ),
           ),
-          if (_tab == 0 && sortedBubble.isNotEmpty)
+          if (_tab == 0 && wsAll.isNotEmpty)
             OpportunityFilterBar(
               activeIndex: _opFilter,
               onChanged: (i) => setState(() => _opFilter = i),
               items: [
-                (kind: null, count: sortedBubble.length),
+                (kind: null, count: wsAll.length),
                 (
                   kind: OpportunityKind.golden,
-                  count: sortedBubble.where((e) => e.y > 15).length
+                  count: wsAll
+                      .where((e) => e.kind == OpportunityKind.golden)
+                      .length
                 ),
                 (
                   kind: OpportunityKind.value,
-                  count:
-                      sortedBubble.where((e) => e.y > 5 && e.y <= 15).length
+                  count: wsAll
+                      .where((e) => e.kind == OpportunityKind.value)
+                      .length
                 ),
                 (
                   kind: OpportunityKind.wave,
-                  count:
-                      sortedBubble.where((e) => e.y >= 0 && e.y <= 5).length
+                  count: wsAll
+                      .where((e) => e.kind == OpportunityKind.wave)
+                      .length
                 ),
                 (
                   kind: OpportunityKind.waiting,
-                  count: sortedBubble.where((e) => e.y < 0).length
+                  count: wsAll
+                      .where((e) => e.kind == OpportunityKind.waiting)
+                      .length
                 ),
               ],
             ),
           const SizedBox(height: AppSpacing.md),
           Expanded(
             child: switch (_tab) {
-              0 => _buildTopWealth(sortedBubble),
+              0 => _buildTopWealth(wsAll),
               1 => _buildFollowing(),
               _ => _buildCommunity(),
             },
@@ -191,7 +207,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
     );
   }
 
-  Widget _buildTopWealth(List<BubblePoint> sorted) {
+  Widget _buildTopWealth(
+      List<({WealthScoreItem item, OpportunityKind kind})> all) {
     if (_loadingBubble) {
       return ListView.separated(
         padding: const EdgeInsets.fromLTRB(
@@ -202,7 +219,7 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             const FwSkeleton(height: 120, radius: AppRadius.lg),
       );
     }
-    if (_bubbleErr != null && sorted.isEmpty) {
+    if (_bubbleErr != null && all.isEmpty) {
       return Center(
         child: FwEmptyState(
           icon: Icons.cloud_off_outlined,
@@ -221,8 +238,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
     ][_opFilter];
 
     final list = selectedKind == null
-        ? sorted
-        : sorted.where((p) => _kindFromGap(p.y) == selectedKind).toList();
+        ? all
+        : all.where((e) => e.kind == selectedKind).toList();
 
     if (list.isEmpty) {
       return const Center(
@@ -240,18 +257,21 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
         itemCount: list.length,
         separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (ctx, i) {
-          final p = list[i];
-          final kind = _kindFromGap(p.y);
-          final score = (5 + (p.y.abs().clamp(0, 30) / 6)).clamp(0, 10);
+          final w = list[i].item;
+          final kind = list[i].kind;
+          final preset = w.matchedPresetNames.isNotEmpty
+              ? w.matchedPresetNames.first
+              : null;
           return OpportunityCard(
-            ticker: p.label,
+            ticker: w.ticker,
             kind: kind,
-            score: score.toDouble(),
-            changePct: p.y,
-            faStrength: '—',
-            taStrength: '—',
-            onTap: () => _openDetail(p.label),
-            onDetail: () => _openDetail(p.label),
+            score: w.score,
+            changePct: w.changePct ?? 0,
+            strategyName: preset,
+            faTier: _tier(w.fundamentalScore),
+            taTier: _tier(w.technicalScore),
+            onTap: () => _openDetail(w.ticker),
+            onDetail: () => _openDetail(w.ticker),
           );
         },
       ),

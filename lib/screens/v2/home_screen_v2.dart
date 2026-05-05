@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../config/api_config.dart';
 import '../../models/dashboard_home.dart';
 import '../../models/watchlist_item.dart';
 import '../../respositories/auth_repository.dart';
 import '../../respositories/investment_opportunities_repository.dart';
 import '../../theme/theme.dart';
+import '../../utils/strategy_icon.dart';
 import '../../widgets/common/common.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
@@ -28,6 +31,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
   DashboardHome? _dash;
   Object? _err;
   bool _loading = true;
+  int _openSort = 0; // 0=date, 1=profit
 
   @override
   void initState() {
@@ -78,6 +82,20 @@ class HomeScreenV2State extends State<HomeScreenV2> {
     );
   }
 
+  Future<void> _openDailyBlog() async {
+    final raw = _dash?.dailyBlogUrl ?? _dash?.dailyBlogPost?.url;
+    if (raw == null || raw.isEmpty) return;
+    final full = raw.startsWith('http') ? raw : '${ApiConfig.websiteUrl}$raw';
+    final uri = Uri.tryParse(full);
+    if (uri == null) return;
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không thể mở liên kết')),
+      );
+    }
+  }
+
   String get _userName {
     final u = _authRepo.username;
     if (u == null || u.isEmpty) return 'Khách';
@@ -108,17 +126,11 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           children: [
             _buildAiInsight(),
             const SizedBox(height: AppSpacing.lg),
-            _buildAiTopPick(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildWealthScoreSection(),
-            const SizedBox(height: AppSpacing.lg),
             _buildChainStoriesSection(),
             const SizedBox(height: AppSpacing.lg),
             _buildOpportunitiesSection(),
             const SizedBox(height: AppSpacing.lg),
             _buildOpenPositionsSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildSignalsSection(),
             const SizedBox(height: AppSpacing.lg),
             _buildReportHighlightsSection(),
             const SizedBox(height: AppSpacing.lg),
@@ -169,7 +181,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
       vnIndexChangePct: s.vnIndexChange ?? 0,
       sentiment: sentiment,
       publishedAt: s.date,
-      onReadMore: () {},
+      onReadMore: _openDailyBlog,
       onAskAI: widget.onOpenChat,
     );
   }
@@ -187,7 +199,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           icon: Icons.account_tree_outlined,
         ),
         SizedBox(
-          height: 130,
+          height: 170,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -202,6 +214,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
               final change = (m['change_str'] ?? '').toString();
               final title = (m['title'] ?? '').toString();
               final narrative = (m['narrative'] ?? '').toString();
+              final chartUrl = (m['chart_url'] ?? '').toString();
               final color =
                   _colorFromClass(m['color_class']?.toString());
               return Container(
@@ -242,6 +255,24 @@ class HomeScreenV2State extends State<HomeScreenV2> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        FwMiniButton.soft(
+                          label: 'Chi tiết',
+                          icon: Icons.info_outline,
+                          onTap: () => _showChainStoryDetail(m),
+                        ),
+                        const SizedBox(width: 6),
+                        if (chartUrl.isNotEmpty)
+                          FwMiniButton.soft(
+                            label: 'Chart',
+                            icon: Icons.show_chart,
+                            onTap: () => _openExternal(chartUrl),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               );
@@ -249,6 +280,127 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _openExternal(String path) async {
+    final full = path.startsWith('http')
+        ? path
+        : '${ApiConfig.websiteUrl}$path';
+    final uri = Uri.tryParse(full);
+    if (uri == null) return;
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không thể mở liên kết')),
+      );
+    }
+  }
+
+  void _showChainStoryDetail(Map<String, dynamic> m) {
+    final title = (m['title'] ?? m['indicator_name'] ?? '').toString();
+    final indicator = (m['indicator_name'] ?? '').toString();
+    final change = (m['change_str'] ?? '').toString();
+    final narrative = (m['narrative'] ?? '').toString();
+    final fullAnalysis = (m['full_analysis'] ?? '').toString();
+    final color = _colorFromClass(m['color_class']?.toString());
+    final tickers = m['tickers'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.92,
+        builder: (_, scroll) => SingleChildScrollView(
+          controller: scroll,
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: FwBadge(
+                        label: indicator, tone: FwBadgeTone.info),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(change,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(color: color)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(title,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.md),
+              if (narrative.isNotEmpty) ...[
+                Text(narrative,
+                    style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (fullAnalysis.isNotEmpty &&
+                  _stripHtml(fullAnalysis).trim() != narrative.trim()) ...[
+                const Divider(),
+                const SizedBox(height: AppSpacing.sm),
+                Text(_stripHtml(fullAnalysis),
+                    style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              Builder(builder: (_) {
+                final validTickers = <String>[];
+                if (tickers is List) {
+                  for (final t in tickers) {
+                    String? code;
+                    if (t is Map && t['ticker'] != null) {
+                      code = t['ticker'].toString();
+                    } else if (t is String) {
+                      code = t;
+                    }
+                    if (code == null) continue;
+                    final c = code.trim().toUpperCase();
+                    if (c.length >= 2 &&
+                        c.length <= 6 &&
+                        RegExp(r'^[A-Z0-9]+$').hasMatch(c)) {
+                      validTickers.add(c);
+                    }
+                  }
+                }
+                if (validTickers.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Mã hưởng lợi',
+                        style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final c in validTickers)
+                          ActionChip(
+                            label: Text(c),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _openDetail(c);
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -335,7 +487,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           )
         else
           SizedBox(
-            height: 180,
+            height: 210,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:
@@ -362,61 +514,21 @@ class HomeScreenV2State extends State<HomeScreenV2> {
                     kind: kind,
                     score: score.toDouble(),
                     changePct: upside,
-                    faStrength: sig.presetName.length > 14
-                        ? '${sig.presetName.substring(0, 14)}…'
-                        : sig.presetName,
-                    taStrength: sig.signalDate ?? '',
+                    strategyName: sig.presetName,
+                    strategyIcon: strategyIconFromName(sig.presetIcon),
+                    strategyAccent: strategyAccentFromColor(sig.presetColor),
+                    faTier: sig.faTier,
+                    taTier: sig.taTier,
+                    stopLoss: sig.stopLoss,
+                    takeProfit: sig.takeProfit,
+                    winRate: sig.winRate,
+                    profitFactor: sig.profitFactor,
+                    maxDrawdown: sig.maxDrawdown,
                     onTap: () => _openDetail(sig.ticker),
                     onDetail: () => _openDetail(sig.ticker),
                   ),
                 );
               },
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildSignalsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FwSectionHeader(
-          title: 'Tín hiệu hôm nay',
-          icon: Icons.bolt,
-          actionLabel: 'Xem tất cả',
-          onAction: () => RootShellNav.goStrategy(),
-        ),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: FwSkeleton(height: 120, radius: AppRadius.lg),
-          )
-        else if (_signals.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Chưa có tín hiệu hôm nay',
-                style: TextStyle(color: AppColors.darkTextMuted)),
-          )
-        else
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.darkSurface,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: AppColors.darkBorder),
-            ),
-            child: Column(
-              children: [
-                for (final s in _signals.take(6))
-                  SignalRow(
-                    date: s.signalDate ?? '',
-                    ticker: s.ticker,
-                    kind: SignalKind.buy,
-                    strategy: s.presetName,
-                    onTap: () => _openDetail(s.ticker),
-                  ),
-              ],
             ),
           ),
       ],
@@ -565,178 +677,19 @@ class HomeScreenV2State extends State<HomeScreenV2> {
     );
   }
 
-  Widget _buildAiTopPick() {
-    final pick = _dash?.aiTopPick;
-    if (_loading || pick == null || pick.isEmpty) return const SizedBox.shrink();
-    final ticker = (pick['ticker'] ?? '').toString();
-    if (ticker.isEmpty) return const SizedBox.shrink();
-    final reason = (pick['reason'] ?? pick['summary'] ?? '').toString();
-    final upside = pick['upside_pct'] is num ? (pick['upside_pct'] as num).toDouble() : null;
-    final text = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: GestureDetector(
-        onTap: () => _openDetail(ticker),
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.auto_awesome, color: Colors.white),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('AI Top Pick · $ticker',
-                        style: text.titleSmall?.copyWith(color: Colors.white)),
-                    if (reason.isNotEmpty)
-                      Text(_truncate(_stripHtml(reason), 110),
-                          style: text.bodySmall?.copyWith(color: Colors.white70),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-              if (upside != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text('+${upside.toStringAsFixed(1)}%',
-                      style: text.labelSmall?.copyWith(color: Colors.white)),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWealthScoreSection() {
-    final dash = _dash;
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: FwSkeleton(height: 200, radius: AppRadius.lg),
-      );
-    }
-    if (dash == null) return const SizedBox.shrink();
-
-    final groups = <_WsGroup>[
-      _WsGroup('Cơ hội vàng', Icons.workspace_premium, AppColors.warningDark,
-          dash.wsGolden, dash.wsGoldenCount),
-      _WsGroup('Giá trị đang nổi', Icons.trending_up, AppColors.successDark,
-          dash.wsRising, dash.wsRisingCount),
-      _WsGroup('Sóng đang nổi', Icons.waves, AppColors.brandSecondaryDark,
-          dash.wsWave, dash.wsWaveCount),
-      _WsGroup('Giá trị chờ thời', Icons.hourglass_bottom,
-          AppColors.brandPrimaryDark, dash.wsValue, dash.wsValueCount),
-    ];
-    final visible = groups.where((g) => g.items.isNotEmpty).toList();
-    if (visible.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FwSectionHeader(
-          title: 'Top WealthScore',
-          icon: Icons.diamond_outlined,
-        ),
-        for (final g in visible) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Row(
-              children: [
-                Icon(g.icon, color: g.color, size: 16),
-                const SizedBox(width: 6),
-                Text(g.label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(color: g.color)),
-                const SizedBox(width: 6),
-                Text('(${g.totalCount})',
-                    style: Theme.of(context).textTheme.labelSmall),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 110,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 8),
-              itemCount: g.items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-              itemBuilder: (ctx, i) => _wsCard(g.items[i], g.color),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-      ],
-    );
-  }
-
-  Widget _wsCard(WealthScoreItem w, Color accent) {
-    final text = Theme.of(context).textTheme;
-    final chg = w.changePct ?? 0;
-    final chgColor = chg >= 0 ? AppColors.successDark : AppColors.dangerDark;
-    return GestureDetector(
-      onTap: () => _openDetail(w.ticker),
-      child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: AppColors.darkSurface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: accent.withValues(alpha: 0.4)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text(w.ticker, style: text.titleSmall),
-                const Spacer(),
-                Text('${w.score.toStringAsFixed(0)}',
-                    style: text.labelLarge?.copyWith(color: accent)),
-              ],
-            ),
-            if (w.close != null)
-              Text(
-                '${w.close!.toStringAsFixed(0)}đ  '
-                '${chg >= 0 ? "+" : ""}${chg.toStringAsFixed(1)}%',
-                style: text.labelSmall?.copyWith(color: chgColor),
-              ),
-            if (w.matchedPresetNames.isNotEmpty)
-              Text(
-                w.matchedPresetNames.first,
-                style: text.labelSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildOpenPositionsSection() {
     final positions = _dash?.openPositions ?? const [];
     if (_loading || positions.isEmpty) return const SizedBox.shrink();
+
+    final sorted = [...positions];
+    if (_openSort == 0) {
+      sorted.sort((a, b) => b.entryDate.compareTo(a.entryDate));
+    } else {
+      sorted.sort((a, b) =>
+          (b.unrealizedPct ?? -999).compareTo(a.unrealizedPct ?? -999));
+    }
+
+    final text = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -746,6 +699,25 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           actionLabel: '${_dash?.openCount ?? 0} mở',
           onAction: () {},
         ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('Theo ngày'),
+                selected: _openSort == 0,
+                onSelected: (_) => setState(() => _openSort = 0),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              ChoiceChip(
+                label: const Text('Theo lợi nhuận'),
+                selected: _openSort == 1,
+                onSelected: (_) => setState(() => _openSort = 1),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           decoration: BoxDecoration(
@@ -755,15 +727,45 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           ),
           child: Column(
             children: [
-              for (final p in positions.take(6))
+              for (final p in sorted.take(8))
                 ListTile(
                   dense: true,
-                  leading: const Icon(Icons.trending_up,
-                      color: AppColors.successDark),
-                  title: Text(p.ticker),
+                  leading: Tooltip(
+                    message: _buildPositionTooltip(p),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: strategyAccentFromColor(p.presetColor)
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        strategyIconFromName(p.presetIcon),
+                        size: 16,
+                        color: strategyAccentFromColor(p.presetColor),
+                      ),
+                    ),
+                  ),
+                  title: Row(
+                    children: [
+                      Text(p.ticker, style: text.titleSmall),
+                      const SizedBox(width: AppSpacing.sm),
+                      if (p.unrealizedPct != null)
+                        Text(
+                          '${p.unrealizedPct! >= 0 ? "+" : ""}${p.unrealizedPct!.toStringAsFixed(2)}%',
+                          style: text.labelMedium?.copyWith(
+                            color: p.unrealizedPct! >= 0
+                                ? AppColors.successDark
+                                : AppColors.dangerDark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                    ],
+                  ),
                   subtitle: Text(
-                    '${p.presetName ?? "—"} · vào ${p.entryDate}'
-                    '${p.entryPrice != null ? " @ ${p.entryPrice!.toStringAsFixed(0)}" : ""}',
+                    'Vào ${p.entryDate}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -801,6 +803,27 @@ class HomeScreenV2State extends State<HomeScreenV2> {
         .trim();
   }
 
+  String _buildPositionTooltip(OpenPosition p) {
+    final sb = StringBuffer();
+    sb.writeln('Chiến lược: ${p.presetName ?? "FinWealth"}');
+    if (p.stopLoss != null) {
+      sb.writeln('Cắt lỗ: ${p.stopLoss!.toStringAsFixed(0)}');
+    }
+    if (p.takeProfit != null) {
+      sb.writeln('Chốt lời: ${p.takeProfit!.toStringAsFixed(0)}');
+    }
+    if (p.winRate != null) {
+      sb.writeln('Tỉ lệ thắng: ${(p.winRate! * 100).toStringAsFixed(1)}%');
+    }
+    if (p.profitFactor != null) {
+      sb.writeln('Profit Factor: ${p.profitFactor!.toStringAsFixed(2)}');
+    }
+    if (p.maxDrawdown != null) {
+      sb.writeln('Sụt giảm tối đa: ${(p.maxDrawdown! * 100).toStringAsFixed(1)}%');
+    }
+    return sb.toString().trim();
+  }
+
   static String _firstSentence(String s) {
     final m = RegExp(r'[\.!?]').firstMatch(s);
     if (m == null) return s;
@@ -811,15 +834,6 @@ class HomeScreenV2State extends State<HomeScreenV2> {
     if (s.length <= n) return s;
     return '${s.substring(0, n)}…';
   }
-}
-
-class _WsGroup {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final List<WealthScoreItem> items;
-  final int totalCount;
-  _WsGroup(this.label, this.icon, this.color, this.items, this.totalCount);
 }
 
 class _SectionError extends StatelessWidget {

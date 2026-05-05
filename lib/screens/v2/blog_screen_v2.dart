@@ -111,7 +111,7 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
           crossAxisCount: 2,
           crossAxisSpacing: AppSpacing.md,
           mainAxisSpacing: AppSpacing.md,
-          childAspectRatio: 0.58,
+          childAspectRatio: 0.85,
         ),
         itemCount: 6,
         itemBuilder: (_, __) =>
@@ -144,7 +144,7 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
         crossAxisCount: 2,
         crossAxisSpacing: AppSpacing.md,
         mainAxisSpacing: AppSpacing.md,
-        childAspectRatio: 0.58,
+        childAspectRatio: 0.85,
       ),
       itemCount: visible.length,
       itemBuilder: (ctx, i) {

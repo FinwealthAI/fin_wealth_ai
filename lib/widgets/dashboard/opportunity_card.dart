@@ -9,9 +9,16 @@ class OpportunityCard extends StatelessWidget {
   final OpportunityKind kind;
   final double score;
   final double changePct;
-  final String faStrength;
-  final String taStrength;
-  final List<IconData> contextIcons;
+  final String? strategyName;
+  final IconData? strategyIcon;
+  final Color? strategyAccent;
+  final String? faTier;
+  final String? taTier;
+  final double? stopLoss;
+  final double? takeProfit;
+  final double? winRate;
+  final double? profitFactor;
+  final double? maxDrawdown;
   final VoidCallback? onTap;
   final VoidCallback? onDetail;
 
@@ -21,12 +28,25 @@ class OpportunityCard extends StatelessWidget {
     required this.kind,
     required this.score,
     required this.changePct,
-    required this.faStrength,
-    required this.taStrength,
-    this.contextIcons = const [Icons.business, Icons.bolt],
+    this.strategyName,
+    this.strategyIcon,
+    this.strategyAccent,
+    this.faTier,
+    this.taTier,
+    this.stopLoss,
+    this.takeProfit,
+    this.winRate,
+    this.profitFactor,
+    this.maxDrawdown,
     this.onTap,
     this.onDetail,
   });
+
+  static const _tierLabel = {
+    'manh': 'Mạnh',
+    'chu_y': 'Chú ý',
+    'yeu': 'Yếu',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -114,37 +134,25 @@ class OpportunityCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  _LabelValue(
-                      label: 'FA',
-                      value: faStrength,
-                      color: AppColors.brandPrimaryDark),
-                  const SizedBox(width: AppSpacing.sm),
-                  _LabelValue(
-                      label: 'TA',
-                      value: taStrength,
-                      color: _strengthColor(taStrength)),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  for (final icon in contextIcons) ...[
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: AppColors.darkSurfaceElevated,
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        border: Border.all(color: AppColors.darkBorder),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(icon,
-                          size: 12, color: AppColors.brandPrimaryDark),
-                    ),
+                  if (faTier != null) _tierChip('FA', faTier!),
+                  if (taTier != null) ...[
                     const SizedBox(width: 4),
+                    _tierChip('TA', taTier!),
                   ],
                 ],
               ),
+              if (strategyName != null && strategyName!.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    _StrategyIconBadge(
+                      icon: strategyIcon ?? Icons.flag_outlined,
+                      accent: strategyAccent ?? AppColors.brandPrimaryDark,
+                      tooltip: _buildStrategyTooltip(),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
               Align(
                 alignment: Alignment.centerRight,
@@ -161,12 +169,68 @@ class OpportunityCard extends StatelessWidget {
     );
   }
 
-  static Color _strengthColor(String value) {
-    final v = value.toLowerCase();
-    if (v.contains('mạnh') || v.contains('tốt')) return AppColors.successDark;
-    if (v.contains('chú ý') || v.contains('trung')) return AppColors.warningDark;
-    if (v.contains('yếu') || v.contains('xấu')) return AppColors.dangerDark;
-    return AppColors.brandPrimaryDark;
+  String _buildStrategyTooltip() {
+    final sb = StringBuffer();
+    sb.writeln('Chiến lược: $strategyName');
+    if (stopLoss != null) {
+      sb.writeln('Cắt lỗ: ${stopLoss!.toStringAsFixed(0)}');
+    }
+    if (takeProfit != null) {
+      sb.writeln('Chốt lời: ${takeProfit!.toStringAsFixed(0)}');
+    }
+    if (winRate != null) {
+      sb.writeln('Tỉ lệ thắng: ${(winRate! * 100).toStringAsFixed(1)}%');
+    }
+    if (profitFactor != null) {
+      sb.writeln('Profit Factor: ${profitFactor!.toStringAsFixed(2)}');
+    }
+    if (maxDrawdown != null) {
+      sb.writeln('Sụt giảm tối đa: ${(maxDrawdown! * 100).toStringAsFixed(1)}%');
+    }
+    return sb.toString().trim();
+  }
+
+  static Widget _tierChip(String label, String tier) {
+    final text = _tierLabel[tier] ?? tier;
+    Color color;
+    switch (tier) {
+      case 'manh':
+        color = AppColors.successDark;
+        break;
+      case 'chu_y':
+        color = AppColors.warningDark;
+        break;
+      case 'yeu':
+        color = AppColors.dangerDark;
+        break;
+      default:
+        color = AppColors.brandPrimaryDark;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: AppColors.darkTextMuted,
+              )),
+          const SizedBox(width: 3),
+          Text(text,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: color,
+              )),
+        ],
+      ),
+    );
   }
 
   static _OpportunitySpec _spec(OpportunityKind k) => switch (k) {
@@ -189,48 +253,80 @@ class OpportunityCard extends StatelessWidget {
       };
 }
 
-class _OpportunitySpec {
-  final String label;
+class _StrategyIconBadge extends StatelessWidget {
+  final IconData icon;
   final Color accent;
-  const _OpportunitySpec({required this.label, required this.accent});
-}
-
-class _LabelValue extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _LabelValue({
-    required this.label,
-    required this.value,
-    required this.color,
+  final String tooltip;
+  const _StrategyIconBadge({
+    required this.icon,
+    required this.accent,
+    required this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: AppColors.darkTextMuted,
+    return Tooltip(
+      message: tooltip,
+      preferBelow: false,
+      child: GestureDetector(
+        onTap: () {
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          if (messenger != null) {
+            messenger.hideCurrentSnackBar();
+            messenger.showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+                content: Text(tooltip),
+                action: SnackBarAction(
+                  label: 'Đóng',
+                  onPressed: () => messenger.hideCurrentSnackBar(),
+                ),
+              ),
+            );
+          }
+        },
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(color: accent.withValues(alpha: 0.4)),
+          ),
+          alignment: Alignment.center,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, size: 14, color: accent),
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.info_outline,
+                      size: 7, color: Colors.white),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 3),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
+      ),
     );
   }
+}
+
+class _OpportunitySpec {
+  final String label;
+  final Color accent;
+  const _OpportunitySpec({required this.label, required this.accent});
 }
 
 class OpportunityFilterBar extends StatelessWidget {

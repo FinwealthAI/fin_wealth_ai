@@ -128,7 +128,6 @@ class _MoreMenuScreen extends StatelessWidget {
     final items = [
       (Icons.tune_outlined, 'Lọc cổ phiếu', () => _push(context, const ScreenerScreenV2())),
       (Icons.account_tree_outlined, 'Sơ đồ kinh tế', () => _push(context, const MindmapScreenV2())),
-      (Icons.chat_bubble_outline, 'Chat Mr.Wealth', () => _push(context, const ChatScreenV2())),
       (Icons.favorite_outline, 'Watchlist', () {}),
       (Icons.calculate_outlined, 'Tính margin', () {}),
       (Icons.person_outline, 'Tài khoản', () => _push(context, const ProfileScreenV2())),
