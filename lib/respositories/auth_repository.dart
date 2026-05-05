@@ -43,31 +43,27 @@ class AuthRepository {
           return handler.next(options);
         },
         onResponse: (response, handler) async {
-          // Xử lý 401 ở đây vì validateStatus cho phép < 500 đi qua
-          if (response.statusCode == 401 && _refreshToken != null) {
-            // Tránh loop nếu chính request refresh bị 401
+          if (_isTokenInvalidResponse(response) && _refreshToken != null) {
             if (response.requestOptions.path.contains('/token/refresh/')) {
-               return handler.next(response);
+              return handler.next(response);
             }
 
             try {
-              print('AuthRepository: 401 detected, attempting refresh...');
-              // Dùng _tokenDio để gọi refresh
-              final r = await _tokenDio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
-              
+              print('AuthRepository: token invalid (${response.statusCode}), refreshing...');
+              final r = await _tokenDio.post('/mobile/api/token/refresh/',
+                  data: {'refresh': _refreshToken});
+
               if (r.statusCode == 200) {
                 _accessToken = r.data['access'] as String;
                 dio.options.headers['Authorization'] = 'Bearer $_accessToken';
                 await _saveTokens();
-                
-                // Retry request cũ
+
                 final options = response.requestOptions;
                 options.headers['Authorization'] = 'Bearer $_accessToken';
-                
+
                 final cloned = await dio.fetch(options);
                 return handler.resolve(cloned);
               } else {
-                // Refresh fail
                 print('AuthRepository: Refresh failed, logging out.');
                 await logout();
               }
@@ -79,18 +75,20 @@ class AuthRepository {
           return handler.next(response);
         },
         onError: (err, handler) async {
-          // Giữ lại logic này phòng trường hợp validateStatus thay đổi
-          if (err.response?.statusCode == 401 && _refreshToken != null) {
-             if (err.requestOptions.path.contains('/token/refresh/')) {
-               return handler.next(err);
+          final resp = err.response;
+          if (resp != null &&
+              _isTokenInvalidResponse(resp) &&
+              _refreshToken != null) {
+            if (err.requestOptions.path.contains('/token/refresh/')) {
+              return handler.next(err);
             }
             try {
-              // Dùng _tokenDio để gọi refresh
-              final r = await _tokenDio.post('/mobile/api/token/refresh/', data: {'refresh': _refreshToken});
+              final r = await _tokenDio.post('/mobile/api/token/refresh/',
+                  data: {'refresh': _refreshToken});
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
               await _saveTokens();
-              
+
               final cloned = await dio.fetch(err.requestOptions);
               return handler.resolve(cloned);
             } catch (_) {
@@ -101,6 +99,25 @@ class AuthRepository {
         },
       ),
     );
+  }
+
+  /// True if the response is a JWT-expired/invalid signal.
+  /// SimpleJWT returns 401 normally, but our backend often emits 403 with
+  /// `{detail: ..., code: token_not_valid}`.
+  static bool _isTokenInvalidResponse(Response resp) {
+    final code = resp.statusCode;
+    if (code == 401) return true;
+    if (code != 403) return false;
+    final body = resp.data;
+    if (body is Map) {
+      if (body['code'] == 'token_not_valid') return true;
+      final detail = body['detail']?.toString().toLowerCase() ?? '';
+      if (detail.contains('token') &&
+          (detail.contains('expired') || detail.contains('invalid'))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> _loadTokens() async {
@@ -189,31 +206,37 @@ class AuthRepository {
     try {
       print('AuthRepository: Verifying token...');
       final response = await _tokenDio.get('/mobile/api/unlock-wealth/');
-      
+
       if (response.statusCode == 200) {
         print('AuthRepository: Token valid!');
-        return {
-          'username': _username ?? 'User',
-        };
-      } else if (response.statusCode == 401) {
-        // Token hết hạn hoặc bị vô hiệu
-        print('AuthRepository: Token expired (401), logging out...');
+        return {'username': _username ?? 'User'};
+      }
+
+      if (_isTokenInvalidResponse(response)) {
+        print('AuthRepository: Token invalid (${response.statusCode}), trying refresh...');
+        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+          try {
+            final r = await _tokenDio.post('/mobile/api/token/refresh/',
+                data: {'refresh': _refreshToken});
+            if (r.statusCode == 200) {
+              _accessToken = r.data['access'] as String;
+              dio.options.headers['Authorization'] = 'Bearer $_accessToken';
+              await _saveTokens();
+              return {'username': _username ?? 'User'};
+            }
+          } catch (e) {
+            print('AuthRepository: Refresh on auto-login failed: $e');
+          }
+        }
         await logout();
         return null;
       }
     } catch (e) {
       print('AuthRepository: Token verification error: $e');
-      // Nếu có lỗi network thì vẫn cho phép auto-login (offline mode)
-      // Nếu muốn bắt buộc online, uncomment dòng sau:
-      // await logout();
-      // return null;
     }
 
-    // Fallback: Nếu không verify được nhưng có token, vẫn cho vào
-    // (để hỗ trợ offline mode)
-    return {
-      'username': _username ?? 'User',
-    };
+    // Fallback offline-mode: giữ session
+    return {'username': _username ?? 'User'};
   }
 
   String? get accessToken => _accessToken;

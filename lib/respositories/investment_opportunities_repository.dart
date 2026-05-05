@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:fin_wealth/models/dashboard_home.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/config/api_config.dart';
 
@@ -6,6 +7,21 @@ class InvestmentOpportunitiesRepository {
   final Dio dio;
   InvestmentOpportunitiesRepository(this.dio);
 
+  /// Endpoint mới — full dashboard home payload (mirror trang chủ web).
+  Future<DashboardHome> fetchDashboardHome() async {
+    final resp = await dio.get(ApiConfig.dashboardHome);
+    if (resp.statusCode != 200 || resp.data == null) {
+      throw Exception('Lỗi tải dashboard (${resp.statusCode}): ${resp.data}');
+    }
+    final raw = resp.data;
+    if (raw is! Map) {
+      throw Exception('Định dạng response không hợp lệ');
+    }
+    if (raw['success'] != true || raw['data'] is! Map) {
+      throw Exception(raw['error']?.toString() ?? 'Server trả lỗi');
+    }
+    return DashboardHome.fromJson(Map<String, dynamic>.from(raw['data'] as Map));
+  }
 
   Future<InvestmentOpportunities?> fetch() async {
     try {
@@ -40,32 +56,33 @@ class InvestmentOpportunitiesRepository {
   }
 
   Future<DailySummaryData?> fetchDailySummary() async {
-    try {
-      final resp = await dio.get(ApiConfig.unlockWealth);
-      if (resp.statusCode == 401) return null;
-      
-      if (resp.statusCode == 200 && resp.data != null) {
-        final Map<String, dynamic> data = (resp.data is Map && resp.data['success'] == true) 
-            ? (resp.data['data'] as Map<String, dynamic>) 
-            : (resp.data as Map<String, dynamic>);
-            
-        // Flatten data: merge daily_summary + homepage_charts
-        final flattened = <String, dynamic>{};
-        
-        if (data['daily_summary'] != null && data['daily_summary'] is Map<String, dynamic>) {
-          flattened.addAll(data['daily_summary'] as Map<String, dynamic>);
-        }
-        
-        if (data['homepage_charts'] != null) {
-          flattened['homepage_charts'] = data['homepage_charts'];
-        }
-          
-          return DailySummaryData.fromJson(flattened);
-        }
-      } catch (e) {
-        print('Failed to load daily summary: $e');
-      }
-    return null;
+    final resp = await dio.get(ApiConfig.unlockWealth);
+    if (resp.statusCode == 401) return null;
+
+    if (resp.statusCode != 200 || resp.data == null) {
+      throw Exception(
+          'Lỗi tải dữ liệu (${resp.statusCode}): ${resp.data}');
+    }
+
+    final raw = resp.data;
+    Map<String, dynamic> data;
+    if (raw is Map && raw['success'] == true && raw['data'] is Map) {
+      data = Map<String, dynamic>.from(raw['data'] as Map);
+    } else if (raw is Map) {
+      data = Map<String, dynamic>.from(raw);
+    } else {
+      throw Exception('Định dạng response không hợp lệ');
+    }
+
+    final flattened = <String, dynamic>{};
+    final ds = data['daily_summary'];
+    if (ds is Map) {
+      flattened.addAll(Map<String, dynamic>.from(ds));
+    }
+    if (data['homepage_charts'] != null) {
+      flattened['homepage_charts'] = data['homepage_charts'];
+    }
+    return DailySummaryData.fromJson(flattened);
   }
   Future<List<dynamic>> fetchStrategyDetails(String name) async {
     print('[DEBUG] fetchStrategyDetails called with name: "$name"');
@@ -168,6 +185,11 @@ class DailySummaryData {
   final List<ReportHighlight> reportHighlights;
   final List<BubbleOpportunity> bubbleOpportunities;
   final List<StrategyCardData> strategyCards;
+  final List<AiOpportunitySignal> aiOpportunities;
+  final List<dynamic> chainStories;
+  final double? vnIndex;
+  final double? vnIndexChange;
+  final String? marketMood;
 
   DailySummaryData({
     required this.date,
@@ -176,9 +198,40 @@ class DailySummaryData {
     required this.reportHighlights,
     required this.bubbleOpportunities,
     required this.strategyCards,
+    required this.aiOpportunities,
+    required this.chainStories,
+    this.vnIndex,
+    this.vnIndexChange,
+    this.marketMood,
   });
 
   factory DailySummaryData.fromJson(Map<String, dynamic> j) {
+    final aiOpps = <AiOpportunitySignal>[];
+    final raw = j['ai_opportunities'];
+    if (raw is Map) {
+      raw.forEach((presetName, val) {
+        if (val is Map && val['tickers'] is List) {
+          for (final t in (val['tickers'] as List)) {
+            if (t is Map) {
+              aiOpps.add(AiOpportunitySignal.fromJson(
+                presetName.toString(),
+                Map<String, dynamic>.from(t),
+              ));
+            }
+          }
+        }
+      });
+    }
+
+    double? toD(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        return double.tryParse(v.replaceAll(',', '').replaceAll('%', '').trim());
+      }
+      return null;
+    }
+
     return DailySummaryData(
       date: j['date'] as String? ?? '',
       aiGeneratedSummary: j['ai_generated_summary'] as String? ?? '',
@@ -186,10 +239,56 @@ class DailySummaryData {
       reportHighlights: ((j['report_highlights'] as List<dynamic>?) ?? [])
           .map((e) => ReportHighlight.fromJson(e as Map<String, dynamic>))
           .toList(),
-      bubbleOpportunities: [], // Deprecated or mapped from cards if needed
+      bubbleOpportunities: [],
       strategyCards: ((j['homepage_charts'] as List<dynamic>?) ?? [])
           .map((e) => StrategyCardData.fromJson(e as Map<String, dynamic>))
           .toList(),
+      aiOpportunities: aiOpps,
+      chainStories: (j['chain_stories'] as List<dynamic>?) ?? [],
+      vnIndex: toD(j['vn_index']),
+      vnIndexChange: toD(j['vn_index_change']),
+      marketMood: j['market_mood'] as String?,
+    );
+  }
+}
+
+/// One open buy signal returned inside `daily_summary.ai_opportunities`.
+class AiOpportunitySignal {
+  final String ticker;
+  final String presetName;
+  final String? signalDate;
+  final double? entryPrice;
+  final double? stopLoss;
+  final double? takeProfit;
+
+  AiOpportunitySignal({
+    required this.ticker,
+    required this.presetName,
+    this.signalDate,
+    this.entryPrice,
+    this.stopLoss,
+    this.takeProfit,
+  });
+
+  factory AiOpportunitySignal.fromJson(
+      String presetName, Map<String, dynamic> j) {
+    final pos = j['open_position'];
+    double? toD(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        return double.tryParse(v.replaceAll(',', '').trim());
+      }
+      return null;
+    }
+
+    return AiOpportunitySignal(
+      ticker: (j['ticker'] ?? '').toString(),
+      presetName: presetName,
+      signalDate: j['signal_date'] as String?,
+      entryPrice: pos is Map ? toD(pos['entry_price']) : null,
+      stopLoss: pos is Map ? toD(pos['stop_loss']) : null,
+      takeProfit: pos is Map ? toD(pos['take_profit']) : null,
     );
   }
 }

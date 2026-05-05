@@ -12,7 +12,7 @@ class ApiConfig {
   static const bool useRelativePaths = false;
 
   // Toggle this to use local backend instead of production
-  static const bool useLocalBackend = false;
+  static const bool useLocalBackend = true;
 
   // Google OAuth Client ID (from Secrets)
   static const String googleServerClientId = Secrets.googleServerClientId;
@@ -35,6 +35,8 @@ class ApiConfig {
   static String get watchlist => '$baseUrl/watchlist';
   
   // Full endpoint paths
+  static String get dashboardHome => '$mobileApi/dashboard-home/';
+  // Alias cũ — sẽ xoá sau khi tất cả màn hình migrate sang dashboardHome
   static String get unlockWealth => '$mobileApi/unlock-wealth/';
 
   static String get userNews => '$mobileApi/user-news/';

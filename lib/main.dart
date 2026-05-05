@@ -8,10 +8,11 @@ import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/respositories/market_repository.dart';
 import 'package:fin_wealth/respositories/stock_repository.dart';
 import 'package:fin_wealth/respositories/stock_reports_repository.dart'; // ✅ THÊM IMPORT NÀY
-import 'package:fin_wealth/respositories/investment_opportunities_repository.dart'; 
-import 'package:fin_wealth/respositories/search_stock_repository.dart'; 
-import 'package:fin_wealth/respositories/watchlist_repository.dart'; 
+import 'package:fin_wealth/respositories/investment_opportunities_repository.dart';
+import 'package:fin_wealth/respositories/search_stock_repository.dart';
+import 'package:fin_wealth/respositories/watchlist_repository.dart';
 import 'package:fin_wealth/respositories/blog_repository.dart';
+import 'package:fin_wealth/respositories/strategy_repository.dart';
 
 // Blocs
 import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
@@ -23,7 +24,13 @@ import 'package:fin_wealth/blocs/search/search_bloc.dart';
 // Screens
 import 'package:fin_wealth/screens/log_in_screen.dart';
 import 'package:fin_wealth/screens/splash_screen.dart';
+import 'package:fin_wealth/screens/design_preview_screen.dart';
+import 'package:fin_wealth/screens/v2/root_shell_v2.dart' show RootShellV2, RootShellNav;
+import 'package:fin_wealth/screens/v2/login_screen_v2.dart';
+import 'package:fin_wealth/screens/v2/splash_screen_v2.dart';
+import 'package:fin_wealth/screens/v2/stock_detail_screen_v2.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/theme/theme.dart';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'dart:io';
@@ -83,6 +90,7 @@ class MyApp extends StatelessWidget {
         RepositoryProvider(create: (_) => SearchStockRepository(dio)),
         RepositoryProvider(create: (_) => WatchlistRepository(dio: dio)),
         RepositoryProvider(create: (_) => BlogRepository(dio)),
+        RepositoryProvider(create: (_) => StrategyRepository(dio: dio)),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -93,10 +101,22 @@ class MyApp extends StatelessWidget {
         child: MaterialApp(
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
-          initialRoute: '/splash',
+          title: 'FinWealth',
+          theme: AppTheme.dark,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
+          initialRoute: '/splash-v2',
           routes: {
             '/splash': (_) => const SplashScreen(),
+            '/splash-v2': (_) => const SplashScreenV2(),
             '/login': (_) => LoginScreen(),
+            '/login-v2': (_) => const LoginScreenV2(),
+            '/design-preview': (_) => const DesignPreviewScreen(),
+            '/v2': (_) => RootShellV2(key: RootShellNav.key),
+            '/stock-detail-v2': (ctx) => StockDetailScreenV2(
+                  ticker: ModalRoute.of(ctx)!.settings.arguments as String? ??
+                      'VNM',
+                ),
           },
         ),
       ),
