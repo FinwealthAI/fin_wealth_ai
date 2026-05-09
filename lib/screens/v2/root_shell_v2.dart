@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_state.dart';
+import '../../respositories/auth_repository.dart';
 import '../../theme/theme.dart';
 import 'ai_toolbox_screen_v2.dart';
 import 'blog_screen_v2.dart';
@@ -8,8 +12,10 @@ import 'mindmap_screen_v2.dart';
 import 'profile_screen_v2.dart';
 import 'reports_screen_v2.dart';
 import 'screener_screen_v2.dart';
-import 'stock_search_screen_v2.dart';
 import 'strategy_screen_v2.dart';
+import '../../widgets/dashboard/profile_bar.dart';
+import '../../widgets/dashboard/dashboard_widgets.dart';
+import 'notifications_screen_v2.dart';
 
 class RootShellNav {
   static final GlobalKey<RootShellV2State> key =
@@ -17,6 +23,10 @@ class RootShellNav {
 
   static void goHome() {
     key.currentState?.setIndex(0);
+  }
+
+  static void goMore() {
+    key.currentState?.setIndex(4);
   }
 
   static void goStrategy() {
@@ -39,7 +49,7 @@ class RootShellV2State extends State<RootShellV2> {
     const StrategyScreenV2(),
     const BlogScreenV2(),
     const ReportsScreenV2(),
-    const _MoreMenuScreen(),
+    const _MoreMenuScreenV2(),
   ];
 
   void setIndex(int i) {
@@ -109,10 +119,10 @@ class RootShellV2State extends State<RootShellV2> {
             label: 'Báo cáo',
           ),
           NavigationDestination(
-            icon: Icon(Icons.more_horiz),
+            icon: Icon(Icons.grid_view_outlined),
             selectedIcon:
-                Icon(Icons.more_horiz, color: AppColors.brandPrimaryDark),
-            label: 'Thêm',
+                Icon(Icons.grid_view, color: AppColors.brandPrimaryDark),
+            label: 'Khác',
           ),
         ],
       ),
@@ -120,58 +130,199 @@ class RootShellV2State extends State<RootShellV2> {
   }
 }
 
-class _MoreMenuScreen extends StatelessWidget {
-  const _MoreMenuScreen();
+class _MoreMenuScreenV2 extends StatelessWidget {
+  const _MoreMenuScreenV2();
+
+  static void _push(BuildContext c, Widget w) =>
+      Navigator.of(c).push(MaterialPageRoute(builder: (_) => w));
+
+  Future<void> _logout(BuildContext context) async {
+    await context.read<AuthRepository>().logout();
+    if (context.mounted) {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/login-v2', (r) => false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (Icons.tune_outlined, 'Lọc cổ phiếu', () => _push(context, const ScreenerScreenV2())),
-      (Icons.account_tree_outlined, 'Sơ đồ kinh tế', () => _push(context, const MindmapScreenV2())),
-      (Icons.favorite_outline, 'Watchlist', () {}),
-      (Icons.calculate_outlined, 'Tính margin', () {}),
-      (Icons.person_outline, 'Tài khoản', () => _push(context, const ProfileScreenV2())),
-    ];
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, state) {
+        final userData =
+            state is AuthSuccess ? state.userData : <String, dynamic>{};
+        final username = userData['username'] as String? ?? 'Khách';
+        final avatarUrl = userData['avatar'] as String?;
+        final isGuest = userData['is_guest'] == true;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Thêm'),
-        actions: [
-          IconButton(
-            tooltip: 'Tìm cổ phiếu',
-            icon: const Icon(Icons.search),
-            onPressed: () => _push(context, const StockSearchScreenV2()),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        children: [
-          for (final item in items) ...[
-            ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.brandPrimary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
+        return Scaffold(
+          backgroundColor: const Color(0xFF0F111A),
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: ProfileBar(
+                    userName: username,
+                    avatarUrl: avatarUrl,
+                  ),
                 ),
-                child:
-                    Icon(item.$1, color: AppColors.brandPrimaryDark, size: 20),
               ),
-              title: Text(item.$2),
-              trailing: const Icon(Icons.chevron_right,
-                  color: AppColors.darkTextMuted),
-              onTap: item.$3,
-            ),
-            const Divider(height: 1, indent: 64),
-          ],
+
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E2C),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _QuickAction(
+                        Icons.person_outline,
+                        'Hồ sơ',
+                        onTap: () =>
+                            _push(context, const ProfileScreenV2()),
+                      ),
+                      if (!isGuest)
+                        _QuickAction(
+                          Icons.logout,
+                          'Đăng xuất',
+                          onTap: () => _logout(context),
+                        )
+                      else
+                        _QuickAction(
+                          Icons.login,
+                          'Đăng nhập',
+                          onTap: () => Navigator.of(context)
+                              .pushReplacementNamed('/login-v2'),
+                        ),
+                      _QuickAction(
+                        Icons.notifications_outlined,
+                        'Thông báo',
+                        onTap: () =>
+                            _push(context, const NotificationsScreenV2()),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _MenuItem(
+                      'Lọc cổ phiếu',
+                      Icons.tune_outlined,
+                      onTap: () => _push(context, const ScreenerScreenV2()),
+                    ),
+                    _MenuItem(
+                      'Sơ đồ kinh tế',
+                      Icons.account_tree_outlined,
+                      onTap: () => _push(context, const MindmapScreenV2()),
+                    ),
+                    _MenuItem('Tính margin', Icons.calculate_outlined),
+                    _MenuItem('Giao diện & Ngôn ngữ', Icons.language_outlined),
+                    _MenuItem('Về FinWealth', Icons.info_outline),
+                    const SizedBox(height: 16),
+                    _ServerStatus(),
+                    const SizedBox(height: 32),
+                  ]),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ServerStatus extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: Colors.green,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        const Text(
+          'Kết nối máy chủ ổn định',
+          style: TextStyle(color: Colors.green, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _QuickAction(this.icon, this.label, {this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: const Color(0xFF6366F1), size: 28),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
   }
+}
 
-  static void _push(BuildContext c, Widget w) {
-    Navigator.of(c).push(MaterialPageRoute(builder: (_) => w));
+class _MenuItem extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final bool isDestructive;
+  final VoidCallback? onTap;
+
+  const _MenuItem(this.title, this.icon, {this.isDestructive = false, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E2C),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF6366F1)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        trailing: isDestructive ? null : const Icon(Icons.chevron_right, color: Colors.white38),
+        onTap: onTap,
+      ),
+    );
   }
 }
+
+

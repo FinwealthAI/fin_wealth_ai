@@ -76,8 +76,12 @@ class AiInsightCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: const Icon(Icons.auto_awesome,
-                    size: 18, color: Colors.white),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/mr_wealth_avatar.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

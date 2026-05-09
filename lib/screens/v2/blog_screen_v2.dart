@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../models/blog_post.dart';
 import '../../respositories/blog_repository.dart';
 import '../../theme/theme.dart';
 import '../../widgets/blog/blog_card.dart';
 import '../../widgets/common/common.dart';
+import 'blog_detail_screen_v2.dart';
 
 class BlogScreenV2 extends StatefulWidget {
   const BlogScreenV2({super.key});
@@ -66,15 +66,12 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
     return _posts.where((p) => (p.categoryName ?? '') == target).toList();
   }
 
-  Future<void> _open(BlogPost p) async {
-    final uri = Uri.tryParse(p.detailUrl);
-    if (uri == null) return;
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể mở liên kết')),
-      );
-    }
+  void _open(BlogPost p) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlogDetailScreenV2(post: p),
+      ),
+    );
   }
 
   @override

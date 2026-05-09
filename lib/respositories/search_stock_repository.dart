@@ -19,6 +19,16 @@ class SearchStockRepository {
     return Map<String, dynamic>.from(resp.data);
   }
 
+  Future<Map<String, dynamic>> getValuationHistory(String ticker) async {
+    final resp = await dio.get('${ApiConfig.api}/valuation-history/$ticker/');
+    return Map<String, dynamic>.from(resp.data);
+  }
+
+  Future<Map<String, dynamic>> getInsight(String ticker) async {
+    final resp = await dio.get('${ApiConfig.api}/stock/insight/$ticker/');
+    return Map<String, dynamic>.from(resp.data);
+  }
+
   Future<Map<String, dynamic>> getCompanyRatio(String ticker, [String range = '5y']) async {
     final resp = await dio.get('${ApiConfig.mobileApi}/company-ratio/$ticker/?range=$range');
     return Map<String, dynamic>.from(resp.data);
@@ -65,6 +75,11 @@ Future<Map<String, dynamic>> markAllNotifications() async {
   return Map<String, dynamic>.from(resp.data);
 }
 
+
+  Future<List<dynamic>> getSignals(String ticker) async {
+    final resp = await dio.get('${ApiConfig.mobileApi}/signals/$ticker/');
+    return List<dynamic>.from(resp.data);
+  }
 
   Future<Map<String, dynamic>> getTechnicalAnalysis(String ticker) async {
     // Explicitly fetching token to ensure auth header is sent

@@ -4,16 +4,18 @@ import '../common/fw_badge.dart';
 
 class ProfileBar extends StatelessWidget {
   final String userName;
-  final String riskAppetite;
-  final String goal;
-  final String horizon;
+  final String? avatarUrl;
+  final String? riskAppetite;
+  final String? goal;
+  final String? horizon;
 
   const ProfileBar({
     super.key,
     required this.userName,
-    required this.riskAppetite,
-    required this.goal,
-    required this.horizon,
+    this.avatarUrl,
+    this.riskAppetite,
+    this.goal,
+    this.horizon,
   });
 
   @override
@@ -39,10 +41,15 @@ class ProfileBar extends StatelessWidget {
           CircleAvatar(
             radius: 24,
             backgroundColor: AppColors.brandPrimary.withValues(alpha: 0.2),
-            child: Text(
-              userName.isNotEmpty ? userName[0].toUpperCase() : '?',
-              style: text.titleLarge?.copyWith(color: AppColors.brandPrimaryDark),
-            ),
+            backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+                ? NetworkImage(avatarUrl!)
+                : null,
+            child: avatarUrl == null || avatarUrl!.isEmpty
+                ? Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : '?',
+                    style: text.titleLarge?.copyWith(color: AppColors.brandPrimaryDark),
+                  )
+                : null,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -55,9 +62,12 @@ class ProfileBar extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    FwBadge(label: riskAppetite, tone: FwBadgeTone.primary),
-                    FwBadge(label: goal, tone: FwBadgeTone.info),
-                    FwBadge(label: horizon, tone: FwBadgeTone.neutral),
+                    if (riskAppetite != null)
+                      FwBadge(label: riskAppetite!, tone: FwBadgeTone.primary),
+                    if (goal != null)
+                      FwBadge(label: goal!, tone: FwBadgeTone.info),
+                    if (horizon != null)
+                      FwBadge(label: horizon!, tone: FwBadgeTone.neutral),
                   ],
                 ),
               ],

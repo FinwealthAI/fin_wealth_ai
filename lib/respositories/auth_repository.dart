@@ -156,9 +156,13 @@ class AuthRepository {
   /// Đăng nhập bằng JWT.
   /// Trả về Map để tương thích code cũ (vd. AuthBloc), gồm: {access, refresh, user:{username}}
   Future<Map<String, dynamic>> authenticate(String username, String password) async {
-    // Clear any existing authentication state before attempting new login
-    // This prevents stale tokens from interfering with fresh login attempts
-    await logout();
+    // Clear tokens trực tiếp mà không bắn logout event, tránh LogoutRequested → AuthInitial
+    // sau mỗi lần đăng nhập
+    _accessToken = null;
+    _refreshToken = null;
+    _username = null;
+    await _saveTokens();
+    dio.options.headers.remove('Authorization');
     
     final response = await dio.post(
       '/mobile/api/token/',
@@ -307,6 +311,45 @@ class AuthRepository {
       print('SignUp Error: $e');
       rethrow;
     }
+  }
+
+  Future<String> forgotPassword(String emailOrUsername) async {
+    final response = await dio.post(
+      ApiConfig.forgotPassword,
+      data: {'email': emailOrUsername},
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (s) => s != null && s < 500,
+      ),
+    );
+    if (response.statusCode == 200) {
+      return response.data['message'] as String;
+    }
+    throw Exception(response.data['error'] ?? 'Có lỗi xảy ra');
+  }
+
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final response = await dio.post(
+      ApiConfig.changePassword,
+      data: {
+        'old_password': oldPassword,
+        'new_password': newPassword,
+        'confirm_password': confirmPassword,
+      },
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (s) => s != null && s < 500,
+      ),
+    );
+
+    if (response.statusCode == 200) return;
+
+    final error = response.data['error'] ?? 'Đổi mật khẩu thất bại';
+    throw Exception(error);
   }
 
   /// Google Sign-In

@@ -487,7 +487,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           )
         else
           SizedBox(
-            height: 210,
+            height: 180,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:

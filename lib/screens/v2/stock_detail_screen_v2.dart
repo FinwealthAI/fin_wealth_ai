@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../respositories/auth_repository.dart';
@@ -37,13 +38,23 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   Map<String, dynamic>? _ratio;
   Map<String, dynamic>? _growth;
   Map<String, dynamic>? _safety;
+  Map<String, dynamic>? _technical;
+
+  Map<String, dynamic>? _valuationHistory;
+  Map<String, dynamic>? _insight;
 
   bool _loadingOverview = true,
       _loadingValuation = true,
+      _loadingValuationHistory = true,
       _loadingRatio = true,
       _loadingGrowth = true,
-      _loadingSafety = true;
-  Object? _errOverview, _errValuation, _errRatio, _errGrowth, _errSafety;
+      _loadingSafety = true,
+      _loadingSignals = true,
+      _loadingTechnical = true,
+      _loadingInsight = true;
+  Object? _errOverview, _errValuation, _errValuationHistory, _errRatio, _errGrowth, _errSafety, _errInsight;
+
+  List<dynamic> _signals = [];
 
   bool _addingToWatchlist = false;
 
@@ -56,9 +67,13 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     } else {
       _loadingOverview = false;
       _loadingValuation = false;
+      _loadingValuationHistory = false;
       _loadingRatio = false;
       _loadingGrowth = false;
       _loadingSafety = false;
+      _loadingSignals = false;
+      _loadingTechnical = false;
+      _loadingInsight = false;
     }
   }
 
@@ -73,10 +88,62 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     await Future.wait([
       _loadOverview(),
       _loadValuation(),
+      _loadValuationHistory(),
       _loadRatio(),
       _loadGrowth(),
       _loadSafety(),
+      _loadSignals(),
+      _loadTechnical(),
+      _loadInsight(),
     ]);
+  }
+
+  Future<void> _loadTechnical() async {
+    setState(() => _loadingTechnical = true);
+    try {
+      final d = await _repo.getTechnicalAnalysis(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _technical = d;
+        _loadingTechnical = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingTechnical = false);
+    }
+  }
+
+  Future<void> _loadInsight() async {
+    setState(() => _loadingInsight = true);
+    try {
+      final d = await _repo.getInsight(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _insight = d;
+        _loadingInsight = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errInsight = e;
+        _loadingInsight = false;
+      });
+    }
+  }
+
+  Future<void> _loadSignals() async {
+    setState(() => _loadingSignals = true);
+    try {
+      final d = await _repo.getSignals(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _signals = d;
+        _loadingSignals = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingSignals = false);
+    }
   }
 
   Future<void> _loadOverview() async {
@@ -117,6 +184,27 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       setState(() {
         _errValuation = e;
         _loadingValuation = false;
+      });
+    }
+  }
+
+  Future<void> _loadValuationHistory() async {
+    setState(() {
+      _loadingValuationHistory = true;
+      _errValuationHistory = null;
+    });
+    try {
+      final d = await _repo.getValuationHistory(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _valuationHistory = d;
+        _loadingValuationHistory = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errValuationHistory = e;
+        _loadingValuationHistory = false;
       });
     }
   }
@@ -270,6 +358,12 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     return d?.toStringAsFixed(1);
   }
 
+  String _fmt(double? v, {int dec = 2}) {
+    if (v == null) return '—';
+    final fmt = NumberFormat('#,##0${dec > 0 ? '.' : ''}${'#' * dec}', 'vi_VN');
+    return fmt.format(v);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isGuest = _authRepo.accessToken == null;
@@ -315,7 +409,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 240,
+      expandedHeight: 300,
       backgroundColor: AppColors.darkBg,
       leading: const BackButton(),
       actions: [
@@ -356,14 +450,14 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                     )),
                 if (price != null) ...[
                   const SizedBox(width: 8),
-                  Text(price.toStringAsFixed(2),
+                  Text(_fmt(price),
                       style:
                           text.titleSmall?.copyWith(color: priceColor)),
                 ],
                 if (change != null) ...[
                   const SizedBox(width: 6),
                   Text(
-                      '${positive ? '+' : ''}${change.toStringAsFixed(2)}%',
+                      '${positive ? '+' : ''}${_fmt(change)}%',
                       style:
                           text.labelSmall?.copyWith(color: priceColor)),
                 ],
@@ -414,12 +508,14 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   ignoring: contentOpacity < 0.05,
                   child: Opacity(
                     opacity: contentOpacity,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg, 56, AppSpacing.lg, 56),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg, 56, AppSpacing.lg, 40),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
@@ -437,6 +533,8 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                           ),
                           const SizedBox(height: 4),
                           Text(_companyName ?? 'Cổ phiếu',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: text.bodyMedium?.copyWith(
                                   color: AppColors.darkTextSecondary)),
                           const SizedBox(height: AppSpacing.sm),
@@ -444,7 +542,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                price == null ? '—' : price.toStringAsFixed(2),
+                                _fmt(price),
                                 style: text.headlineLarge
                                     ?.copyWith(color: priceColor),
                               ),
@@ -468,7 +566,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                                               : Icons.arrow_drop_down,
                                           color: priceColor),
                                       Text(
-                                          '${positive ? '+' : ''}${change.toStringAsFixed(2)}%',
+                                          '${positive ? '+' : ''}${_fmt(change)}%',
                                           style: text.titleSmall?.copyWith(
                                               color: priceColor)),
                                     ],
@@ -483,8 +581,9 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   ),
                 ),
               ),
-            ],
-          );
+            ),
+          ],
+        );
         },
       ),
       bottom: TabBar(
@@ -547,24 +646,39 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                 Wrap(
                   spacing: AppSpacing.md,
                   runSpacing: 6,
-                  children: const [
-                    _LegendDot(
+                  children: [
+                    const _LegendDot(
                         color: AppColors.brandPrimaryDark,
                         label: 'Giá đóng cửa'),
+                    if (_toD(_overview?['avg_target_price']) != null)
+                      const _LegendDot(
+                          color: Colors.orangeAccent,
+                          label: 'Định giá TB'),
+                    if ((_technical?['data'] as Map?)?['levels']?['nearest_support'] != null)
+                      const _LegendDot(
+                          color: AppColors.successDark,
+                          label: 'Hỗ trợ (HT)'),
+                    if ((_technical?['data'] as Map?)?['levels']?['nearest_resistance'] != null)
+                      const _LegendDot(
+                          color: Colors.redAccent,
+                          label: 'Kháng cự (KC)'),
+                    if (_signals.isNotEmpty)
+                      const _LegendDot(
+                          color: AppColors.successDark,
+                          label: 'Tín hiệu mua ▲'),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          _buildOverviewKpiGrid(),
+          _buildOpportunityRiskCard(),
         ],
       ),
     );
   }
 
-  Widget _buildOverviewKpiGrid() {
-    final text = Theme.of(context).textTheme;
+  Widget _buildOpportunityRiskCard() {
     if (_loadingOverview) {
       return const FwSkeleton(height: 140, radius: AppRadius.lg);
     }
@@ -575,60 +689,38 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     final o = _overview;
     if (o == null) return const SizedBox.shrink();
 
-    final fields = <(String, String?)>[
-      ('Giá', o['price']?.toString()),
-      ('Tăng/Giảm (%)', o['up_size']?.toString()),
-      ('P/E', o['price_to_earnings']?.toString()),
-      ('P/B', o['price_to_book']?.toString()),
-      ('EPS', o['eps_tr']?.toString()),
-      ('Cổ tức (%)', o['dividend_yield']?.toString()),
-    ];
+    final faScore = _toD(o['fa_score'] ?? o['wealth_fa']) ?? 0.0;
 
-    return FwCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Text('Thông tin nhanh', style: text.titleMedium),
-          ),
-          const Divider(height: 1, color: AppColors.darkBorder),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
-            childAspectRatio: 1.6,
-            children: [
-              for (final f in fields)
-                Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      right: BorderSide(color: AppColors.darkBorder),
-                      bottom: BorderSide(color: AppColors.darkBorder),
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(f.$1,
-                          style: text.labelSmall
-                              ?.copyWith(color: AppColors.darkTextMuted)),
-                      const SizedBox(height: 2),
-                      Text(
-                          f.$2 == null || f.$2 == 'null' || f.$2!.isEmpty
-                              ? '—'
-                              : f.$2!,
-                          style: text.titleSmall),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
+    double upside = 0.0;
+    bool valuationReady = !_loadingValuation && _valuation != null;
+    if (valuationReady) {
+      final price = _toD(o['price']) ?? 0.0;
+      final details = (_valuation!['details'] as List<dynamic>?) ?? [];
+      if (details.isNotEmpty && price > 0) {
+        final targets = details
+            .map((d) => _toD((d as Map)['target_price']))
+            .whereType<double>()
+            .toList();
+        if (targets.isNotEmpty) {
+          final avg = targets.reduce((a, b) => a + b) / targets.length;
+          upside = (avg / price - 1) * 100;
+        }
+      }
+    }
+
+    double opp = (50 + faScore).clamp(0, 90);
+    if (valuationReady && upside < 0) {
+      opp -= upside.abs().clamp(0, 25);
+    }
+    opp = opp.clamp(10, 90);
+    final risk = 100 - opp;
+
+    return _OpportunityRiskCard(
+      opportunity: opp,
+      risk: risk,
+      faScore: faScore,
+      upside: valuationReady ? upside : null,
+      insight: _insight,
     );
   }
 
@@ -1016,6 +1108,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     }
     final priceHistory = _ratio?['price_history'] as Map<String, dynamic>?;
     final closeRaw = (priceHistory?['close'] as List<dynamic>?) ?? const [];
+    final priceLabels = (priceHistory?['labels'] as List<dynamic>?) ?? const [];
     final price = closeRaw
         .where((e) => e != null)
         .map((e) => (e as num).toDouble())
@@ -1027,13 +1120,135 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     }
     final yMin = price.reduce((a, b) => a < b ? a : b);
     final yMax = price.reduce((a, b) => a > b ? a : b);
-    final span = (yMax - yMin).abs();
-    final pad = span < 0.1 ? 1 : span * 0.05;
+
+    double? norm(double? v) {
+      if (v == null) return null;
+      if (v > yMax * 5 && v >= 1000) return v / 1000.0;
+      return v;
+    }
+
+    final avgTarget = norm(_toD(_overview?['avg_target_price']));
+    Map? techLevels;
+    if (!_loadingTechnical && _technical != null) {
+      techLevels = ((_technical!['data'] as Map?)?['levels']) as Map?;
+    }
+    final support = norm(_toD(techLevels?['nearest_support']));
+    final resistance = norm(_toD(techLevels?['nearest_resistance']));
+
+    final valSpots = <FlSpot>[];
+    if (!_loadingValuationHistory && _valuationHistory != null) {
+      final histList = _valuationHistory!['history'] as List<dynamic>? ?? [];
+      if (histList.isNotEmpty) {
+        final lookup = <String, double>{};
+        for (final h in histList) {
+          final map = h as Map<String, dynamic>;
+          final date = map['date'] as String?;
+          final val = _toD(map['avg_target_price']);
+          if (date != null && val != null) {
+            lookup[date] = val;
+          }
+        }
+        if (lookup.isNotEmpty) {
+          final sampleRaw = lookup.values.first;
+          final lastPrice = price.isNotEmpty ? price.last : 0.0;
+          final scale = (sampleRaw > 0 && lastPrice > 0 && sampleRaw < lastPrice / 100) ? 1000.0 : 1.0;
+          double? lastVal;
+          for (int i = 0; i < priceLabels.length; i++) {
+            final lbl = priceLabels[i].toString();
+            if (lookup.containsKey(lbl)) {
+              lastVal = norm(lookup[lbl]! * scale);
+            }
+            if (lastVal != null) {
+              valSpots.add(FlSpot(i.toDouble(), lastVal));
+            }
+          }
+        }
+      }
+    }
+
+    double cMin = yMin;
+    double cMax = yMax;
+    for (final y in [avgTarget, support, resistance]) {
+      if (y != null) {
+        if (y < cMin) cMin = y;
+        if (y > cMax) cMax = y;
+      }
+    }
+    for (final spot in valSpots) {
+      if (spot.y < cMin) cMin = spot.y;
+      if (spot.y > cMax) cMax = spot.y;
+    }
+
+    final span = (cMax - cMin).abs();
+    final pad = span < 0.1 ? 1.0 : span * 0.05;
+    final yLo = cMin - pad;
+    final yHi = cMax + pad * 4; // extra headroom for labels
+
+    final hLines = <HorizontalLine>[];
+    void addHLine(double? y, Color c, String lbl) {
+      if (y == null || y <= yLo || y >= yHi) return;
+      hLines.add(HorizontalLine(
+        y: y,
+        color: c,
+        strokeWidth: 1.0,
+        dashArray: const [6, 4],
+        label: HorizontalLineLabel(
+          show: true,
+          alignment: Alignment.topRight,
+          padding: const EdgeInsets.only(right: 4, bottom: 2),
+          style: TextStyle(color: c, fontSize: 9, fontWeight: FontWeight.w700),
+          labelResolver: (_) => lbl,
+        ),
+      ));
+    }
+
+    if (valSpots.isEmpty) {
+      addHLine(avgTarget, Colors.orangeAccent, 'ĐG TB');
+    }
+    addHLine(support, AppColors.successDark, 'HT');
+    addHLine(resistance, Colors.redAccent, 'KC');
+
+    // Signal markers placed at the bottom strip of the chart
+    final signalY = yMin - pad * 0.6;
+    final labelIndex = <String, int>{};
+    for (int i = 0; i < priceLabels.length; i++) {
+      labelIndex[priceLabels[i].toString()] = i;
+    }
+    final signalSpots = <FlSpot>[];
+    final seenIdx = <int>{};
+    if (!_loadingSignals) {
+      for (final s in _signals) {
+        final date = (s as Map?)?['date'] as String?;
+        if (date != null) {
+          final idx = labelIndex[date];
+          if (idx != null && idx < price.length && !seenIdx.contains(idx)) {
+            seenIdx.add(idx);
+            signalSpots.add(FlSpot(idx.toDouble(), signalY));
+          }
+        }
+      }
+      signalSpots.sort((a, b) => a.x.compareTo(b.x));
+
+      if (signalSpots.isNotEmpty) {
+        final filteredSpots = <FlSpot>[signalSpots.first];
+        final minDist = (price.length / 30).clamp(3.0, 15.0);
+        for (int i = 1; i < signalSpots.length; i++) {
+          if (signalSpots[i].x - filteredSpots.last.x >= minDist) {
+            filteredSpots.add(signalSpots[i]);
+          }
+        }
+        signalSpots.clear();
+        signalSpots.addAll(filteredSpots);
+      }
+    }
 
     return LineChart(
       LineChartData(
-        minY: yMin - pad,
-        maxY: yMax + pad,
+        minY: yLo,
+        maxY: yHi,
+        extraLinesData: hLines.isEmpty
+            ? null
+            : ExtraLinesData(horizontalLines: hLines),
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
@@ -1051,16 +1266,19 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             getTooltipColor: (_) =>
                 AppColors.darkSurface.withValues(alpha: 0.95),
             tooltipRoundedRadius: 8,
-            getTooltipItems: (spots) => spots
-                .map((s) => LineTooltipItem(
-                      'Giá  ${s.y.toStringAsFixed(2)}',
-                      const TextStyle(
-                        color: AppColors.brandPrimaryDark,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ))
-                .toList(),
+            getTooltipItems: (spots) => spots.map((s) {
+              if (s.barIndex == 0) {
+                return LineTooltipItem(
+                  'Giá  ${s.y.toStringAsFixed(2)}',
+                  const TextStyle(
+                    color: AppColors.brandPrimaryDark,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }
+              return null; // Return null for other series (valuation, signals) to maintain array size
+            }).toList(),
           ),
         ),
         lineBarsData: [
@@ -1086,6 +1304,26 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
               ),
             ),
           ),
+          if (valSpots.isNotEmpty)
+            LineChartBarData(
+              spots: valSpots,
+              isCurved: false,
+              color: Colors.orangeAccent,
+              barWidth: 1.5,
+              dotData: const FlDotData(show: false),
+              dashArray: [6, 4],
+            ),
+          if (signalSpots.isNotEmpty)
+            LineChartBarData(
+              spots: signalSpots,
+              color: Colors.transparent,
+              barWidth: 0,
+              dotData: FlDotData(
+                show: true,
+                getDotPainter: (spot, _, __, ___) =>
+                    _TriangleDotPainter(color: AppColors.successDark),
+              ),
+            ),
         ],
       ),
     );
@@ -1399,4 +1637,237 @@ class _TableHead extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OpportunityRiskCard extends StatelessWidget {
+  final double opportunity;
+  final double risk;
+  final double faScore;
+  final double? upside;
+  final Map<String, dynamic>? insight;
+
+  const _OpportunityRiskCard({
+    required this.opportunity,
+    required this.risk,
+    required this.faScore,
+    this.upside,
+    this.insight,
+  });
+
+  Color get _oppColor {
+    if (opportunity >= 65) return const Color(0xFF22C55E);
+    if (opportunity >= 50) return AppColors.brandPrimary;
+    return Colors.orangeAccent;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final oppInt = opportunity.round();
+    final riskInt = risk.round();
+
+    return FwCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome,
+                  size: 14, color: AppColors.brandPrimaryDark),
+              const SizedBox(width: 6),
+              Text('Cơ hội & Rủi ro', style: text.titleMedium),
+              const Spacer(),
+              if (upside == null)
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: AppColors.darkTextMuted),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$oppInt%',
+                      style: text.headlineMedium?.copyWith(
+                        color: _oppColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('Cơ hội',
+                        style: text.labelSmall
+                            ?.copyWith(color: AppColors.darkTextMuted)),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$riskInt%',
+                      style: text.headlineMedium?.copyWith(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('Rủi ro',
+                        style: text.labelSmall
+                            ?.copyWith(color: AppColors.darkTextMuted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: oppInt,
+                    child: Container(color: _oppColor),
+                  ),
+                  Expanded(
+                    flex: riskInt,
+                    child: Container(
+                        color: Colors.redAccent.withValues(alpha: 0.55)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (upside != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(
+                  upside! >= 0 ? Icons.trending_up : Icons.trending_down,
+                  size: 13,
+                  color: upside! >= 0
+                      ? AppColors.successDark
+                      : Colors.redAccent,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Upside: ${upside! >= 0 ? '+' : ''}${upside!.toStringAsFixed(1)}%',
+                  style: text.labelSmall?.copyWith(
+                    color: upside! >= 0
+                        ? AppColors.successDark
+                        : Colors.redAccent,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (insight != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            const Divider(height: 1, color: AppColors.darkBorder),
+            const SizedBox(height: AppSpacing.md),
+            _buildInsightList(insight!['opportunities'] as List<dynamic>?, true),
+            _buildInsightList(insight!['risks'] as List<dynamic>?, false),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightList(List<dynamic>? items, bool isOpp) {
+    if (items == null || items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Text(
+          isOpp ? 'Chưa có dữ liệu từ CTCK' : 'Không phát hiện rủi ro đáng kể',
+          style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.darkTextMuted,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w500),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items.map((item) {
+        final text = item.toString();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2.0, right: 6.0),
+                child: Icon(
+                  isOpp ? Icons.check : Icons.warning_amber_rounded,
+                  size: 14,
+                  color: isOpp ? AppColors.successDark : Colors.redAccent,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.darkTextSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TriangleDotPainter extends FlDotPainter {
+  final Color color;
+  final double size;
+
+  const _TriangleDotPainter({required this.color, this.size = 7.0});
+
+  @override
+  void draw(Canvas canvas, FlSpot spot, Offset center) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(center.dx, center.dy - size)
+      ..lineTo(center.dx - size * 0.75, center.dy + size * 0.5)
+      ..lineTo(center.dx + size * 0.75, center.dy + size * 0.5)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  Size getSize(FlSpot spot) => Size(size * 2, size * 2);
+
+  @override
+  Color get mainColor => color;
+
+  @override
+  FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) {
+    if (a is _TriangleDotPainter && b is _TriangleDotPainter) {
+      return _TriangleDotPainter(
+        color: Color.lerp(a.color, b.color, t)!,
+        size: a.size + (b.size - a.size) * t,
+      );
+    }
+    return b;
+  }
+
+  @override
+  List<Object?> get props => [color, size];
 }

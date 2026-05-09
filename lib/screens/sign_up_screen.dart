@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:fin_wealth/screens/home_screen.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/screens/home_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SignUpScreen extends StatefulWidget {
@@ -47,9 +47,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
         _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty ||
         _passwordController.text.isEmpty) {
-      _showError('Vui lòng điền đầy đủ thông tin (Họ, Tên, Email, SĐT, Mật khẩu)');
+      _showError('Vui lòng điền đầy đủ thông tin (Họ, Tên, Email, Mật khẩu)');
       return;
     }
 
@@ -74,19 +73,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
 
       if (success) {
-        // Sign up successful - user is now logged in with JWT tokens
-        // Navigate to home screen
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => HomeScreenMultiNav(
-              userData: {
-                'username': authRepo.username ?? _phoneController.text,
-                'access_token': authRepo.accessToken,
-              },
-            ),
-          ),
-          (route) => false, // Remove all previous routes
-        );
+        Navigator.of(context).pushNamedAndRemoveUntil('/v2', (route) => false);
       } else {
         _showError('Đăng ký thất bại. Vui lòng thử lại.');
       }

@@ -39,7 +39,7 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
   bool _loadingFollowing = true;
   Object? _communityErr, _followingErr;
 
-  final _tabs = const ['Top Wealth', 'Đang theo dõi', 'Cộng đồng'];
+  final _tabs = const ['Top Wealth', 'Theo dõi', 'Cộng đồng'];
 
   @override
   void initState() {

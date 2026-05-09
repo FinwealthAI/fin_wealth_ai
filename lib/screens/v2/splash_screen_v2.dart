@@ -58,8 +58,12 @@ class _SplashScreenV2State extends State<SplashScreenV2> {
                     ]),
                     boxShadow: AppShadows.purpleGlow,
                   ),
-                  child: const Icon(Icons.bolt,
-                      size: 48, color: Colors.white),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/logo_standard.jpg',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text('FinWealth',

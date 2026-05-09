@@ -46,6 +46,7 @@ class OpportunityCard extends StatelessWidget {
     'manh': 'Mạnh',
     'chu_y': 'Chú ý',
     'yeu': 'Yếu',
+    'unranked': 'N/A',
   };
 
   @override
@@ -202,6 +203,9 @@ class OpportunityCard extends StatelessWidget {
         break;
       case 'yeu':
         color = AppColors.dangerDark;
+        break;
+      case 'unranked':
+        color = const Color(0xFF8B5CF6); // Purple from image
         break;
       default:
         color = AppColors.brandPrimaryDark;

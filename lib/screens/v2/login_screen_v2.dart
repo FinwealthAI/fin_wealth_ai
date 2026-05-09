@@ -5,6 +5,8 @@ import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
+import 'forgot_password_screen_v2.dart';
+import 'signup_screen_v2.dart';
 
 class LoginScreenV2 extends StatefulWidget {
   const LoginScreenV2({super.key});
@@ -34,6 +36,24 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
     Navigator.of(context).pushReplacementNamed('/v2');
   }
 
+  void _goToSignUp() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SignupScreenV2()),
+    );
+  }
+
+  void _forgotPassword() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ForgotPasswordScreenV2()),
+    );
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đăng nhập Google chưa được hỗ trợ trên thiết bị này')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -45,8 +65,16 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
               Navigator.of(context).pushReplacementNamed('/v2');
             } else if (state is AuthFailure &&
                 state.error != 'Not logged in') {
+              String msg = state.error.replaceFirst('Exception: ', '');
+              if (msg.startsWith('DioException') || msg.contains('SocketException')) {
+                msg = 'Không thể kết nối máy chủ. Kiểm tra kết nối mạng.';
+              }
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.error.replaceFirst('Exception: ', ''))),
+                SnackBar(
+                  content: Text(msg),
+                  backgroundColor: Colors.redAccent,
+                  duration: const Duration(seconds: 4),
+                ),
               );
             }
           },
@@ -71,8 +99,12 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                             ]),
                             boxShadow: AppShadows.purpleGlow,
                           ),
-                          child: const Icon(Icons.bolt,
-                              size: 44, color: Colors.white),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/logo_standard.jpg',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         Text('FinWealth', style: text.displayMedium),
@@ -113,7 +145,7 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: loading ? null : () {},
+                            onPressed: loading ? null : _forgotPassword,
                             child: const Text('Quên mật khẩu?'),
                           ),
                         ),
@@ -150,7 +182,7 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                           icon: Icons.g_mobiledata,
                           variant: FwButtonVariant.secondary,
                           fullWidth: true,
-                          onPressed: loading ? null : () {},
+                          onPressed: loading ? null : _handleGoogleSignIn,
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         Row(
@@ -158,7 +190,7 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                           children: [
                             Text('Chưa có tài khoản? ', style: text.bodySmall),
                             TextButton(
-                              onPressed: loading ? null : () {},
+                              onPressed: loading ? null : _goToSignUp,
                               child: const Text('Đăng ký'),
                             ),
                           ],

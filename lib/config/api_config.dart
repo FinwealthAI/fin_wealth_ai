@@ -47,6 +47,8 @@ class ApiConfig {
   static String get latestSignals => '$api/latest-signals/';
   static String get signup => '$api/signup/';
   static String get googleLogin => '$api/google-login/';
+  static String get changePassword => '$api/change-password/';
+  static String get forgotPassword => '$api/forgot-password/';
   static String get token => '$mobileApi/token/';
   static String get tokenRefresh => '$mobileApi/token/refresh/';
   
