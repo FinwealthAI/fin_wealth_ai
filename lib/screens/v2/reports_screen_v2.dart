@@ -13,7 +13,7 @@ import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
 import '../../widgets/dashboard/report_row.dart';
 import 'stock_detail_screen_v2.dart';
-import '../report_viewer_screen.dart';
+import 'report_viewer_screen_v2.dart';
 
 class ReportsScreenV2 extends StatelessWidget {
   const ReportsScreenV2({super.key});
@@ -265,7 +265,7 @@ class _ReportsViewState extends State<_ReportsView> {
             targetPrice: r.targetPrice?.toDouble(),
             onTap: r.fileUrl != null
                 ? () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ReportViewerScreen(
+                    builder: (_) => ReportViewerScreenV2(
                         url: r.fileUrl!, title: r.title)))
                 : () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => StockDetailScreenV2(ticker: r.ticker))),

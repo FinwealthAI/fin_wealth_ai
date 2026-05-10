@@ -191,13 +191,22 @@ class StrategyCardData {
   final Map<String, dynamic> config;
   final List<dynamic> data; // List of objects (Map<String, dynamic>)
   final bool isFollowing;
+  final bool isOwned;
   final int tickerCount;
   final List<String> filterCriteria;
   final String? author;
+  final String? ownerUsername;
+  final String? ownerAvatar;
   final String? riskLevel;
   final String? investPeriod;
   final List<String> targetInvestor;
   final int followerCount;
+  final String? filterType; // TECHNICAL / FUNDAMENTAL
+  final double? perfYear; // % YTD or 1Y
+  final bool showPerformance;
+  final String? exitLogicDesc;
+  final bool hasAutoExit;
+  final Map<String, dynamic>? backtestMetrics;
 
   StrategyCardData({
     required this.cardId,
@@ -209,13 +218,22 @@ class StrategyCardData {
     required this.config,
     required this.data,
     this.isFollowing = false,
+    this.isOwned = false,
     this.tickerCount = 0,
     this.filterCriteria = const [],
     this.author,
+    this.ownerUsername,
+    this.ownerAvatar,
     this.riskLevel,
     this.investPeriod,
     this.targetInvestor = const [],
     this.followerCount = 0,
+    this.filterType,
+    this.perfYear,
+    this.showPerformance = true,
+    this.exitLogicDesc,
+    this.hasAutoExit = false,
+    this.backtestMetrics,
   });
 
   factory StrategyCardData.fromJson(Map<String, dynamic> json) {
@@ -237,6 +255,15 @@ class StrategyCardData {
         } catch (_) {}
     }
 
+    double? toD(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        return double.tryParse(v.replaceAll(',', '').replaceAll('%', '').trim());
+      }
+      return null;
+    }
+
     return StrategyCardData(
       cardId: json['card_id'] as String? ?? '',
       presetId: json['preset_id'] as int? ?? 0,
@@ -247,14 +274,45 @@ class StrategyCardData {
       config: json['config'] as Map<String, dynamic>? ?? {},
       data: json['data'] as List<dynamic>? ?? [],
       isFollowing: json['is_following'] as bool? ?? false,
+      isOwned: json['is_owned'] as bool? ?? false,
       tickerCount: json['ticker_count'] as int? ?? 0,
       filterCriteria: (json['filter_criteria'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      author: json['owner_name'] as String? ?? json['owner'] as String?, 
+      author: json['owner_name'] as String? ?? json['owner'] as String?,
+      ownerUsername: json['owner_username'] as String?,
+      ownerAvatar: json['owner_avatar'] as String?,
       riskLevel: json['risk_level'] as String?,
       investPeriod: json['investment_period'] as String? ?? json['invest_period'] as String?,
       targetInvestor: parsedTargetInvestor,
-      followerCount: json['followers_count'] as int? ?? 0, 
+      followerCount: json['followers_count'] as int? ?? 0,
+      filterType: json['filter_type'] as String?,
+      perfYear: toD(json['perf_year']),
+      showPerformance: json['show_performance'] as bool? ?? false,
+      exitLogicDesc: json['exit_logic_desc'] as String?,
+      hasAutoExit: json['has_auto_exit'] as bool? ?? (json['exit_logic_desc'] as String? ?? '').isNotEmpty,
+      backtestMetrics: json['backtest_metrics'] is Map
+          ? Map<String, dynamic>.from(json['backtest_metrics'] as Map)
+          : null,
     );
+  }
+
+  /// Maps backend enum key to Vietnamese display label.
+  static String riskLabel(String? key) {
+    switch ((key ?? '').toUpperCase()) {
+      case 'LOW':    return 'Thấp';
+      case 'HIGH':   return 'Cao';
+      case 'MEDIUM':
+      default:       return 'Trung bình';
+    }
+  }
+
+  /// Maps backend enum key to Vietnamese display label.
+  static String periodLabel(String? key) {
+    switch ((key ?? '').toUpperCase()) {
+      case 'SHORT':  return 'Ngắn hạn (T+)';
+      case 'LONG':   return 'Dài hạn (Năm)';
+      case 'MEDIUM':
+      default:       return 'Trung hạn (Tháng)';
+    }
   }
 }
 

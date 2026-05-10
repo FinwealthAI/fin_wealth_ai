@@ -26,6 +26,7 @@ dependencies:
   syncfusion_flutter_pdfviewer: ^31.2.12
   html: ^0.15.6
   google_sign_in: ^6.2.1
+  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:

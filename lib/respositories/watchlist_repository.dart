@@ -62,12 +62,20 @@ class WatchlistRepository {
       );
 
       if (response.statusCode != 200) {
-         if (response.data is Map && response.data['success'] == false) {
-             throw Exception(response.data['message'] ?? 'Failed to add to watchlist');
+        String errorMsg = 'Lỗi máy chủ (${response.statusCode})';
+        if (response.data is Map) {
+          errorMsg = response.data['message'] ?? response.data['detail'] ?? errorMsg;
         }
+        throw Exception(errorMsg);
       }
+    } on DioException catch (e) {
+      String msg = 'Không thể kết nối đến máy chủ';
+      if (e.response?.data is Map) {
+        msg = e.response?.data['message'] ?? e.response?.data['detail'] ?? msg;
+      }
+      throw Exception(msg);
     } catch (e) {
-      throw Exception('Failed to add to watchlist: $e');
+      throw Exception('Lỗi không xác định: $e');
     }
   }
 

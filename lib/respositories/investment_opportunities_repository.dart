@@ -1,14 +1,51 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:fin_wealth/models/dashboard_home.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InvestmentOpportunitiesRepository {
   final Dio dio;
   InvestmentOpportunitiesRepository(this.dio);
 
+  static const _dashCacheKey = 'dashboard_home_cache_v1';
+  static const _dashCacheTsKey = 'dashboard_home_cache_ts_v1';
+  // Client cache TTL — phải < server TTL (5 phút) để không phục vụ stale quá lâu
+  static const _clientCacheTtl = Duration(minutes: 4);
+
+  /// Lưu raw JSON string vào SharedPreferences.
+  Future<void> _saveDashCache(String jsonStr) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dashCacheKey, jsonStr);
+    await prefs.setInt(_dashCacheTsKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// Đọc cache nếu còn trong TTL. Trả null nếu hết hạn hoặc không có.
+  Future<DashboardHome?> _readDashCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ts = prefs.getInt(_dashCacheTsKey);
+      if (ts == null) return null;
+      final age = DateTime.now().millisecondsSinceEpoch - ts;
+      if (age > _clientCacheTtl.inMilliseconds) return null;
+      final str = prefs.getString(_dashCacheKey);
+      if (str == null) return null;
+      final raw = jsonDecode(str) as Map<String, dynamic>;
+      return DashboardHome.fromJson(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Endpoint mới — full dashboard home payload (mirror trang chủ web).
-  Future<DashboardHome> fetchDashboardHome() async {
+  /// Chiến lược: trả cache ngay nếu còn hạn, song song fetch server để update.
+  Future<DashboardHome> fetchDashboardHome({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = await _readDashCache();
+      if (cached != null) return cached;
+    }
+
     final resp = await dio.get(ApiConfig.dashboardHome);
     if (resp.statusCode != 200 || resp.data == null) {
       throw Exception('Lỗi tải dashboard (${resp.statusCode}): ${resp.data}');
@@ -20,7 +57,10 @@ class InvestmentOpportunitiesRepository {
     if (raw['success'] != true || raw['data'] is! Map) {
       throw Exception(raw['error']?.toString() ?? 'Server trả lỗi');
     }
-    return DashboardHome.fromJson(Map<String, dynamic>.from(raw['data'] as Map));
+    final dataMap = Map<String, dynamic>.from(raw['data'] as Map);
+    // Lưu cache sau khi parse thành công
+    _saveDashCache(jsonEncode(dataMap));
+    return DashboardHome.fromJson(dataMap);
   }
 
   Future<InvestmentOpportunities?> fetch() async {
@@ -161,7 +201,7 @@ class InvestmentOpportunitiesRepository {
         ApiConfig.marketplaceResults,
         queryParameters: {'tab': tab},
       );
-      
+
       if (resp.statusCode == 200 && resp.data != null) {
         final data = resp.data;
         if (data is Map && data['results'] is List) {
@@ -171,9 +211,106 @@ class InvestmentOpportunitiesRepository {
         }
       }
     } catch (e) {
-      print('Failed to load strategies for tab $tab: $e');
+      // ignore
     }
     return [];
+  }
+
+  Future<StrategyCardData?> fetchStrategyCard(int presetId) async {
+    try {
+      final resp = await dio.get(
+        ApiConfig.marketplaceResults,
+        queryParameters: {'ids': presetId, 'full_data': 'true'},
+      );
+      if (resp.statusCode == 200) {
+        final data = resp.data;
+        if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
+          return StrategyCardData.fromJson(
+              Map<String, dynamic>.from(data['results'][0] as Map));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  Future<bool> followStrategy(int presetId) async {
+    try {
+      final resp = await dio.post(
+          '${ApiConfig.baseUrl}/filter-stock/api/v1/strategy/$presetId/follow/');
+      return resp.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> unfollowStrategy(int presetId) async {
+    try {
+      final resp = await dio.delete(
+          '${ApiConfig.baseUrl}/filter-stock/api/v1/strategy/$presetId/follow/');
+      return resp.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchStrategyDetail(int presetId) async {
+    try {
+      final resp = await dio.get(ApiConfig.strategyDetail(presetId));
+      if (resp.statusCode == 200 && resp.data is Map) {
+        return Map<String, dynamic>.from(resp.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> fetchStrategyStats(int presetId) async {
+    try {
+      final resp = await dio.get(ApiConfig.strategyStats(presetId));
+      if (resp.statusCode == 200 && resp.data is Map) {
+        return Map<String, dynamic>.from(resp.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> submitStrategyReview(
+      int presetId, int rating, String comment) async {
+    try {
+      final resp = await dio.post(
+        ApiConfig.strategyReview(presetId),
+        data: {'rating': rating, 'comment': comment},
+      );
+      return resp.statusCode == 200 &&
+          (resp.data is Map) &&
+          resp.data['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchScreenerFields() async {
+    try {
+      final resp = await dio.get(ApiConfig.screenerFields);
+      if (resp.data is Map && resp.data['groups'] is List) {
+        return List<Map<String, dynamic>>.from(
+            (resp.data['groups'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<Map<String, dynamic>> runScreener(Map<String, dynamic> filters) async {
+    try {
+      final resp = await dio.post(ApiConfig.screenerRun, data: filters);
+      if (resp.data is Map) {
+        return Map<String, dynamic>.from(resp.data as Map);
+      }
+    } catch (e) {
+      return {'count': 0, 'tickers': [], 'error': e.toString()};
+    }
+    return {'count': 0, 'tickers': []};
   }
 }
 

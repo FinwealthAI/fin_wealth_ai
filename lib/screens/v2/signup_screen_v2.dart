@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../respositories/auth_repository.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
+import '../investment_profile_screen.dart';
 
 class SignupScreenV2 extends StatefulWidget {
   const SignupScreenV2({super.key});
@@ -64,7 +65,12 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
       if (!mounted) return;
 
       if (success) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/v2', (route) => false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const InvestmentProfileScreen(isOnboarding: true),
+          ),
+          (route) => false,
+        );
       } else {
         _showError('Đăng ký thất bại. Vui lòng thử lại.');
       }

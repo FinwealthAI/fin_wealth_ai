@@ -31,7 +31,7 @@ class FwButton extends StatelessWidget {
     final cs = theme.colorScheme;
 
     final (bg, fg, border) = switch (variant) {
-      FwButtonVariant.primary => (AppColors.brandPrimary, Colors.white, null),
+      FwButtonVariant.primary => (AppColors.brandPrimaryDark, Colors.white, null),
       FwButtonVariant.secondary => (
           cs.surfaceContainerHighest,
           cs.onSurface,
@@ -96,15 +96,15 @@ class FwButton extends StatelessWidget {
 
     final button = Material(
       color: disabled ? bg.withValues(alpha: 0.5) : bg,
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
       child: InkWell(
         onTap: disabled ? null : onPressed,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: Container(
           height: height,
           padding: EdgeInsets.symmetric(horizontal: hPad),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             border: border != null ? Border.all(color: border) : null,
             boxShadow: variant == FwButtonVariant.primary && !disabled
                 ? AppShadows.purpleGlow

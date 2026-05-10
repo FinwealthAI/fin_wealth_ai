@@ -12,6 +12,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<LoginEvent>(_onLoginEvent);
     on<CheckAuthStatus>(_onCheckAuthStatus);
+    on<AuthUserUpdated>((event, emit) {
+      if (state is AuthSuccess) {
+        emit(AuthSuccess(userData: event.userData));
+      }
+    });
     on<LogoutRequested>((event, emit) => emit(AuthInitial()));
     
     _logoutSubscription = authRepository.onLogout.listen((_) {

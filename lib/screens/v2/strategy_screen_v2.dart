@@ -10,6 +10,7 @@ import '../../widgets/dashboard/opportunity_card.dart';
 import '../../widgets/strategy/community_strategy_card.dart';
 import '../../widgets/strategy/following_strategy_card.dart';
 import 'stock_detail_screen_v2.dart';
+import 'strategy_detail_screen_v2.dart';
 
 class StrategyScreenV2 extends StatefulWidget {
   final int initialTab;
@@ -134,6 +135,31 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
       MaterialPageRoute(
           builder: (_) => StockDetailScreenV2(ticker: ticker)),
     );
+  }
+
+  void _openStrategyDetail(StrategyCardData card) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => StrategyDetailScreenV2(card: card)),
+    );
+  }
+
+  Future<void> _toggleFollow(StrategyCardData card) async {
+    if (_authRepo.accessToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để theo dõi chiến lược')),
+      );
+      return;
+    }
+    final ok = card.isFollowing
+        ? await _opsRepo.unfollowStrategy(card.presetId)
+        : await _opsRepo.followStrategy(card.presetId);
+    if (!mounted || !ok) return;
+    // Reload the relevant tab
+    if (card.isFollowing) {
+      _loadFollowing();
+    } else {
+      await Future.wait([_loadFollowing(), _loadCommunity()]);
+    }
   }
 
   static String _tier(double score) {
@@ -342,8 +368,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             tickers: tickers,
             signalsToday: s.tickerCount,
             lastUpdate: s.subtitle ?? '',
-            onTap: () {},
-            onToggleFollow: () {},
+            onTap: () => _openStrategyDetail(s),
+            onToggleFollow: () => _toggleFollow(s),
           );
         },
       ),
@@ -397,13 +423,13 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
           final tags = <StrategyCategoryTag>[];
           if (s.riskLevel != null && s.riskLevel!.isNotEmpty) {
             tags.add(StrategyCategoryTag(
-              label: 'Rủi ro: ${s.riskLevel!}',
+              label: StrategyCardData.riskLabel(s.riskLevel),
               color: AppColors.warningDark,
             ));
           }
           if (s.investPeriod != null && s.investPeriod!.isNotEmpty) {
             tags.add(StrategyCategoryTag(
-              label: s.investPeriod!,
+              label: StrategyCardData.periodLabel(s.investPeriod),
               color: AppColors.brandSecondaryDark,
             ));
           }
@@ -414,11 +440,11 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             followers: s.followerCount,
             authorName: s.author ?? 'FinWealth',
             tags: tags,
-            performance1Y: 0,
+            performance1Y: s.perfYear ?? 0,
             followed: s.isFollowing,
-            onResult: () {},
-            onToggleFollow: () {},
-            onInfo: () {},
+            onResult: () => _openStrategyDetail(s),
+            onToggleFollow: () => _toggleFollow(s),
+            onInfo: () => _openStrategyDetail(s),
           );
         },
       ),

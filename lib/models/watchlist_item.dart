@@ -5,6 +5,9 @@ class WatchlistItem {
   final double? currentPrice;
   final double? change;
   final double? changePercent;
+  final String? faTier;
+  final String? taTier;
+  final String? strengthLabel;
 
   WatchlistItem({
     required this.id,
@@ -13,6 +16,9 @@ class WatchlistItem {
     this.currentPrice,
     this.change,
     this.changePercent,
+    this.faTier,
+    this.taTier,
+    this.strengthLabel,
   });
 
   factory WatchlistItem.fromJson(Map<String, dynamic> json) {
@@ -23,6 +29,9 @@ class WatchlistItem {
       currentPrice: json['current_price'] != null ? (json['current_price'] as num).toDouble() : null,
       change: json['change'] != null ? (json['change'] as num).toDouble() : null,
       changePercent: json['change_percent'] != null ? (json['change_percent'] as num).toDouble() : null,
+      faTier: json['fa_tier'] as String?,
+      taTier: json['ta_tier'] as String?,
+      strengthLabel: json['strength_label'] as String?,
     );
   }
 }

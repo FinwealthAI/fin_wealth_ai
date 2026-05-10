@@ -8,7 +8,8 @@ import 'ai_toolbox_screen_v2.dart';
 import 'blog_screen_v2.dart';
 import 'chat_screen_v2.dart';
 import 'home_screen_v2.dart';
-import 'mindmap_screen_v2.dart';
+import 'economic_charts_screen_v2.dart';
+import 'margin_screen_v2.dart';
 import 'profile_screen_v2.dart';
 import 'reports_screen_v2.dart';
 import 'screener_screen_v2.dart';
@@ -16,6 +17,7 @@ import 'strategy_screen_v2.dart';
 import '../../widgets/dashboard/profile_bar.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
+import '../investment_profile_screen.dart';
 
 class RootShellNav {
   static final GlobalKey<RootShellV2State> key =
@@ -73,20 +75,7 @@ class RootShellV2State extends State<RootShellV2> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.brandPrimary,
-        onPressed: _openToolbox,
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: AppShadows.purpleGlow,
-          ),
-          child: const Padding(
-            padding: EdgeInsets.all(12),
-            child: Icon(Icons.auto_awesome, color: Colors.white),
-          ),
-        ),
-      ),
+      floatingActionButton: _MrWealthFab(onTap: _openToolbox),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -150,9 +139,11 @@ class _MoreMenuScreenV2 extends StatelessWidget {
       builder: (context, state) {
         final userData =
             state is AuthSuccess ? state.userData : <String, dynamic>{};
-        final username = userData['username'] as String? ?? 'Khách';
-        final avatarUrl = userData['avatar'] as String?;
-        final isGuest = userData['is_guest'] == true;
+        final authRepo = context.read<AuthRepository>();
+        final username = authRepo.username ?? 'Khách';
+        final avatarUrl = authRepo.avatar;
+        final isGuest = authRepo.accessToken == null;
+        final totalPoints = authRepo.totalPoints;
 
         return Scaffold(
           backgroundColor: const Color(0xFF0F111A),
@@ -164,6 +155,7 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                   child: ProfileBar(
                     userName: username,
                     avatarUrl: avatarUrl,
+                    daysLeft: isGuest ? null : totalPoints,
                   ),
                 ),
               ),
@@ -185,7 +177,7 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                         Icons.person_outline,
                         'Hồ sơ',
                         onTap: () =>
-                            _push(context, const ProfileScreenV2()),
+                            _push(context, const InvestmentProfileScreen()),
                       ),
                       if (!isGuest)
                         _QuickAction(
@@ -221,12 +213,16 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                       onTap: () => _push(context, const ScreenerScreenV2()),
                     ),
                     _MenuItem(
-                      'Sơ đồ kinh tế',
-                      Icons.account_tree_outlined,
-                      onTap: () => _push(context, const MindmapScreenV2()),
+                      'Tính margin',
+                      Icons.calculate_outlined,
+                      onTap: () => _push(context, const MarginScreenV2()),
                     ),
-                    _MenuItem('Tính margin', Icons.calculate_outlined),
-                    _MenuItem('Giao diện & Ngôn ngữ', Icons.language_outlined),
+                    _MenuItem(
+                      'Biểu đồ kinh tế',
+                      Icons.bar_chart_rounded,
+                      onTap: () =>
+                          _push(context, const EconomicChartsScreenV2()),
+                    ),
                     _MenuItem('Về FinWealth', Icons.info_outline),
                     const SizedBox(height: 16),
                     _ServerStatus(),
@@ -325,4 +321,46 @@ class _MenuItem extends StatelessWidget {
   }
 }
 
+class _MrWealthFab extends StatelessWidget {
+  final VoidCallback onTap;
+  const _MrWealthFab({required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: SweepGradient(
+            colors: [
+              Color(0xFFFF6B35),
+              Color(0xFFE91E8C),
+              Color(0xFF9C27B0),
+              Color(0xFF3F51B5),
+              Color(0xFF00BCD4),
+              Color(0xFF4CAF50),
+              Color(0xFFFF6B35),
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.all(3),
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFF0D0F17),
+          ),
+          padding: const EdgeInsets.all(2),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/mr_wealth_avatar.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

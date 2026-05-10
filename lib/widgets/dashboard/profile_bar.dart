@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
+import '../../config/api_config.dart';
 import '../common/fw_badge.dart';
 
 class ProfileBar extends StatelessWidget {
@@ -8,6 +9,7 @@ class ProfileBar extends StatelessWidget {
   final String? riskAppetite;
   final String? goal;
   final String? horizon;
+  final int? daysLeft;
 
   const ProfileBar({
     super.key,
@@ -16,6 +18,7 @@ class ProfileBar extends StatelessWidget {
     this.riskAppetite,
     this.goal,
     this.horizon,
+    this.daysLeft,
   });
 
   @override
@@ -42,7 +45,9 @@ class ProfileBar extends StatelessWidget {
             radius: 24,
             backgroundColor: AppColors.brandPrimary.withValues(alpha: 0.2),
             backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-                ? NetworkImage(avatarUrl!)
+                ? NetworkImage(avatarUrl!.startsWith('http')
+                    ? avatarUrl!
+                    : '${ApiConfig.baseUrl}$avatarUrl')
                 : null,
             child: avatarUrl == null || avatarUrl!.isEmpty
                 ? Text(
@@ -57,6 +62,24 @@ class ProfileBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Chào, $userName 👋', style: text.titleMedium),
+                if (daysLeft != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined,
+                            size: 11, color: AppColors.brandPrimaryDark),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$daysLeft ngày sử dụng',
+                          style: text.labelSmall?.copyWith(
+                            color: AppColors.darkTextMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 4),
                 Wrap(
                   spacing: 6,

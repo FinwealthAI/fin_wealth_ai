@@ -77,8 +77,14 @@ Future<Map<String, dynamic>> markAllNotifications() async {
 
 
   Future<List<dynamic>> getSignals(String ticker) async {
-    final resp = await dio.get('${ApiConfig.mobileApi}/signals/$ticker/');
-    return List<dynamic>.from(resp.data);
+    final resp = await dio
+        .get('${ApiConfig.baseUrl}/filter-stock/api/v1/signals/$ticker/');
+    final data = resp.data;
+    if (data is Map && data['signals'] is List) {
+      return List<dynamic>.from(data['signals']);
+    }
+    if (data is List) return List<dynamic>.from(data);
+    return const [];
   }
 
   Future<Map<String, dynamic>> getTechnicalAnalysis(String ticker) async {

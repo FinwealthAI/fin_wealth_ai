@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import '../common/fw_badge.dart';
@@ -57,9 +58,17 @@ class BlogCard extends StatelessWidget {
                         ),
                       ),
                       child: imageUrl != null
-                          ? Image.network(imageUrl!,
+                          ? CachedNetworkImage(
+                              imageUrl: imageUrl!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const SizedBox())
+                              width: double.infinity,
+                              height: 90,
+                              placeholder: (_, __) => const SizedBox(),
+                              errorWidget: (_, __, ___) => const Center(
+                                child: Icon(Icons.image_not_supported_outlined,
+                                    size: 32, color: Colors.white24),
+                              ),
+                            )
                           : const Center(
                               child: Icon(Icons.image_outlined,
                                   size: 48, color: Colors.white54)),

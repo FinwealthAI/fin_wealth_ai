@@ -4,6 +4,7 @@
 /// Use relative paths when web app is deployed on same server as backend
 /// to avoid CORS issues.
 
+import 'package:flutter/foundation.dart';
 import 'package:fin_wealth/config/secrets.dart';
 
 class ApiConfig {
@@ -18,7 +19,11 @@ class ApiConfig {
   static const String googleServerClientId = Secrets.googleServerClientId;
   
   static const String _productionUrl = 'https://finwealth.vn';
-  static const String _localUrl = 'http://localhost:8000';
+  static String get _localUrl {
+    if (kIsWeb) return 'http://localhost:8000';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8000';
+    return 'http://localhost:8000';
+  }
   
   static String get websiteUrl => useLocalBackend ? _localUrl : _productionUrl;
   static String get blogUrl => '$websiteUrl/blog/';
@@ -64,4 +69,31 @@ class ApiConfig {
   // Marketplace results endpoint
   static String get marketplaceResults => '$baseUrl/filter-stock/api/v1/marketplace/results/';
 
+  // Strategy detail / review APIs
+  static String strategyDetail(int id) => '$baseUrl/filter-stock/api/v1/strategy/$id/detail/';
+  static String strategyStats(int id) => '$baseUrl/filter-stock/api/v1/strategy/$id/stats/';
+  static String strategyReview(int id) => '$baseUrl/filter-stock/api/v1/strategy/$id/review/';
+
+  // AI Report endpoints
+  static String runWorkflow(String ticker) => '$baseUrl/run-workflow/$ticker/';
+  static String checkTask(String taskId) => '$baseUrl/check-task/$taskId/';
+  static String get financialAnalysis => '$baseUrl/dify/api/financial-analysis/';
+  // Investment profile
+  static String get investmentProfile => '$baseUrl/api/investment-profile/';
+
+  // Blog (native JSON API)
+  static String get blogList => '$mobileApi/blog/';
+  static String blogDetail(String slug) => '$mobileApi/blog/$slug/';
+
+  // Economic charts
+  static String get chartsList => '$mobileApi/charts/';
+  static String chartData(int id) => '$mobileApi/charts/$id/';
+
+  // Stock screener (custom filter builder)
+  static String get screenerFields => '$mobileApi/screener/fields/';
+  static String get screenerRun => '$mobileApi/screener/run/';
+
+  // Margin calculator
+  static String get marginParams => '$mobileApi/margin/params/';
+  static String get marginTickerInfo => '$mobileApi/margin/ticker-info/';
 }

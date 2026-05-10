@@ -7,7 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/respositories/market_repository.dart';
 import 'package:fin_wealth/respositories/stock_repository.dart';
-import 'package:fin_wealth/respositories/stock_reports_repository.dart'; // ✅ THÊM IMPORT NÀY
+import 'package:fin_wealth/respositories/stock_reports_repository.dart';
 import 'package:fin_wealth/respositories/investment_opportunities_repository.dart';
 import 'package:fin_wealth/respositories/search_stock_repository.dart';
 import 'package:fin_wealth/respositories/watchlist_repository.dart';
@@ -22,9 +22,6 @@ import 'package:fin_wealth/blocs/market/market_bloc.dart';
 import 'package:fin_wealth/blocs/search/search_bloc.dart';
 
 // Screens
-import 'package:fin_wealth/screens/log_in_screen.dart';
-import 'package:fin_wealth/screens/splash_screen.dart';
-import 'package:fin_wealth/screens/design_preview_screen.dart';
 import 'package:fin_wealth/screens/v2/root_shell_v2.dart' show RootShellV2, RootShellNav;
 import 'package:fin_wealth/screens/v2/login_screen_v2.dart';
 import 'package:fin_wealth/screens/v2/splash_screen_v2.dart';
@@ -38,18 +35,14 @@ import 'dart:io';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔹 Khởi tạo WebView cho Desktop (Linux/Windows)
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
     try {
-      // Đảm bảo platform implementation được thiết lập
-      // Nếu là Linux có thể cần InAppWebViewPlatform.instance = InAppWebViewPlatform.instance;
-      // Nhưng ta sẽ bao bọc trong try-catch để app không bị crash màn hình đỏ
+      // WebView platform init — wrapped in try-catch to avoid crash on unsupported platforms
     } catch (e) {
       print('WebView initialization error: $e');
     }
   }
-  // 1) Tạo 1 Dio dùng chung toàn app
-  // Global Navigator Key
+
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   final dio = Dio(BaseOptions(
@@ -57,11 +50,9 @@ void main() async {
     headers: {'Accept': 'application/json'},
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 20),
-    // để 401 không ném exception, cho Bloc/repo tự xử lý
     validateStatus: (s) => s != null && s < 500,
   ));
 
-  // Log request + header để dễ debug Authorization
   dio.interceptors.add(LogInterceptor(
     request: true,
     requestHeader: true,
@@ -70,7 +61,7 @@ void main() async {
   ));
 
   runApp(MyApp(dio: dio, navigatorKey: navigatorKey));
-} // ✅ Đóng hàm main
+}
 
 class MyApp extends StatelessWidget {
   final Dio dio;
@@ -82,10 +73,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider(create: (_) => AuthRepository(dio: dio)),          // ✅ thêm dòng này
+        RepositoryProvider(create: (_) => AuthRepository(dio: dio)),
         RepositoryProvider(create: (_) => MarketRepository(dio: dio)),
         RepositoryProvider(create: (_) => StockRepository(dio: dio)),
-        RepositoryProvider(create: (_) => StockReportsRepository(dio)),       // dùng chung dio
+        RepositoryProvider(create: (_) => StockReportsRepository(dio)),
         RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(dio)),
         RepositoryProvider(create: (_) => SearchStockRepository(dio)),
         RepositoryProvider(create: (_) => WatchlistRepository(dio: dio)),
@@ -107,15 +98,11 @@ class MyApp extends StatelessWidget {
           themeMode: ThemeMode.dark,
           initialRoute: '/splash-v2',
           routes: {
-            '/splash': (_) => const SplashScreen(),
             '/splash-v2': (_) => const SplashScreenV2(),
-            '/login': (_) => LoginScreen(),
             '/login-v2': (_) => const LoginScreenV2(),
-            '/design-preview': (_) => const DesignPreviewScreen(),
             '/v2': (_) => RootShellV2(key: RootShellNav.key),
             '/stock-detail-v2': (ctx) => StockDetailScreenV2(
-                  ticker: ModalRoute.of(ctx)!.settings.arguments as String? ??
-                      'VNM',
+                  ticker: ModalRoute.of(ctx)!.settings.arguments as String? ?? 'VNM',
                 ),
           },
         ),

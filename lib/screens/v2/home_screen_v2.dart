@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../blocs/auth/auth_event.dart';
+import '../../blocs/auth/auth_bloc.dart';
 import '../../config/api_config.dart';
 import '../../models/dashboard_home.dart';
+import '../../models/investment_opportunities.dart' show StrategyCardData;
 import '../../models/watchlist_item.dart';
 import '../../respositories/auth_repository.dart';
 import '../../respositories/investment_opportunities_repository.dart';
@@ -12,8 +15,12 @@ import '../../widgets/common/common.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
 import 'root_shell_v2.dart' show RootShellNav;
+import '../../models/blog_post.dart';
+import 'blog_detail_screen_v2.dart';
 import 'stock_detail_screen_v2.dart';
 import 'stock_search_screen_v2.dart';
+import 'strategy_detail_screen_v2.dart';
+import 'economic_charts_screen_v2.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   final VoidCallback? onOpenChat;
@@ -23,7 +30,8 @@ class HomeScreenV2 extends StatefulWidget {
   State<HomeScreenV2> createState() => HomeScreenV2State();
 }
 
-class HomeScreenV2State extends State<HomeScreenV2> {
+class HomeScreenV2State extends State<HomeScreenV2>
+    with SingleTickerProviderStateMixin {
   late final InvestmentOpportunitiesRepository _opsRepo =
       context.read<InvestmentOpportunitiesRepository>();
   late final AuthRepository _authRepo = context.read<AuthRepository>();
@@ -33,30 +41,62 @@ class HomeScreenV2State extends State<HomeScreenV2> {
   bool _loading = true;
   int _openSort = 0; // 0=date, 1=profit
 
+  // Single shimmer controller shared across all skeleton blocks
+  late final AnimationController _shimmerCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
   @override
   void initState() {
     super.initState();
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-    });
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool forceRefresh = false}) async {
+    // Nếu chưa có data, hiện skeleton; nếu đã có (stale-while-revalidate) thì giữ UI cũ
+    if (_dash == null) {
+      setState(() {
+        _loading = true;
+        _err = null;
+      });
+    }
     try {
-      final dash = await _opsRepo.fetchDashboardHome();
+      final dash = await _opsRepo.fetchDashboardHome(forceRefresh: forceRefresh);
       if (!mounted) return;
+      
+      // Đồng bộ số điểm vào AuthRepository để hiển thị đúng ở AppBar
+      if (_authRepo.accessToken != null) {
+        _authRepo.updatePoints(dash.totalPoints);
+        if (mounted) {
+          context.read<AuthBloc>().add(AuthUserUpdated({
+                'username': _authRepo.username,
+                'avatar': _authRepo.avatar,
+                'total_points': dash.totalPoints,
+              }));
+        }
+      }
+
       setState(() {
         _dash = dash;
         _loading = false;
+        _err = null;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _err = e;
-        _loading = false;
-      });
+      // Nếu đã có data cũ, không xoá — chỉ set lỗi nếu chưa có gì
+      if (_dash == null) {
+        setState(() {
+          _err = e;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -83,17 +123,29 @@ class HomeScreenV2State extends State<HomeScreenV2> {
   }
 
   Future<void> _openDailyBlog() async {
-    final raw = _dash?.dailyBlogUrl ?? _dash?.dailyBlogPost?.url;
+    final blog = _dash?.dailyBlogPost;
+    if (blog != null && blog.slug.isNotEmpty) {
+      final post = BlogPost(
+        id: blog.id,
+        title: blog.title,
+        slug: blog.slug,
+        summary: blog.excerpt,
+        thumbnailUrl: blog.coverImage,
+        publishedAt: blog.publishedAt,
+        viewsCount: blog.viewsCount,
+      );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BlogDetailScreenV2(post: post)),
+      );
+      return;
+    }
+    // Fallback: open in external browser
+    final raw = _dash?.dailyBlogUrl ?? blog?.url;
     if (raw == null || raw.isEmpty) return;
     final full = raw.startsWith('http') ? raw : '${ApiConfig.websiteUrl}$raw';
     final uri = Uri.tryParse(full);
-    if (uri == null) return;
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể mở liên kết')),
-      );
-    }
+    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   String get _userName {
@@ -108,48 +160,140 @@ class HomeScreenV2State extends State<HomeScreenV2> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.darkBg,
       appBar: HomeAppBar(
         userName: _userName,
+        avatarUrl: _authRepo.avatar,
         premiumLabel: _authRepo.accessToken == null
             ? 'Đăng nhập để mở Premium'
             : null,
+        daysLeft: _authRepo.accessToken != null ? _authRepo.totalPoints : null,
         hasUnreadNotification: false,
         onAvatarTap: () {},
         onSearchTap: _openSearch,
         onNotificationTap: _openNotifications,
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.only(
-              top: AppSpacing.sm, bottom: AppSpacing.xxxl),
-          children: [
-            _buildAiInsight(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildChainStoriesSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildOpportunitiesSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildOpenPositionsSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildReportHighlightsSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildStrategyCardsSection(),
-            const SizedBox(height: AppSpacing.lg),
-            _buildWatchlistSection(),
-          ],
-        ),
+        onRefresh: () => _load(forceRefresh: true),
+        child: _loading
+            ? _buildFullPageSkeleton()
+            : ListView(
+                padding: const EdgeInsets.only(
+                    top: AppSpacing.sm, bottom: AppSpacing.xxxl),
+                children: [
+                  _buildAiInsight(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildChainStoriesSection(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildOpportunitiesSection(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildOpenPositionsSection(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildReportHighlightsSection(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildStrategyCardsSection(),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildWatchlistSection(),
+                ],
+              ),
       ),
     );
   }
 
+  Widget _buildFullPageSkeleton() {
+    return AnimatedBuilder(
+      animation: _shimmerCtrl,
+      builder: (_, __) {
+        final shimmer = LinearGradient(
+          colors: const [
+            AppColors.darkSurface,
+            AppColors.darkSurfaceElevated,
+            AppColors.darkSurface,
+          ],
+          stops: [0.0, _shimmerCtrl.value, 1.0],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        );
+
+        Widget block(double height, {double? width, double radius = AppRadius.lg}) =>
+            Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                gradient: shimmer,
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            );
+
+        const h = AppSpacing.lg;
+        const px = EdgeInsets.symmetric(horizontal: AppSpacing.lg);
+
+        return SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxxl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AI Insight card
+              Padding(padding: px, child: block(180)),
+              const SizedBox(height: h),
+              // Section header label
+              Padding(padding: px, child: block(14, width: 140, radius: AppRadius.sm)),
+              const SizedBox(height: AppSpacing.md),
+              // Opportunity cards row
+              SizedBox(
+                height: 120,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: px,
+                  itemCount: 3,
+                  separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                  itemBuilder: (_, __) => block(120, width: 200),
+                ),
+              ),
+              const SizedBox(height: h),
+              // Section header label
+              Padding(padding: px, child: block(14, width: 120, radius: AppRadius.sm)),
+              const SizedBox(height: AppSpacing.md),
+              // List rows
+              for (int i = 0; i < 3; i++) ...[
+                Padding(padding: px, child: block(68)),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              const SizedBox(height: h),
+              // Section header label
+              Padding(padding: px, child: block(14, width: 160, radius: AppRadius.sm)),
+              const SizedBox(height: AppSpacing.md),
+              // Strategy cards row
+              SizedBox(
+                height: 200,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: px,
+                  itemCount: 2,
+                  separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                  itemBuilder: (_, __) => block(200, width: 260),
+                ),
+              ),
+              const SizedBox(height: h),
+              // Section header label
+              Padding(padding: px, child: block(14, width: 100, radius: AppRadius.sm)),
+              const SizedBox(height: AppSpacing.md),
+              // Watchlist rows
+              for (int i = 0; i < 4; i++) ...[
+                Padding(padding: px, child: block(60, radius: AppRadius.md)),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildAiInsight() {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: FwSkeleton(height: 180, radius: AppRadius.lg),
-      );
-    }
     if (_err != null) {
       return _SectionError(
         message:
@@ -188,7 +332,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
 
   Widget _buildChainStoriesSection() {
     final stories = _summary?.chainStories ?? const [];
-    if (_loading || stories.isEmpty) return const SizedBox.shrink();
+    if (stories.isEmpty) return const SizedBox.shrink();
     final text = Theme.of(context).textTheme;
 
     return Column(
@@ -215,6 +359,9 @@ class HomeScreenV2State extends State<HomeScreenV2> {
               final title = (m['title'] ?? '').toString();
               final narrative = (m['narrative'] ?? '').toString();
               final chartUrl = (m['chart_url'] ?? '').toString();
+              final indicatorId = m['indicator_id'] is int
+                  ? m['indicator_id'] as int
+                  : int.tryParse(m['indicator_id']?.toString() ?? '');
               final color =
                   _colorFromClass(m['color_class']?.toString());
               return Container(
@@ -265,11 +412,23 @@ class HomeScreenV2State extends State<HomeScreenV2> {
                           onTap: () => _showChainStoryDetail(m),
                         ),
                         const SizedBox(width: 6),
-                        if (chartUrl.isNotEmpty)
+                        if (indicatorId != null || chartUrl.isNotEmpty)
                           FwMiniButton.soft(
-                            label: 'Chart',
+                            label: 'Biểu đồ',
                             icon: Icons.show_chart,
-                            onTap: () => _openExternal(chartUrl),
+                            onTap: () {
+                              if (indicatorId != null) {
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => EconomicChartsScreenV2(
+                                    openIndicatorId: indicatorId,
+                                    openIndicatorTitle:
+                                        (m['indicator_name'] ?? '').toString(),
+                                  ),
+                                ));
+                              } else {
+                                _openExternal(chartUrl);
+                              }
+                            },
                           ),
                       ],
                     ),
@@ -406,7 +565,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
 
   Widget _buildReportHighlightsSection() {
     final reports = _summary?.reportHighlights ?? const [];
-    if (_loading || reports.isEmpty) return const SizedBox.shrink();
+    if (reports.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -474,12 +633,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           actionLabel: 'Xem tất cả',
           onAction: () => RootShellNav.goStrategy(),
         ),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: FwSkeleton(height: 180, radius: AppRadius.lg),
-          )
-        else if (signals.isEmpty)
+        if (signals.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Text('Chưa có tín hiệu mở mới hôm nay',
@@ -536,8 +690,11 @@ class HomeScreenV2State extends State<HomeScreenV2> {
   }
 
   Widget _buildStrategyCardsSection() {
-    final cards = _summary?.strategyCards ?? const [];
-    if (_loading || cards.isEmpty) return const SizedBox.shrink();
+    final allCards = _summary?.strategyCards ?? const [];
+    final unfollowed =
+        allCards.where((c) => !c.isFollowing && !c.isOwned).toList();
+    final cards = unfollowed.isNotEmpty ? unfollowed : allCards;
+    if (cards.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -548,7 +705,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           onAction: () => RootShellNav.goStrategy(),
         ),
         SizedBox(
-          height: 110,
+          height: 230,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding:
@@ -556,51 +713,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
             itemCount: cards.length,
             separatorBuilder: (_, __) =>
                 const SizedBox(width: AppSpacing.md),
-            itemBuilder: (ctx, i) {
-              final c = cards[i];
-              return Container(
-                width: 240,
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: AppColors.darkSurface,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(color: AppColors.darkBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.bolt,
-                            size: 14, color: AppColors.brandPrimaryDark),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            c.title,
-                            style: Theme.of(context).textTheme.titleSmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${c.tickerCount} cổ phiếu · ${c.followerCount} theo dõi',
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                    const Spacer(),
-                    if (c.author != null && c.author!.isNotEmpty)
-                      Text(
-                        c.author!,
-                        style: Theme.of(context).textTheme.labelSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              );
-            },
+            itemBuilder: (ctx, i) => _StrategyCard(card: cards[i]),
           ),
         ),
       ],
@@ -612,8 +725,8 @@ class HomeScreenV2State extends State<HomeScreenV2> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FwSectionHeader(
-            title: 'Watchlist',
+          const FwSectionHeader(
+            title: 'Theo dõi',
             icon: Icons.favorite_border,
           ),
           Padding(
@@ -636,20 +749,15 @@ class HomeScreenV2State extends State<HomeScreenV2> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FwSectionHeader(
-          title: 'Watchlist',
+          title: 'Theo dõi',
           icon: Icons.favorite_border,
           actionLabel: 'Quản lý',
           onAction: () {},
         ),
-        if (_loading)
+        if (_watchlist.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: FwSkeleton(height: 120, radius: AppRadius.lg),
-          )
-        else if (_watchlist.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Watchlist của bạn đang trống',
+            child: Text('Danh sách theo dõi của bạn đang trống',
                 style: TextStyle(color: AppColors.darkTextMuted)),
           )
         else
@@ -668,6 +776,8 @@ class HomeScreenV2State extends State<HomeScreenV2> {
                     ticker: w.ticker,
                     price: w.currentPrice ?? 0,
                     changePct: w.changePercent ?? 0,
+                    faTier: w.faTier,
+                    taTier: w.taTier,
                     onTap: () => _openDetail(w.ticker),
                   ),
               ],
@@ -679,7 +789,7 @@ class HomeScreenV2State extends State<HomeScreenV2> {
 
   Widget _buildOpenPositionsSection() {
     final positions = _dash?.openPositions ?? const [];
-    if (_loading || positions.isEmpty) return const SizedBox.shrink();
+    if (positions.isEmpty) return const SizedBox.shrink();
 
     final sorted = [...positions];
     if (_openSort == 0) {
@@ -727,52 +837,11 @@ class HomeScreenV2State extends State<HomeScreenV2> {
           ),
           child: Column(
             children: [
-              for (final p in sorted.take(8))
-                ListTile(
-                  dense: true,
-                  leading: Tooltip(
-                    message: _buildPositionTooltip(p),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: strategyAccentFromColor(p.presetColor)
-                            .withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        strategyIconFromName(p.presetIcon),
-                        size: 16,
-                        color: strategyAccentFromColor(p.presetColor),
-                      ),
-                    ),
-                  ),
-                  title: Row(
-                    children: [
-                      Text(p.ticker, style: text.titleSmall),
-                      const SizedBox(width: AppSpacing.sm),
-                      if (p.unrealizedPct != null)
-                        Text(
-                          '${p.unrealizedPct! >= 0 ? "+" : ""}${p.unrealizedPct!.toStringAsFixed(2)}%',
-                          style: text.labelMedium?.copyWith(
-                            color: p.unrealizedPct! >= 0
-                                ? AppColors.successDark
-                                : AppColors.dangerDark,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                    ],
-                  ),
-                  subtitle: Text(
-                    'Vào ${p.entryDate}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.darkTextMuted),
-                  onTap: () => _openDetail(p.ticker),
-                ),
+              for (int i = 0; i < sorted.take(8).length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, color: AppColors.darkBorder.withValues(alpha: 0.5)),
+                _buildPositionRow(sorted[i], text),
+              ],
             ],
           ),
         ),
@@ -801,6 +870,92 @@ class HomeScreenV2State extends State<HomeScreenV2> {
         .replaceAll(RegExp(r'&nbsp;'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  Widget _buildPositionRow(OpenPosition p, TextTheme text) {
+    final accent = strategyAccentFromColor(p.presetColor);
+    final pct = p.unrealizedPct;
+    final pctColor = pct == null
+        ? AppColors.darkTextMuted
+        : (pct >= 0 ? AppColors.successDark : AppColors.dangerDark);
+    final pctLabel = pct == null
+        ? '—'
+        : '${pct >= 0 ? "+" : ""}${pct.toStringAsFixed(2)}%';
+
+    return InkWell(
+      onTap: () => _openDetail(p.ticker),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
+        child: Row(
+          children: [
+            // Icon
+            Tooltip(
+              message: _buildPositionTooltip(p),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                alignment: Alignment.center,
+                child: Icon(strategyIconFromName(p.presetIcon),
+                    size: 16, color: accent),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // Left: ticker + date
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(p.ticker,
+                      style: text.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Vào ${p.entryDate}',
+                    style: text.bodySmall
+                        ?.copyWith(color: AppColors.darkTextMuted),
+                  ),
+                ],
+              ),
+            ),
+
+            // Right: pct + entry price
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(pctLabel,
+                    style: text.labelMedium?.copyWith(
+                        color: pctColor, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                if (p.entryPrice != null)
+                  Text(
+                    'Giá vào: ${p.entryPrice!.toStringAsFixed(0)}',
+                    style: text.bodySmall
+                        ?.copyWith(color: AppColors.darkTextMuted),
+                  )
+                else if (p.presetName != null)
+                  Text(
+                    p.presetName!,
+                    style: text.bodySmall
+                        ?.copyWith(color: AppColors.darkTextMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+
+            const SizedBox(width: AppSpacing.sm),
+            const Icon(Icons.chevron_right,
+                color: AppColors.darkTextMuted, size: 18),
+          ],
+        ),
+      ),
+    );
   }
 
   String _buildPositionTooltip(OpenPosition p) {
@@ -874,3 +1029,350 @@ class _SectionError extends StatelessWidget {
     );
   }
 }
+
+class _StrategyCard extends StatefulWidget {
+  final StrategyCardData card;
+  const _StrategyCard({required this.card});
+
+  @override
+  State<_StrategyCard> createState() => _StrategyCardState();
+}
+
+class _StrategyCardState extends State<_StrategyCard> {
+  late bool _isFollowing = widget.card.isFollowing;
+  bool _followLoading = false;
+
+  bool get _isAi =>
+      (widget.card.ownerUsername ?? '').toUpperCase() == 'AI';
+  bool get _isTechnical =>
+      (widget.card.filterType ?? '').toUpperCase() == 'TECHNICAL';
+  IconData get _icon =>
+      _isTechnical ? Icons.memory : Icons.diamond_outlined;
+  Color get _iconColor => _isTechnical
+      ? AppColors.brandSecondaryDark
+      : const Color(0xFF9B59B6);
+
+  Future<void> _toggleFollow() async {
+    final auth = context.read<AuthRepository>();
+    if (auth.accessToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để theo dõi chiến lược')),
+      );
+      return;
+    }
+    setState(() => _followLoading = true);
+    final repo = context.read<InvestmentOpportunitiesRepository>();
+    final ok = _isFollowing
+        ? await repo.unfollowStrategy(widget.card.presetId)
+        : await repo.followStrategy(widget.card.presetId);
+    if (!mounted) return;
+    if (ok) setState(() => _isFollowing = !_isFollowing);
+    setState(() => _followLoading = false);
+  }
+
+  void _openDetail() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => StrategyDetailScreenV2(card: widget.card),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final card = widget.card;
+    final perf = card.perfYear;
+    final showPerf = card.showPerformance && perf != null;
+    final perfPositive = (perf ?? 0) >= 0;
+    final perfColor =
+        perfPositive ? AppColors.successDark : AppColors.dangerDark;
+    final desc = (card.description ?? '').trim();
+    final hasRisk = (card.riskLevel ?? '').isNotEmpty;
+    final hasPeriod = (card.investPeriod ?? '').isNotEmpty;
+
+    return Container(
+      width: 264,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                alignment: Alignment.center,
+                child: Icon(_icon, size: 15, color: _iconColor),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  card.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brandPrimaryDark,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerDark.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Text(
+                  '${card.tickerCount} mã',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dangerDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              if (_isAi)
+                const _Badge(
+                  label: 'AI Advisor',
+                  color: Color(0xFF9B59B6),
+                  filled: true,
+                ),
+              _Badge(
+                icon: _isTechnical ? Icons.memory : Icons.bar_chart,
+                label: _isTechnical ? 'Định lượng' : 'Cơ bản',
+                color: _isTechnical
+                    ? AppColors.brandSecondaryDark
+                    : AppColors.successDark,
+              ),
+              if (card.hasAutoExit)
+                const _Badge(
+                  icon: Icons.shield_outlined,
+                  label: 'Auto exit',
+                  color: AppColors.successDark,
+                ),
+            ],
+          ),
+          if (desc.isNotEmpty) ...[
+            const SizedBox(height: 7),
+            Text(
+              desc,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.darkTextSecondary,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (hasRisk || hasPeriod) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                if (hasRisk)
+                  _Badge(
+                    icon: Icons.speed,
+                    label: StrategyCardData.riskLabel(card.riskLevel),
+                    color: AppColors.warningDark,
+                  ),
+                if (hasPeriod)
+                  _Badge(
+                    icon: Icons.schedule,
+                    label: StrategyCardData.periodLabel(card.investPeriod),
+                    color: AppColors.brandSecondaryDark,
+                  ),
+              ],
+            ),
+          ],
+          const Spacer(),
+          if (showPerf) ...[
+            Row(
+              children: [
+                Icon(
+                  perfPositive
+                      ? Icons.arrow_drop_up
+                      : Icons.arrow_drop_down,
+                  size: 18,
+                  color: perfColor,
+                ),
+                Text(
+                  '1Y ${perfPositive ? '+' : ''}${perf.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: perfColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
+          Row(
+            children: [
+              GestureDetector(
+                onTap: _openDetail,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Xem thêm',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.brandPrimaryDark,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward,
+                        size: 11, color: AppColors.brandPrimaryDark),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              if (!card.isOwned)
+                _followLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : _FollowButton(
+                        isFollowing: _isFollowing,
+                        onTap: _toggleFollow,
+                      ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final IconData? icon;
+  final String label;
+  final Color color;
+  final bool filled;
+  const _Badge({
+    this.icon,
+    required this.label,
+    required this.color,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = filled ? color : color.withValues(alpha: 0.12);
+    final fg = filled ? Colors.white : color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: fg),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FollowButton extends StatelessWidget {
+  final bool isFollowing;
+  final VoidCallback? onTap;
+  const _FollowButton({required this.isFollowing, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (isFollowing) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.successDark.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(
+                color: AppColors.successDark.withValues(alpha: 0.4)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle,
+                  size: 11, color: AppColors.successDark),
+              SizedBox(width: 4),
+              Text(
+                'Đang theo dõi',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.successDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.brandPrimaryDark,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add, size: 11, color: Colors.white),
+            SizedBox(width: 3),
+            Text(
+              'Theo dõi',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

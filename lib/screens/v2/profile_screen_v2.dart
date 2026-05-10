@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
+import '../../config/api_config.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
 
 import 'change_password_screen_v2.dart';
-import 'mindmap_screen_v2.dart';
+import 'economic_charts_screen_v2.dart';
+import 'margin_screen_v2.dart';
 import 'screener_screen_v2.dart';
 
 class ProfileScreenV2 extends StatelessWidget {
@@ -31,11 +33,11 @@ class ProfileScreenV2 extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        final userData =
-            state is AuthSuccess ? state.userData : <String, dynamic>{};
-        final username = userData['username'] as String? ?? 'Khách';
-        final avatarUrl = userData['avatar'] as String?;
-        final isGuest = userData['is_guest'] == true;
+        final authRepo = context.read<AuthRepository>();
+        final username = authRepo.username ?? 'Khách';
+        final avatarUrl = authRepo.avatar;
+        final isGuest = authRepo.accessToken == null;
+        final totalPoints = authRepo.totalPoints;
         final initial =
             username.isNotEmpty ? username[0].toUpperCase() : '?';
 
@@ -57,7 +59,9 @@ class ProfileScreenV2 extends StatelessWidget {
                             AppColors.brandPrimary.withValues(alpha: 0.2),
                         backgroundImage: avatarUrl != null &&
                                 avatarUrl.isNotEmpty
-                            ? NetworkImage(avatarUrl)
+                            ? NetworkImage(avatarUrl.startsWith('http')
+                                ? avatarUrl
+                                : '${ApiConfig.baseUrl}$avatarUrl')
                             : null,
                         child: avatarUrl == null || avatarUrl.isEmpty
                             ? Text(initial,
@@ -71,6 +75,15 @@ class ProfileScreenV2 extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(username, style: text.titleLarge),
+                            if (!isGuest)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '$totalPoints ngày sử dụng',
+                                  style: text.labelMedium?.copyWith(
+                                      color: AppColors.darkTextMuted),
+                                ),
+                              ),
                             const SizedBox(height: 4),
                             if (isGuest)
                               const FwBadge(
@@ -87,11 +100,12 @@ class ProfileScreenV2 extends StatelessWidget {
               _Section('Công cụ & Phân tích', items: [
                 (Icons.tune_outlined, 'Lọc cổ phiếu', 'Tìm kiếm cơ hội đầu tư',
                     () => _push(context, const ScreenerScreenV2())),
-                (Icons.account_tree_outlined, 'Sơ đồ kinh tế',
-                    'Mô hình giá trị chuỗi',
-                    () => _push(context, const MindmapScreenV2())),
                 (Icons.calculate_outlined, 'Tính margin',
-                    'Công cụ tính toán đòn bẩy', () {}),
+                    'Công cụ tính toán đòn bẩy',
+                    () => _push(context, const MarginScreenV2())),
+                (Icons.bar_chart_rounded, 'Biểu đồ kinh tế',
+                    'Hàng hóa, tỷ giá & chỉ số',
+                    () => _push(context, const EconomicChartsScreenV2())),
                 (Icons.bookmark_outline, 'Watchlist', 'Danh mục quan tâm',
                     () {}),
               ]),

@@ -1,0 +1,75 @@
+name: 🚀 Build & Deploy Web
+
+on:
+  push:
+    branches:
+      - main   # Đổi thành tên branch của bạn nếu khác
+
+jobs:
+  build-and-deploy:
+    name: Build Flutter Web & Deploy to Server
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source code
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Cài Flutter
+      - name: 🎯 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
+
+      # 3. Cài dependencies
+      - name: 📦 Install dependencies
+        run: flutter pub get
+
+      # 4. Build web (canvaskit cho chất lượng tốt nhất, html nhẹ hơn)
+      - name: 🔨 Build Flutter Web
+        run: |
+          flutter build web \
+            --release \
+            --web-renderer canvaskit \
+            --no-tree-shake-icons
+
+      # 5. Deploy lên server qua SSH + rsync
+      - name: 🚢 Deploy to Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            set -e
+            echo "📂 Xoá nội dung cũ..."
+            rm -rf /var/www/m_finwealth/*
+
+      - name: 📤 Upload build files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "build/web/*"
+          target: "/var/www/m_finwealth/"
+          strip_components: 2
+
+      # 6. Khởi động lại nginx (hoặc service khác)
+      - name: 🔄 Restart Web Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            set -e
+            echo "✅ Build files deployed!"
+            echo "🔄 Reloading nginx..."
+            sudo systemctl reload nginx
+            echo "🎉 Deploy hoàn tất!"

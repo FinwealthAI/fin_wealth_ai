@@ -3,9 +3,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import '../theme/theme.dart';
+import '../widgets/common/common.dart';
 
 class InvestmentProfileScreen extends StatefulWidget {
-  const InvestmentProfileScreen({super.key});
+  final bool isOnboarding;
+  const InvestmentProfileScreen({super.key, this.isOnboarding = false});
 
   @override
   State<InvestmentProfileScreen> createState() => _InvestmentProfileScreenState();
@@ -80,7 +83,7 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải hồ sơ: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Lỗi tải hồ sơ: $e'), backgroundColor: AppColors.danger),
         );
       }
     }
@@ -109,14 +112,18 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã lưu hồ sơ đầu tư!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Đã lưu hồ sơ đầu tư!'), backgroundColor: AppColors.success),
         );
-        Navigator.of(context).pop();
+        if (widget.isOnboarding) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/v2', (route) => false);
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi lưu: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Lỗi lưu: $e'), backgroundColor: AppColors.danger),
         );
       }
     } finally {
@@ -127,51 +134,75 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hồ Sơ Đầu Tư'),
-        backgroundColor: const Color(0xFF6366F1),
-        foregroundColor: Colors.white,
+      backgroundColor: AppColors.darkBg,
+      appBar: FwAppBar(
+        title: widget.isOnboarding ? 'Thiết lập hồ sơ' : 'Hồ Sơ Đầu Tư',
+        subtitle: 'Cá nhân hóa trải nghiệm',
+        actions: widget.isOnboarding
+            ? [
+                TextButton(
+                  onPressed: () => Navigator.of(context)
+                      .pushNamedAndRemoveUntil('/v2', (route) => false),
+                  child: const Text('Bỏ qua',
+                      style: TextStyle(color: Colors.white54, fontSize: 14)),
+                ),
+              ]
+            : const [],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.brandPrimary))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.brandPrimary.withValues(alpha: 0.2),
+                          AppColors.brandSecondary.withValues(alpha: 0.1),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: AppColors.brandPrimary.withValues(alpha: 0.2)),
                     ),
-                    child: const Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Hồ Sơ Đầu Tư Của Bạn',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                        Row(
+                          children: [
+                            const Icon(Icons.stars, color: AppColors.brandPrimaryDark, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Khám phá tiềm năng',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: AppColors.brandPrimaryDark,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Text(
                           'Giúp chúng tôi hiểu rõ hơn về phong cách đầu tư của bạn để đưa ra khuyến nghị phù hợp nhất.',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppColors.darkTextSecondary,
+                                height: 1.5,
+                              ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.xl),
 
                   // Experience Section
                   _buildSection(
-                    icon: Icons.school,
+                    icon: Icons.school_outlined,
                     title: 'Kinh nghiệm đầu tư',
                     subtitle: 'Bạn đã đầu tư được bao lâu rồi?',
                     color: const Color(0xFF06B6D4),
@@ -180,38 +211,34 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
                       runSpacing: 8,
                       children: experienceChoices.map((choice) {
                         final isSelected = _investorExperience == choice['value'];
-                        return ChoiceChip(
-                          label: Text(choice['label']!),
+                        return _buildChoiceChip(
+                          label: choice['label']!,
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
                               _investorExperience = selected ? choice['value'] : null;
                             });
                           },
-                          selectedColor: const Color(0xFF06B6D4),
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
+                          color: const Color(0xFF06B6D4),
                         );
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Methods Section
                   _buildSection(
-                    icon: Icons.show_chart,
+                    icon: Icons.auto_graph_outlined,
                     title: 'Phương pháp đầu tư',
-                    subtitle: 'Bạn thường áp dụng chiến lược nào? (Có thể chọn nhiều)',
-                    color: const Color(0xFF6366F1),
+                    subtitle: 'Chiến lược bạn thường áp dụng (Có thể chọn nhiều)',
+                    color: AppColors.brandPrimaryDark,
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: methodChoices.map((choice) {
                         final isSelected = _investmentMethods.contains(choice['value']);
-                        return FilterChip(
-                          label: Text(choice['label']!),
+                        return _buildFilterChip(
+                          label: choice['label']!,
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
@@ -222,31 +249,26 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
                               }
                             });
                           },
-                          selectedColor: const Color(0xFF6366F1),
-                          checkmarkColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
+                          color: AppColors.brandPrimaryDark,
                         );
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Cycle Section
                   _buildSection(
-                    icon: Icons.access_time,
+                    icon: Icons.timer_outlined,
                     title: 'Chu kỳ đầu tư',
-                    subtitle: 'Bạn thường nắm giữ cổ phiếu trong bao lâu?',
-                    color: const Color(0xFF10B981),
+                    subtitle: 'Thời gian bạn thường nắm giữ cổ phiếu',
+                    color: AppColors.successDark,
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: cycleChoices.map((choice) {
                         final isSelected = _investmentCycles.contains(choice['value']);
-                        return FilterChip(
-                          label: Text(choice['label']!),
+                        return _buildFilterChip(
+                          label: choice['label']!,
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
@@ -257,31 +279,26 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
                               }
                             });
                           },
-                          selectedColor: const Color(0xFF10B981),
-                          checkmarkColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
+                          color: AppColors.successDark,
                         );
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Risk Section
                   _buildSection(
-                    icon: Icons.shield,
+                    icon: Icons.security_outlined,
                     title: 'Khẩu vị rủi ro',
-                    subtitle: 'Mức độ chấp nhận rủi ro của bạn là gì?',
-                    color: const Color(0xFFEF4444),
+                    subtitle: 'Mức độ chấp nhận rủi ro hiện tại',
+                    color: AppColors.dangerDark,
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: riskChoices.map((choice) {
                         final isSelected = _riskTolerance.contains(choice['value']);
-                        return FilterChip(
-                          label: Text(choice['label']!),
+                        return _buildFilterChip(
+                          label: choice['label']!,
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
@@ -292,51 +309,31 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
                               }
                             });
                           },
-                          selectedColor: const Color(0xFFEF4444),
-                          checkmarkColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
+                          color: AppColors.dangerDark,
                         );
                       }).toList(),
                     ),
                   ),
-                  const SizedBox(height: 32),
-
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.save),
-                                SizedBox(width: 8),
-                                Text('Lưu Hồ Sơ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.xxl),
                 ],
               ),
             ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: AppColors.darkBg,
+            border: Border(top: BorderSide(color: AppColors.darkBorder.withValues(alpha: 0.5))),
+          ),
+          child: FwButton(
+            label: widget.isOnboarding ? 'Bắt đầu đầu tư' : 'Cập nhật hồ sơ',
+            icon: widget.isOnboarding ? Icons.arrow_forward : Icons.save_outlined,
+            loading: _isSaving,
+            fullWidth: true,
+            onPressed: _isSaving ? null : _saveProfile,
+          ),
+        ),
+      ),
     );
   }
 
@@ -348,47 +345,104 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
     required Widget child,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.darkTextMuted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           child,
         ],
       ),
+    );
+  }
+
+  Widget _buildChoiceChip({
+    required String label,
+    required bool selected,
+    required Function(bool) onSelected,
+    required Color color,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      selectedColor: color.withValues(alpha: 0.2),
+      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      labelStyle: TextStyle(
+        color: selected ? color : AppColors.darkTextSecondary,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      side: BorderSide(
+        color: selected ? color : Colors.white.withValues(alpha: 0.1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool selected,
+    required Function(bool) onSelected,
+    required Color color,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      selectedColor: color.withValues(alpha: 0.2),
+      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      checkmarkColor: color,
+      labelStyle: TextStyle(
+        color: selected ? color : AppColors.darkTextSecondary,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      side: BorderSide(
+        color: selected ? color : Colors.white.withValues(alpha: 0.1),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }
 }

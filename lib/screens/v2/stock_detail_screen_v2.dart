@@ -715,12 +715,15 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     opp = opp.clamp(10, 90);
     final risk = 100 - opp;
 
-    return _OpportunityRiskCard(
-      opportunity: opp,
-      risk: risk,
-      faScore: faScore,
-      upside: valuationReady ? upside : null,
-      insight: _insight,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+      child: _OpportunityRiskCard(
+        opportunity: opp,
+        risk: risk,
+        faScore: faScore,
+        upside: valuationReady ? upside : null,
+        insight: _insight,
+      ),
     );
   }
 
@@ -807,7 +810,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               child: Row(
                 children: const [
-                  Expanded(flex: 3, child: _TableHead('Tổ chức')),
+                  Expanded(flex: 4, child: _TableHead('Tổ chức')),
                   Expanded(
                       flex: 3,
                       child: _TableHead('Giá MT', alignRight: true)),
@@ -836,10 +839,15 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       child: Row(
         children: [
           Expanded(
-            flex: 3,
+            flex: 4,
             child: Row(
               children: [
-                FwBadge(label: firm, tone: FwBadgeTone.info),
+                Flexible(
+                  child: FwBadge(
+                    label: firm,
+                    tone: FwBadgeTone.info,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1139,24 +1147,35 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     if (!_loadingValuationHistory && _valuationHistory != null) {
       final histList = _valuationHistory!['history'] as List<dynamic>? ?? [];
       if (histList.isNotEmpty) {
-        final lookup = <String, double>{};
+        // Sort valuation entries by date ascending (DateTime-aware) so we can
+        // forward-fill across non-trading dates with a two-pointer walk.
+        final entries = <MapEntry<DateTime, double>>[];
         for (final h in histList) {
           final map = h as Map<String, dynamic>;
-          final date = map['date'] as String?;
+          final dateStr = map['date'] as String?;
           final val = _toD(map['avg_target_price']);
-          if (date != null && val != null) {
-            lookup[date] = val;
-          }
+          if (dateStr == null || val == null) continue;
+          final dt = DateTime.tryParse(dateStr);
+          if (dt == null) continue;
+          entries.add(MapEntry(dt, val));
         }
-        if (lookup.isNotEmpty) {
-          final sampleRaw = lookup.values.first;
+        entries.sort((a, b) => a.key.compareTo(b.key));
+
+        if (entries.isNotEmpty) {
+          final sampleRaw = entries.first.value;
           final lastPrice = price.isNotEmpty ? price.last : 0.0;
           final scale = (sampleRaw > 0 && lastPrice > 0 && sampleRaw < lastPrice / 100) ? 1000.0 : 1.0;
+          int ptr = 0;
           double? lastVal;
           for (int i = 0; i < priceLabels.length; i++) {
             final lbl = priceLabels[i].toString();
-            if (lookup.containsKey(lbl)) {
-              lastVal = norm(lookup[lbl]! * scale);
+            final lblDt = DateTime.tryParse(lbl);
+            if (lblDt != null) {
+              while (ptr < entries.length &&
+                  !entries[ptr].key.isAfter(lblDt)) {
+                lastVal = norm(entries[ptr].value * scale);
+                ptr++;
+              }
             }
             if (lastVal != null) {
               valSpots.add(FlSpot(i.toDouble(), lastVal));
@@ -1208,39 +1227,46 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     addHLine(support, AppColors.successDark, 'HT');
     addHLine(resistance, Colors.redAccent, 'KC');
 
-    // Signal markers placed at the bottom strip of the chart
-    final signalY = yMin - pad * 0.6;
+    // Signal markers placed slightly below the price (web parity: prices[idx]*0.95)
     final labelIndex = <String, int>{};
     for (int i = 0; i < priceLabels.length; i++) {
       labelIndex[priceLabels[i].toString()] = i;
     }
     final signalSpots = <FlSpot>[];
+    final signalStrategyMap = <int, List<String>>{};
     final seenIdx = <int>{};
     if (!_loadingSignals) {
       for (final s in _signals) {
-        final date = (s as Map?)?['date'] as String?;
-        if (date != null) {
-          final idx = labelIndex[date];
-          if (idx != null && idx < price.length && !seenIdx.contains(idx)) {
-            seenIdx.add(idx);
-            signalSpots.add(FlSpot(idx.toDouble(), signalY));
+        if (s is! Map) continue;
+        var date = s['date'] as String?;
+        if (date == null) continue;
+        date = date.split('T').first;
+        var idx = labelIndex[date];
+        if (idx == null) {
+          final parts = date.split('-');
+          if (parts.length == 3) {
+            final dmy = '${parts[2]}/${parts[1]}/${parts[0]}';
+            idx = labelIndex[dmy];
           }
+        }
+        if (idx == null || idx >= price.length) continue;
+        final strat =
+            (s['strategy_name'] ?? s['strategy'] ?? 'Mua').toString();
+        signalStrategyMap.putIfAbsent(idx, () => []).add(strat);
+        if (!seenIdx.contains(idx)) {
+          seenIdx.add(idx);
+          signalSpots.add(FlSpot(idx.toDouble(), price[idx] * 0.95));
         }
       }
       signalSpots.sort((a, b) => a.x.compareTo(b.x));
-
-      if (signalSpots.isNotEmpty) {
-        final filteredSpots = <FlSpot>[signalSpots.first];
-        final minDist = (price.length / 30).clamp(3.0, 15.0);
-        for (int i = 1; i < signalSpots.length; i++) {
-          if (signalSpots[i].x - filteredSpots.last.x >= minDist) {
-            filteredSpots.add(signalSpots[i]);
-          }
-        }
-        signalSpots.clear();
-        signalSpots.addAll(filteredSpots);
-      }
     }
+
+    // Track barIndex → series kind for tooltip rendering
+    final priceBarIdx = 0;
+    final valBarIdx = valSpots.isNotEmpty ? 1 : -1;
+    final signalBarIdx = signalSpots.isNotEmpty
+        ? (valSpots.isNotEmpty ? 2 : 1)
+        : -1;
 
     return LineChart(
       LineChartData(
@@ -1266,19 +1292,77 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             getTooltipColor: (_) =>
                 AppColors.darkSurface.withValues(alpha: 0.95),
             tooltipRoundedRadius: 8,
-            getTooltipItems: (spots) => spots.map((s) {
-              if (s.barIndex == 0) {
-                return LineTooltipItem(
-                  'Giá  ${s.y.toStringAsFixed(2)}',
-                  const TextStyle(
-                    color: AppColors.brandPrimaryDark,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                );
+            tooltipPadding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 6),
+            getTooltipItems: (spots) {
+              String? dateText;
+              if (spots.isNotEmpty) {
+                final i = spots.first.x.toInt();
+                if (i >= 0 && i < priceLabels.length) {
+                  final raw = priceLabels[i].toString();
+                  final dt = DateTime.tryParse(raw);
+                  dateText = dt != null
+                      ? DateFormat('dd/MM/yyyy').format(dt)
+                      : raw;
+                }
               }
-              return null; // Return null for other series (valuation, signals) to maintain array size
-            }).toList(),
+              bool headerEmitted = false;
+              return spots.map((s) {
+                LineTooltipItem build(
+                    String label, Color color, String value) {
+                  final children = <TextSpan>[
+                    TextSpan(
+                      text: label,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '  $value',
+                      style: const TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ];
+                  if (!headerEmitted && dateText != null) {
+                    headerEmitted = true;
+                    return LineTooltipItem(
+                      '$dateText\n',
+                      const TextStyle(
+                        color: AppColors.darkTextMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      children: children,
+                    );
+                  }
+                  return LineTooltipItem(
+                    '',
+                    const TextStyle(fontSize: 11),
+                    children: children,
+                  );
+                }
+
+                if (s.barIndex == priceBarIdx) {
+                  return build('Giá', AppColors.brandPrimaryDark,
+                      s.y.toStringAsFixed(2));
+                }
+                if (s.barIndex == valBarIdx) {
+                  return build('ĐG TB', Colors.orangeAccent,
+                      s.y.toStringAsFixed(2));
+                }
+                if (s.barIndex == signalBarIdx) {
+                  final names = signalStrategyMap[s.x.toInt()] ?? const [];
+                  final txt = names.isEmpty ? 'Mua' : names.join(', ');
+                  return build('Tín hiệu', AppColors.successDark, txt);
+                }
+                return null;
+              }).toList();
+            },
           ),
         ),
         lineBarsData: [
@@ -1667,72 +1751,100 @@ class _OpportunityRiskCard extends StatelessWidget {
     final riskInt = risk.round();
 
     return FwCard(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               const Icon(Icons.auto_awesome,
-                  size: 14, color: AppColors.brandPrimaryDark),
+                  size: 12, color: AppColors.brandPrimaryDark),
               const SizedBox(width: 6),
-              Text('Cơ hội & Rủi ro', style: text.titleMedium),
+              Text('Cơ hội & Rủi ro',
+                  style: text.titleSmall?.copyWith(fontSize: 12)),
               const Spacer(),
               if (upside == null)
                 const SizedBox(
-                  width: 12,
-                  height: 12,
+                  width: 10,
+                  height: 10,
                   child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: AppColors.darkTextMuted),
+                      strokeWidth: 1.2, color: AppColors.darkTextMuted),
                 ),
             ],
           ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.sm),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$oppInt%',
-                      style: text.headlineMedium?.copyWith(
-                        color: _oppColor,
-                        fontWeight: FontWeight.bold,
-                      ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$oppInt%',
+                    style: text.titleSmall?.copyWith(
+                      color: _oppColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
-                    const SizedBox(height: 2),
-                    Text('Cơ hội',
-                        style: text.labelSmall
-                            ?.copyWith(color: AppColors.darkTextMuted)),
-                  ],
-                ),
+                  ),
+                  Text('Cơ hội',
+                      style: text.labelSmall?.copyWith(
+                          color: AppColors.darkTextMuted, fontSize: 9)),
+                ],
               ),
               const Spacer(),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '$riskInt%',
-                      style: text.headlineMedium?.copyWith(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.bold,
+              if (upside != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    children: [
+                      Icon(
+                        upside! >= 0 ? Icons.trending_up : Icons.trending_down,
+                        size: 10,
+                        color: upside! >= 0
+                            ? AppColors.successDark
+                            : Colors.redAccent,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text('Rủi ro',
-                        style: text.labelSmall
-                            ?.copyWith(color: AppColors.darkTextMuted)),
-                  ],
+                      const SizedBox(width: 2),
+                      Text(
+                        'Upside: ${upside! >= 0 ? '+' : ''}${upside!.toStringAsFixed(1)}%',
+                        style: text.labelSmall?.copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: upside! >= 0
+                              ? AppColors.successDark
+                              : Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$riskInt%',
+                    style: text.titleSmall?.copyWith(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text('Rủi ro',
+                      style: text.labelSmall?.copyWith(
+                          color: AppColors.darkTextMuted, fontSize: 9)),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
             child: SizedBox(
-              height: 10,
+              height: 5,
               child: Row(
                 children: [
                   Expanded(
@@ -1748,34 +1860,12 @@ class _OpportunityRiskCard extends StatelessWidget {
               ),
             ),
           ),
-          if (upside != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Icon(
-                  upside! >= 0 ? Icons.trending_up : Icons.trending_down,
-                  size: 13,
-                  color: upside! >= 0
-                      ? AppColors.successDark
-                      : Colors.redAccent,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Upside: ${upside! >= 0 ? '+' : ''}${upside!.toStringAsFixed(1)}%',
-                  style: text.labelSmall?.copyWith(
-                    color: upside! >= 0
-                        ? AppColors.successDark
-                        : Colors.redAccent,
-                  ),
-                ),
-              ],
-            ),
-          ],
           if (insight != null) ...[
-            const SizedBox(height: AppSpacing.lg),
-            const Divider(height: 1, color: AppColors.darkBorder),
             const SizedBox(height: AppSpacing.md),
-            _buildInsightList(insight!['opportunities'] as List<dynamic>?, true),
+            const Divider(height: 1, color: AppColors.darkBorder),
+            const SizedBox(height: AppSpacing.sm),
+            _buildInsightList(
+                insight!['opportunities'] as List<dynamic>?, true),
             _buildInsightList(insight!['risks'] as List<dynamic>?, false),
           ],
         ],

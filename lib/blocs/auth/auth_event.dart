@@ -18,3 +18,11 @@ class LoginEvent extends AuthEvent {
 class CheckAuthStatus extends AuthEvent {}
 
 class LogoutRequested extends AuthEvent {}
+
+class AuthUserUpdated extends AuthEvent {
+  final Map<String, dynamic> userData;
+  AuthUserUpdated(this.userData);
+
+  @override
+  List<Object> get props => [userData];
+}

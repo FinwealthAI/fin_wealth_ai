@@ -11,11 +11,15 @@ class AuthRepository {
   String? _accessToken;
   String? _refreshToken;
   String? _username;
+  int _totalPoints = 0;
+  String? _avatar;
   
   final _logoutController = StreamController<void>.broadcast();
   Stream<void> get onLogout => _logoutController.stream;
 
   String? get username => _username;
+  int get totalPoints => _totalPoints;
+  String? get avatar => _avatar;
 
   AuthRepository({required this.dio, String? baseUrl}) : baseUrl = baseUrl ?? ApiConfig.mobileApi {
     // Cấu hình mặc định + interceptor JWT
@@ -125,6 +129,8 @@ class AuthRepository {
     _accessToken = prefs.getString('access_token');
     _refreshToken = prefs.getString('refresh_token');
     _username = prefs.getString('username');
+    _totalPoints = prefs.getInt('total_points') ?? 0;
+    _avatar = prefs.getString('avatar');
     
     // Set authorization header if token exists
     if (_accessToken != null && _accessToken!.isNotEmpty) {
@@ -150,6 +156,14 @@ class AuthRepository {
       await prefs.setString('username', _username!);
     } else {
       await prefs.remove('username');
+    }
+
+    await prefs.setInt('total_points', _totalPoints);
+
+    if (_avatar != null) {
+      await prefs.setString('avatar', _avatar!);
+    } else {
+      await prefs.remove('avatar');
     }
   }
 
@@ -184,10 +198,13 @@ class AuthRepository {
       final user = <String, dynamic>{
         'username': response.data['username'] ?? username,
         'avatar': response.data['avatar'],
+        'total_points': response.data['total_points'] ?? 0,
       };
       
       _username = user['username'];
-      await _saveTokens(); // Save again to include username
+      _avatar = user['avatar'];
+      _totalPoints = user['total_points'] as int;
+      await _saveTokens(); // Save again to include username, avatar, points
 
       return user; // Trả về trực tiếp user data
     }
@@ -196,6 +213,11 @@ class AuthRepository {
       throw Exception('Sai tài khoản hoặc mật khẩu');
     }
     throw Exception('Đăng nhập thất bại (${response.statusCode})');
+  }
+
+  Future<void> updatePoints(int points) async {
+    _totalPoints = points;
+    await _saveTokens();
   }
 
   /// Thử đăng nhập tự động bằng token đã lưu
@@ -225,6 +247,7 @@ class AuthRepository {
             if (r.statusCode == 200) {
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
+              _totalPoints = r.data['total_points'] ?? _totalPoints;
               await _saveTokens();
               return {'username': _username ?? 'User'};
             }
@@ -234,6 +257,15 @@ class AuthRepository {
         }
         await logout();
         return null;
+      }
+      
+      // Nếu 200, lấy data points từ dashboard response
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data['data'];
+        if (data != null && data['total_points'] != null) {
+          _totalPoints = data['total_points'] as int;
+          await _saveTokens();
+        }
       }
     } catch (e) {
       print('AuthRepository: Token verification error: $e');
@@ -247,9 +279,10 @@ class AuthRepository {
   String? get refreshToken => _refreshToken;
 
   Future<void> logout() async {
-    _accessToken = null;
     _refreshToken = null;
     _username = null;
+    _totalPoints = 0;
+    _avatar = null;
     await _saveTokens(); // Clear from storage
     dio.options.headers.remove('Authorization');
     _logoutController.add(null);
@@ -295,6 +328,8 @@ class AuthRepository {
         // Get user data
         final user = response.data['user'] as Map<String, dynamic>;
         _username = user['username'];
+        _totalPoints = user['point'] ?? 0;
+        _avatar = user['avatar'];
         
         // Save tokens
         await _saveTokens();
@@ -378,6 +413,8 @@ class AuthRepository {
         // Get user data
         final user = response.data['user'] as Map<String, dynamic>;
         _username = user['username'];
+        _totalPoints = user['point'] ?? 0;
+        _avatar = user['avatar'];
         
         // Save tokens
         await _saveTokens();

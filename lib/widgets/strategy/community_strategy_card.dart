@@ -198,7 +198,7 @@ class CommunityStrategyCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: FwMiniButton.primary(
-                  label: 'Xem kết quả',
+                  label: 'Xem chi tiết',
                   icon: Icons.arrow_forward,
                   onTap: onResult,
                   fullWidth: true,

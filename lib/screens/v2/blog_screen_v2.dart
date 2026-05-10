@@ -17,8 +17,9 @@ class BlogScreenV2 extends StatefulWidget {
 class _BlogScreenV2State extends State<BlogScreenV2> {
   late final BlogRepository _repo = context.read<BlogRepository>();
 
-  int _category = 0;
   List<BlogPost> _posts = const [];
+  List<BlogCategory> _categories = const [];
+  int _categoryIndex = 0; // 0 = "Tất cả"
   bool _loading = true;
   Object? _err;
 
@@ -28,16 +29,19 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({String? categorySlug}) async {
     setState(() {
       _loading = true;
       _err = null;
     });
     try {
-      final posts = await _repo.fetchPosts();
+      final result = await _repo.fetchPosts(categorySlug: categorySlug);
       if (!mounted) return;
       setState(() {
-        _posts = posts;
+        _posts = result.posts;
+        if (result.categories.isNotEmpty) {
+          _categories = result.categories;
+        }
         _loading = false;
       });
     } catch (e) {
@@ -49,28 +53,19 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
     }
   }
 
-  List<String> get _categories {
-    final set = <String>{'Tất cả'};
-    for (final p in _posts) {
-      final c = (p.categoryName ?? '').trim();
-      if (c.isNotEmpty) set.add(c);
-    }
-    return set.toList();
-  }
+  List<String> get _categoryLabels =>
+      ['Tất cả', ..._categories.map((c) => c.name)];
 
-  List<BlogPost> get _visible {
-    if (_category == 0) return _posts;
-    final cats = _categories;
-    if (_category >= cats.length) return _posts;
-    final target = cats[_category];
-    return _posts.where((p) => (p.categoryName ?? '') == target).toList();
+  void _onCategoryChanged(int idx) {
+    if (idx == _categoryIndex) return;
+    setState(() => _categoryIndex = idx);
+    final slug = idx == 0 ? null : _categories[idx - 1].slug;
+    _load(categorySlug: slug);
   }
 
   void _open(BlogPost p) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BlogDetailScreenV2(post: p),
-      ),
+      MaterialPageRoute(builder: (_) => BlogDetailScreenV2(post: p)),
     );
   }
 
@@ -82,15 +77,19 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
         subtitle: 'Kiến thức từ chuyên gia',
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(
+          categorySlug:
+              _categoryIndex == 0 ? null : _categories[_categoryIndex - 1].slug,
+        ),
         child: Column(
           children: [
             const SizedBox(height: AppSpacing.sm),
-            FwFilterPillBar(
-              items: _categories,
-              activeIndex: _category.clamp(0, _categories.length - 1),
-              onChanged: (i) => setState(() => _category = i),
-            ),
+            if (_categories.isNotEmpty)
+              FwFilterPillBar(
+                items: _categoryLabels,
+                activeIndex: _categoryIndex.clamp(0, _categoryLabels.length - 1),
+                onChanged: _onCategoryChanged,
+              ),
             const SizedBox(height: AppSpacing.md),
             Expanded(child: _buildBody()),
           ],
@@ -125,8 +124,7 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
         ),
       );
     }
-    final visible = _visible;
-    if (visible.isEmpty) {
+    if (_posts.isEmpty) {
       return const Center(
         child: FwEmptyState(
           icon: Icons.inbox_outlined,
@@ -143,9 +141,9 @@ class _BlogScreenV2State extends State<BlogScreenV2> {
         mainAxisSpacing: AppSpacing.md,
         childAspectRatio: 0.85,
       ),
-      itemCount: visible.length,
+      itemCount: _posts.length,
       itemBuilder: (ctx, i) {
-        final p = visible[i];
+        final p = _posts[i];
         return BlogCard(
           title: p.title,
           summary: p.summary ?? '',

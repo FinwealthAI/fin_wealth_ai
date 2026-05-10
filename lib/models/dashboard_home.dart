@@ -209,6 +209,7 @@ class LatestBlog {
 class DashboardHome {
   final DailySummaryData? dailySummary;
   final bool isGuest;
+  final int totalPoints;
   final List<int> shortSignalIds;
   final List<int> longSignalIds;
 
@@ -238,6 +239,7 @@ class DashboardHome {
   DashboardHome({
     this.dailySummary,
     required this.isGuest,
+    this.totalPoints = 0,
     this.shortSignalIds = const [],
     this.longSignalIds = const [],
     this.wsGolden = const [],
@@ -293,6 +295,7 @@ class DashboardHome {
     return DashboardHome(
       dailySummary: summary,
       isGuest: data['is_guest'] == true,
+      totalPoints: _toI(data['total_points']),
       shortSignalIds:
           ((data['short_signal_ids'] as List?) ?? const []).map((e) => _toI(e)).toList(),
       longSignalIds:
@@ -316,6 +319,9 @@ class DashboardHome {
               companyName: m['company_name'] as String?,
               currentPrice: _toD(m['close']),
               changePercent: _toD(m['change_pct']),
+              faTier: m['fa_tier'] as String?,
+              taTier: m['ta_tier'] as String?,
+              strengthLabel: m['strength_label'] as String?,
             );
           })
           .toList(),
