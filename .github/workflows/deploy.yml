@@ -32,7 +32,6 @@ jobs:
         run: |
           flutter build web \
             --release \
-            --web-renderer canvaskit \
             --no-tree-shake-icons
 
       # 5. Deploy lên server qua SSH + rsync
