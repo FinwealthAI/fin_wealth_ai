@@ -32,6 +32,8 @@ jobs:
         run: |
           flutter build web \
             --release \
+            --dart-define=USE_LOCAL_BACKEND=false \
+            --dart-define=USE_RELATIVE_PATHS=false \
             --no-tree-shake-icons
 
       # 5. Deploy lên server qua SSH + rsync
