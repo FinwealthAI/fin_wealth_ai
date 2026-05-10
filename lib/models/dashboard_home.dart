@@ -210,6 +210,7 @@ class DashboardHome {
   final DailySummaryData? dailySummary;
   final bool isGuest;
   final int totalPoints;
+  final String? expirationDate;
   final List<int> shortSignalIds;
   final List<int> longSignalIds;
 
@@ -240,6 +241,7 @@ class DashboardHome {
     this.dailySummary,
     required this.isGuest,
     this.totalPoints = 0,
+    this.expirationDate,
     this.shortSignalIds = const [],
     this.longSignalIds = const [],
     this.wsGolden = const [],
@@ -296,6 +298,7 @@ class DashboardHome {
       dailySummary: summary,
       isGuest: data['is_guest'] == true,
       totalPoints: _toI(data['total_points']),
+      expirationDate: data['expiration_date']?.toString(),
       shortSignalIds:
           ((data['short_signal_ids'] as List?) ?? const []).map((e) => _toI(e)).toList(),
       longSignalIds:

@@ -10,6 +10,9 @@ class ProfileBar extends StatelessWidget {
   final String? goal;
   final String? horizon;
   final int? daysLeft;
+  final String? expirationDate;
+  final bool lowPointsWarning;
+  final VoidCallback? onUpgradeTap;
 
   const ProfileBar({
     super.key,
@@ -19,6 +22,9 @@ class ProfileBar extends StatelessWidget {
     this.goal,
     this.horizon,
     this.daysLeft,
+    this.expirationDate,
+    this.lowPointsWarning = false,
+    this.onUpgradeTap,
   });
 
   @override
@@ -67,16 +73,47 @@ class ProfileBar extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2, bottom: 4),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 11, color: AppColors.brandPrimaryDark),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 11,
+                          color: lowPointsWarning
+                              ? AppColors.warningDark
+                              : AppColors.brandPrimaryDark,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          '$daysLeft ngày sử dụng',
+                          expirationDate != null
+                              ? 'Hết hạn: $expirationDate'
+                              : '$daysLeft ngày sử dụng',
                           style: text.labelSmall?.copyWith(
-                            color: AppColors.darkTextMuted,
+                            color: lowPointsWarning
+                                ? AppColors.warningDark
+                                : AppColors.darkTextMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        if (lowPointsWarning) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: onUpgradeTap,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Nâng cấp',
+                                style: text.labelSmall?.copyWith(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

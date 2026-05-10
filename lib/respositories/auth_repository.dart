@@ -3,6 +3,19 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fin_wealth/config/api_config.dart';
 
+class AccountExpiredException implements Exception {
+  final String username;
+  final String upgradeUrl; // /open-account/hsc/?u=<username>
+  final String zaloGroup;
+  final String zaloSupport;
+  const AccountExpiredException({
+    required this.username,
+    required this.upgradeUrl,
+    required this.zaloGroup,
+    required this.zaloSupport,
+  });
+}
+
 class AuthRepository {
   final Dio dio;
   late final Dio _tokenDio; // Dio instance riêng để refresh token tránh deadlock
@@ -13,6 +26,9 @@ class AuthRepository {
   String? _username;
   int _totalPoints = 0;
   String? _avatar;
+  String? _expirationDate;
+  bool _lowPointsWarning = false;
+  String? _upgradeUrl;
   
   final _logoutController = StreamController<void>.broadcast();
   Stream<void> get onLogout => _logoutController.stream;
@@ -20,6 +36,9 @@ class AuthRepository {
   String? get username => _username;
   int get totalPoints => _totalPoints;
   String? get avatar => _avatar;
+  String? get expirationDate => _expirationDate;
+  bool get lowPointsWarning => _lowPointsWarning;
+  String? get upgradeUrl => _upgradeUrl;
 
   AuthRepository({required this.dio, String? baseUrl}) : baseUrl = baseUrl ?? ApiConfig.mobileApi {
     // Cấu hình mặc định + interceptor JWT
@@ -131,6 +150,8 @@ class AuthRepository {
     _username = prefs.getString('username');
     _totalPoints = prefs.getInt('total_points') ?? 0;
     _avatar = prefs.getString('avatar');
+    _expirationDate = prefs.getString('expiration_date');
+    _upgradeUrl = prefs.getString('upgrade_url');
     
     // Set authorization header if token exists
     if (_accessToken != null && _accessToken!.isNotEmpty) {
@@ -165,6 +186,18 @@ class AuthRepository {
     } else {
       await prefs.remove('avatar');
     }
+
+    if (_expirationDate != null) {
+      await prefs.setString('expiration_date', _expirationDate!);
+    } else {
+      await prefs.remove('expiration_date');
+    }
+
+    if (_upgradeUrl != null) {
+      await prefs.setString('upgrade_url', _upgradeUrl!);
+    } else {
+      await prefs.remove('upgrade_url');
+    }
   }
 
   /// Đăng nhập bằng JWT.
@@ -184,29 +217,50 @@ class AuthRepository {
       options: Options(headers: {'Accept': 'application/json'}),
     );
 
+    if (response.statusCode == 403 &&
+        response.data is Map &&
+        response.data['code'] == 'account_expired') {
+      final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
+      final upgradeUrl = upgradeRelative.isNotEmpty
+          ? '${ApiConfig.websiteUrl}$upgradeRelative'
+          : ApiConfig.websiteUrl;
+      throw AccountExpiredException(
+        username: response.data['username'] as String? ?? username,
+        upgradeUrl: upgradeUrl,
+        zaloGroup: response.data['zalo_group'] as String? ?? '',
+        zaloSupport: response.data['zalo_support'] as String? ?? '',
+      );
+    }
+
     if (response.statusCode == 200) {
       _accessToken  = response.data['access']  as String;
       _refreshToken = response.data['refresh'] as String;
 
-      // 👉 GẮN HEADER Ở ĐÂY (bạn hỏi)
       dio.options.headers['Authorization'] = 'Bearer $_accessToken';
-
-      // Save tokens to persistence
       await _saveTokens();
 
-      // Lấy thông tin user từ API response
+      final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
+      _lowPointsWarning = response.data['low_points_warning'] == true;
+      _upgradeUrl = upgradeRelative.isNotEmpty
+          ? '${ApiConfig.websiteUrl}$upgradeRelative'
+          : null;
+
       final user = <String, dynamic>{
         'username': response.data['username'] ?? username,
         'avatar': response.data['avatar'],
-        'total_points': response.data['total_points'] ?? 0,
+        'total_points': response.data['point'] ?? 0,
+        'expiration_date': response.data['expiration_date']?.toString(),
+        'low_points_warning': _lowPointsWarning,
+        'upgrade_url': _upgradeUrl,
       };
-      
+
       _username = user['username'];
       _avatar = user['avatar'];
       _totalPoints = user['total_points'] as int;
-      await _saveTokens(); // Save again to include username, avatar, points
+      _expirationDate = user['expiration_date'];
+      await _saveTokens();
 
-      return user; // Trả về trực tiếp user data
+      return user;
     }
 
     if (response.statusCode == 401) {
@@ -215,31 +269,29 @@ class AuthRepository {
     throw Exception('Đăng nhập thất bại (${response.statusCode})');
   }
 
-  Future<void> updatePoints(int points) async {
+  Future<void> updatePoints(int points, {String? expiration}) async {
     _totalPoints = points;
+    if (expiration != null) {
+      _expirationDate = expiration;
+    }
     await _saveTokens();
   }
 
-  /// Thử đăng nhập tự động bằng token đã lưu
-  /// QUAN TRỌNG: Kiểm tra token hợp lệ trước khi cho phép vào app
+  /// Thử đăng nhập tự động bằng token đã lưu.
+  /// Throw [AccountExpiredException] nếu token hợp lệ nhưng tài khoản đã hết điểm.
+  /// Return null nếu không có token hoặc token hết hạn.
   Future<Map<String, dynamic>?> tryAutoLogin() async {
     await _loadTokens();
     if (_accessToken == null || _accessToken!.isEmpty) {
       return null;
     }
 
-    // Verify token bằng cách gọi API nhẹ
+    // Dùng account-status/ — vừa verify token, vừa check điểm (đồng nhất với web)
     try {
-      print('AuthRepository: Verifying token...');
-      final response = await _tokenDio.get('/mobile/api/unlock-wealth/');
-
-      if (response.statusCode == 200) {
-        print('AuthRepository: Token valid!');
-        return {'username': _username ?? 'User'};
-      }
+      final response = await _tokenDio.get(ApiConfig.accountStatus);
 
       if (_isTokenInvalidResponse(response)) {
-        print('AuthRepository: Token invalid (${response.statusCode}), trying refresh...');
+        // Token hết hạn hoặc invalid → thử refresh
         if (_refreshToken != null && _refreshToken!.isNotEmpty) {
           try {
             final r = await _tokenDio.post('/mobile/api/token/refresh/',
@@ -247,31 +299,43 @@ class AuthRepository {
             if (r.statusCode == 200) {
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
-              _totalPoints = r.data['total_points'] ?? _totalPoints;
               await _saveTokens();
-              return {'username': _username ?? 'User'};
+              // Gọi lại sau refresh để lấy account_expired
+              return tryAutoLogin();
             }
-          } catch (e) {
-            print('AuthRepository: Refresh on auto-login failed: $e');
-          }
+          } catch (_) {}
         }
         await logout();
         return null;
       }
-      
-      // Nếu 200, lấy data points từ dashboard response
-      if (response.statusCode == 200 && response.data != null) {
-        final data = response.data['data'];
-        if (data != null && data['total_points'] != null) {
-          _totalPoints = data['total_points'] as int;
-          await _saveTokens();
+
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        final points = data['total_points'] as int? ?? _totalPoints;
+        _totalPoints = points;
+        final upgradeRelative = data['upgrade_url'] as String? ?? '';
+        _upgradeUrl = upgradeRelative.isNotEmpty
+            ? '${ApiConfig.websiteUrl}$upgradeRelative'
+            : null;
+        await _saveTokens();
+
+        // Tài khoản hết hạn — throw để AuthBloc emit AuthAccountExpired
+        if (data['account_expired'] == true) {
+          throw AccountExpiredException(
+            username: data['username'] as String? ?? _username ?? '',
+            upgradeUrl: _upgradeUrl ?? ApiConfig.websiteUrl,
+            zaloGroup: data['zalo_group'] as String? ?? '',
+            zaloSupport: data['zalo_support'] as String? ?? '',
+          );
         }
+
+        return {'username': _username ?? 'User'};
       }
     } catch (e) {
-      print('AuthRepository: Token verification error: $e');
+      if (e is AccountExpiredException) rethrow;
+      // Lỗi mạng → fallback offline-mode, giữ session
     }
 
-    // Fallback offline-mode: giữ session
     return {'username': _username ?? 'User'};
   }
 
@@ -283,6 +347,7 @@ class AuthRepository {
     _username = null;
     _totalPoints = 0;
     _avatar = null;
+    _expirationDate = null;
     await _saveTokens(); // Clear from storage
     dio.options.headers.remove('Authorization');
     _logoutController.add(null);

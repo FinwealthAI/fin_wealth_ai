@@ -79,7 +79,9 @@ class ProfileScreenV2 extends StatelessWidget {
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  '$totalPoints ngày sử dụng',
+                                  authRepo.expirationDate != null
+                                      ? 'Hết hạn: ${authRepo.expirationDate}'
+                                      : '$totalPoints ngày sử dụng',
                                   style: text.labelMedium?.copyWith(
                                       color: AppColors.darkTextMuted),
                                 ),

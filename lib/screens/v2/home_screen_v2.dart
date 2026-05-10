@@ -21,6 +21,7 @@ import 'stock_detail_screen_v2.dart';
 import 'stock_search_screen_v2.dart';
 import 'strategy_detail_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
+import 'upgrade_screen_v2.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   final VoidCallback? onOpenChat;
@@ -40,6 +41,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
   Object? _err;
   bool _loading = true;
   int _openSort = 0; // 0=date, 1=profit
+  bool _lowPointsWarning = false;
 
   // Single shimmer controller shared across all skeleton blocks
   late final AnimationController _shimmerCtrl = AnimationController(
@@ -73,12 +75,13 @@ class HomeScreenV2State extends State<HomeScreenV2>
       
       // Đồng bộ số điểm vào AuthRepository để hiển thị đúng ở AppBar
       if (_authRepo.accessToken != null) {
-        _authRepo.updatePoints(dash.totalPoints);
+        _authRepo.updatePoints(dash.totalPoints, expiration: dash.expirationDate);
         if (mounted) {
           context.read<AuthBloc>().add(AuthUserUpdated({
                 'username': _authRepo.username,
                 'avatar': _authRepo.avatar,
                 'total_points': dash.totalPoints,
+                'expiration_date': dash.expirationDate,
               }));
         }
       }
@@ -168,10 +171,16 @@ class HomeScreenV2State extends State<HomeScreenV2>
             ? 'Đăng nhập để mở Premium'
             : null,
         daysLeft: _authRepo.accessToken != null ? _authRepo.totalPoints : null,
+        expirationDate: _authRepo.expirationDate,
+        lowPointsWarning: _authRepo.accessToken != null &&
+            _authRepo.totalPoints < 30,
         hasUnreadNotification: false,
-        onAvatarTap: () {},
+        onAvatarTap: () => RootShellNav.goMore(),
         onSearchTap: _openSearch,
         onNotificationTap: _openNotifications,
+        onUpgradeTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const UpgradeScreenV2()),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () => _load(forceRefresh: true),

@@ -7,10 +7,13 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? avatarUrl;
   final String? premiumLabel;
   final int? daysLeft;
+  final String? expirationDate;
   final VoidCallback? onAvatarTap;
   final VoidCallback? onSearchTap;
   final VoidCallback? onNotificationTap;
   final bool hasUnreadNotification;
+  final bool lowPointsWarning;
+  final VoidCallback? onUpgradeTap;
 
   const HomeAppBar({
     super.key,
@@ -18,10 +21,13 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.avatarUrl,
     this.premiumLabel,
     this.daysLeft,
+    this.expirationDate,
     this.onAvatarTap,
     this.onSearchTap,
     this.onNotificationTap,
     this.hasUnreadNotification = false,
+    this.lowPointsWarning = false,
+    this.onUpgradeTap,
   });
 
   @override
@@ -83,16 +89,47 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 10, color: AppColors.brandPrimary),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 10,
+                          color: lowPointsWarning
+                              ? AppColors.warningDark
+                              : AppColors.brandPrimary,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          '$daysLeft ngày sử dụng',
+                          expirationDate != null
+                              ? 'Hết hạn: $expirationDate'
+                              : '$daysLeft ngày sử dụng',
                           style: text.labelSmall?.copyWith(
-                            color: AppColors.darkTextMuted,
+                            color: lowPointsWarning
+                                ? AppColors.warningDark
+                                : AppColors.darkTextMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        if (lowPointsWarning) ...[
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: onUpgradeTap,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.warningDark,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Nâng cấp',
+                                style: text.labelSmall?.copyWith(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

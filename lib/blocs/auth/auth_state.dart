@@ -28,3 +28,20 @@ class AuthFailure extends AuthState {
   @override
   List<Object?> get props => [error];
 }
+
+class AuthAccountExpired extends AuthState {
+  final String username;
+  final String upgradeUrl;
+  final String zaloGroup;
+  final String zaloSupport;
+
+  const AuthAccountExpired({
+    required this.username,
+    required this.upgradeUrl,
+    required this.zaloGroup,
+    required this.zaloSupport,
+  });
+
+  @override
+  List<Object?> get props => [username, upgradeUrl, zaloGroup, zaloSupport];
+}

@@ -4,6 +4,8 @@ import 'dart:async';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
+export 'package:fin_wealth/respositories/auth_repository.dart' show AccountExpiredException;
+
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
 
@@ -31,13 +33,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onCheckAuthStatus(CheckAuthStatus event, Emitter<AuthState> emit) async {
-    // Không emit Loading để tránh flicker màn hình Login nếu thất bại
-    final userData = await authRepository.tryAutoLogin();
-    if (userData != null) {
-      emit(AuthSuccess(userData: userData));
-    } else {
-      // FIX: Emit Failure để Splash Screen biết đường chuyển sang Login
-      emit(const AuthFailure(error: "Not logged in"));
+    try {
+      final userData = await authRepository.tryAutoLogin();
+      if (userData != null) {
+        emit(AuthSuccess(userData: userData));
+      } else {
+        emit(const AuthFailure(error: "Not logged in"));
+      }
+    } on AccountExpiredException catch (e) {
+      emit(AuthAccountExpired(
+        username: e.username,
+        upgradeUrl: e.upgradeUrl,
+        zaloGroup: e.zaloGroup,
+        zaloSupport: e.zaloSupport,
+      ));
     }
   }
 
@@ -48,10 +57,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         event.username,
         event.password,
       );
-      print('AuthBloc - User data received: $userData'); // Debug
       emit(AuthSuccess(userData: userData));
+    } on AccountExpiredException catch (e) {
+      emit(AuthAccountExpired(
+        username: e.username,
+        upgradeUrl: e.upgradeUrl,
+        zaloGroup: e.zaloGroup,
+        zaloSupport: e.zaloSupport,
+      ));
     } catch (error) {
-      print('AuthBloc - Error: $error'); // Debug
       emit(AuthFailure(error: error.toString()));
     }
   }

@@ -89,6 +89,9 @@ class ApiConfig {
   static String get chartsList => '$mobileApi/charts/';
   static String chartData(int id) => '$mobileApi/charts/$id/';
 
+  // Account status — đồng nhất check hết hạn với web
+  static String get accountStatus => '$mobileApi/account-status/';
+
   // Stock screener (custom filter builder)
   static String get screenerFields => '$mobileApi/screener/fields/';
   static String get screenerRun => '$mobileApi/screener/run/';

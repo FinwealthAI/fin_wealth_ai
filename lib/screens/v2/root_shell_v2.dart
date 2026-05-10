@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
+import 'upgrade_screen_v2.dart';
 import '../../theme/theme.dart';
 import 'ai_toolbox_screen_v2.dart';
 import 'blog_screen_v2.dart';
@@ -144,6 +145,7 @@ class _MoreMenuScreenV2 extends StatelessWidget {
         final avatarUrl = authRepo.avatar;
         final isGuest = authRepo.accessToken == null;
         final totalPoints = authRepo.totalPoints;
+        final expirationDate = authRepo.expirationDate;
 
         return Scaffold(
           backgroundColor: const Color(0xFF0F111A),
@@ -156,6 +158,12 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                     userName: username,
                     avatarUrl: avatarUrl,
                     daysLeft: isGuest ? null : totalPoints,
+                    expirationDate: isGuest ? null : expirationDate,
+                    lowPointsWarning: !isGuest && totalPoints < 30,
+                    onUpgradeTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const UpgradeScreenV2()),
+                    ),
                   ),
                 ),
               ),
