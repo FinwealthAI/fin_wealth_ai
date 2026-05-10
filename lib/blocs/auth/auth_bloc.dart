@@ -14,6 +14,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<LoginEvent>(_onLoginEvent);
     on<CheckAuthStatus>(_onCheckAuthStatus);
+    on<CheckAccountExpiry>(_onCheckAccountExpiry);
     on<AuthUserUpdated>((event, emit) {
       if (state is AuthSuccess) {
         emit(AuthSuccess(userData: event.userData));
@@ -47,6 +48,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         zaloGroup: e.zaloGroup,
         zaloSupport: e.zaloSupport,
       ));
+    }
+  }
+
+  Future<void> _onCheckAccountExpiry(CheckAccountExpiry event, Emitter<AuthState> emit) async {
+    if (state is! AuthSuccess) return; // Chỉ check khi đang logged in
+    try {
+      await authRepository.checkAccountExpiry();
+    } on AccountExpiredException catch (e) {
+      emit(AuthAccountExpired(
+        username: e.username,
+        upgradeUrl: e.upgradeUrl,
+        zaloGroup: e.zaloGroup,
+        zaloSupport: e.zaloSupport,
+      ));
+    } catch (_) {
+      // Network error → im lặng
     }
   }
 

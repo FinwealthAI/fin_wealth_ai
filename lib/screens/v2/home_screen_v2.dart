@@ -90,6 +90,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
         _dash = dash;
         _loading = false;
         _err = null;
+        _lowPointsWarning = _authRepo.accessToken != null && dash.totalPoints < 30;
       });
     } catch (e) {
       if (!mounted) return;
@@ -172,8 +173,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
             : null,
         daysLeft: _authRepo.accessToken != null ? _authRepo.totalPoints : null,
         expirationDate: _authRepo.expirationDate,
-        lowPointsWarning: _authRepo.accessToken != null &&
-            _authRepo.totalPoints < 30,
+        lowPointsWarning: _lowPointsWarning,
         hasUnreadNotification: false,
         onAvatarTap: () => RootShellNav.goMore(),
         onSearchTap: _openSearch,

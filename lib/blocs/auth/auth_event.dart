@@ -17,6 +17,9 @@ class LoginEvent extends AuthEvent {
 
 class CheckAuthStatus extends AuthEvent {}
 
+/// Kiểm tra nhẹ khi app resume từ background — chỉ gọi account-status, không refresh token
+class CheckAccountExpiry extends AuthEvent {}
+
 class LogoutRequested extends AuthEvent {}
 
 class AuthUserUpdated extends AuthEvent {

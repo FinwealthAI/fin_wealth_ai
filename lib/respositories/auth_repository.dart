@@ -269,6 +269,36 @@ class AuthRepository {
     throw Exception('Đăng nhập thất bại (${response.statusCode})');
   }
 
+  /// Kiểm tra nhẹ trạng thái hết hạn — dùng khi app resume từ background.
+  /// Throw [AccountExpiredException] nếu tài khoản đã hết điểm.
+  /// Không làm gì nếu chưa đăng nhập hoặc lỗi mạng (tránh kick user khi offline).
+  Future<void> checkAccountExpiry() async {
+    if (_accessToken == null || _accessToken!.isEmpty) return;
+    try {
+      final response = await _tokenDio.get(ApiConfig.accountStatus);
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = response.data as Map<String, dynamic>;
+        if (data['account_expired'] == true) {
+          final upgradeRelative = data['upgrade_url'] as String? ?? '';
+          throw AccountExpiredException(
+            username: data['username'] as String? ?? _username ?? '',
+            upgradeUrl: upgradeRelative.isNotEmpty
+                ? '${ApiConfig.websiteUrl}$upgradeRelative'
+                : ApiConfig.websiteUrl,
+            zaloGroup: data['zalo_group'] as String? ?? '',
+            zaloSupport: data['zalo_support'] as String? ?? '',
+          );
+        }
+        // Cập nhật điểm mới nhất
+        final points = data['total_points'] as int?;
+        if (points != null) _totalPoints = points;
+      }
+    } catch (e) {
+      if (e is AccountExpiredException) rethrow;
+      // Lỗi mạng → im lặng, không kick user
+    }
+  }
+
   Future<void> updatePoints(int points, {String? expiration}) async {
     _totalPoints = points;
     if (expiration != null) {

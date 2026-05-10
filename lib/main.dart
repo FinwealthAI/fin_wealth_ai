@@ -26,6 +26,7 @@ import 'package:fin_wealth/screens/v2/root_shell_v2.dart' show RootShellV2, Root
 import 'package:fin_wealth/screens/v2/login_screen_v2.dart';
 import 'package:fin_wealth/screens/v2/splash_screen_v2.dart';
 import 'package:fin_wealth/screens/v2/stock_detail_screen_v2.dart';
+import 'package:fin_wealth/screens/v2/upgrade_screen_v2.dart';
 import 'package:fin_wealth/config/api_config.dart';
 import 'package:fin_wealth/theme/theme.dart';
 
@@ -63,25 +64,87 @@ void main() async {
   runApp(MyApp(dio: dio, navigatorKey: navigatorKey));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final Dio dio;
   final GlobalKey<NavigatorState> navigatorKey;
 
   const MyApp({super.key, required this.dio, required this.navigatorKey});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  DateTime? _lastExpiredCheck;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkExpiryOnResume();
+    }
+  }
+
+  Future<void> _checkExpiryOnResume() async {
+    // Cooldown 5 phút để tránh spam khi user switch app liên tục
+    final now = DateTime.now();
+    if (_lastExpiredCheck != null &&
+        now.difference(_lastExpiredCheck!).inMinutes < 5) return;
+    _lastExpiredCheck = now;
+
+    final ctx = widget.navigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+
+    final authBloc = ctx.read<AuthBloc>();
+    if (authBloc.state is! AuthSuccess) return;
+
+    authBloc.add(CheckAccountExpiry());
+
+    // Lắng nghe state thay đổi ngay sau khi dispatch event
+    final stream = authBloc.stream;
+    await for (final s in stream.timeout(const Duration(seconds: 10),
+        onTimeout: (sink) => sink.close())) {
+      if (!mounted) return;
+      if (s is AuthAccountExpired) {
+        final navCtx = widget.navigatorKey.currentContext;
+        if (navCtx != null && navCtx.mounted) {
+          authBloc.add(LogoutRequested());
+          widget.navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(
+                builder: (_) => const UpgradeScreenV2(fromExpiredSession: true)),
+            (_) => false,
+          );
+        }
+        return;
+      }
+      if (s is! AuthSuccess) return; // state khác → stop
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider(create: (_) => AuthRepository(dio: dio)),
-        RepositoryProvider(create: (_) => MarketRepository(dio: dio)),
-        RepositoryProvider(create: (_) => StockRepository(dio: dio)),
-        RepositoryProvider(create: (_) => StockReportsRepository(dio)),
-        RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(dio)),
-        RepositoryProvider(create: (_) => SearchStockRepository(dio)),
-        RepositoryProvider(create: (_) => WatchlistRepository(dio: dio)),
-        RepositoryProvider(create: (_) => BlogRepository(dio)),
-        RepositoryProvider(create: (_) => StrategyRepository(dio: dio)),
+        RepositoryProvider(create: (_) => AuthRepository(dio: widget.dio)),
+        RepositoryProvider(create: (_) => MarketRepository(dio: widget.dio)),
+        RepositoryProvider(create: (_) => StockRepository(dio: widget.dio)),
+        RepositoryProvider(create: (_) => StockReportsRepository(widget.dio)),
+        RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(widget.dio)),
+        RepositoryProvider(create: (_) => SearchStockRepository(widget.dio)),
+        RepositoryProvider(create: (_) => WatchlistRepository(dio: widget.dio)),
+        RepositoryProvider(create: (_) => BlogRepository(widget.dio)),
+        RepositoryProvider(create: (_) => StrategyRepository(dio: widget.dio)),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -90,7 +153,7 @@ class MyApp extends StatelessWidget {
           BlocProvider(create: (ctx) => MarketBloc(marketRepository: ctx.read<MarketRepository>())),
         ],
         child: MaterialApp(
-          navigatorKey: navigatorKey,
+          navigatorKey: widget.navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'FinWealth',
           theme: AppTheme.dark,
