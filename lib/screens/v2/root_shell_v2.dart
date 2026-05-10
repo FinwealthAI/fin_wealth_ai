@@ -4,6 +4,7 @@ import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
 import 'upgrade_screen_v2.dart';
+import '../../config/api_config.dart' show kLowPointsThreshold;
 import '../../theme/theme.dart';
 import 'ai_toolbox_screen_v2.dart';
 import 'blog_screen_v2.dart';
@@ -159,7 +160,7 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                     avatarUrl: avatarUrl,
                     daysLeft: isGuest ? null : totalPoints,
                     expirationDate: isGuest ? null : expirationDate,
-                    lowPointsWarning: !isGuest && totalPoints < 30,
+                    lowPointsWarning: !isGuest && totalPoints < kLowPointsThreshold,
                     onUpgradeTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                           builder: (_) => const UpgradeScreenV2()),

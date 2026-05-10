@@ -6,6 +6,9 @@
 
 import 'package:flutter/foundation.dart';
 
+/// Ngưỡng điểm cảnh báo sắp hết hạn — phải khớp với LOW_POINTS_THRESHOLD backend (bot_user/views.py)
+const int kLowPointsThreshold = 30;
+
 class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development

@@ -22,6 +22,7 @@ import 'stock_search_screen_v2.dart';
 import 'strategy_detail_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
 import 'upgrade_screen_v2.dart';
+import '../../config/api_config.dart' show kLowPointsThreshold;
 
 class HomeScreenV2 extends StatefulWidget {
   final VoidCallback? onOpenChat;
@@ -90,7 +91,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
         _dash = dash;
         _loading = false;
         _err = null;
-        _lowPointsWarning = _authRepo.accessToken != null && dash.totalPoints < 30;
+        _lowPointsWarning = _authRepo.accessToken != null && dash.totalPoints < kLowPointsThreshold;
       });
     } catch (e) {
       if (!mounted) return;
