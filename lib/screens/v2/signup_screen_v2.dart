@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_event.dart';
+import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
@@ -90,10 +93,27 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
     );
   }
 
+  void _handleGoogleSignUp() {
+    context.read<AuthBloc>().add(GoogleLoginEvent(authEntry: 'signup'));
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return Scaffold(
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthSuccess) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => const InvestmentProfileScreen(isOnboarding: true),
+            ),
+            (route) => false,
+          );
+        } else if (state is AuthFailure && state.error != 'Not logged in') {
+          _showError(state.error);
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF0F111A), // Main dark background
       appBar: AppBar(
         title: const Text('Tạo tài khoản'),
@@ -212,7 +232,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
                       border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
                     ),
                     child: InkWell(
-                      onTap: () {},
+                      onTap: _loading ? null : _handleGoogleSignUp,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -237,6 +257,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
           ),
         ),
       ),
-    );
+    ),   // closes Scaffold
+    );   // closes BlocListener
   }
 }

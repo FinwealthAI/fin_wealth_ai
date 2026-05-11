@@ -22,6 +22,11 @@ class CheckAccountExpiry extends AuthEvent {}
 
 class LogoutRequested extends AuthEvent {}
 
+class GoogleLoginEvent extends AuthEvent {
+  final String authEntry; // 'login' or 'signup'
+  GoogleLoginEvent({this.authEntry = 'login'});
+}
+
 class AuthUserUpdated extends AuthEvent {
   final Map<String, dynamic> userData;
   AuthUserUpdated(this.userData);

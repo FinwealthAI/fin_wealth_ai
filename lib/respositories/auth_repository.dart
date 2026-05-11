@@ -373,6 +373,7 @@ class AuthRepository {
   String? get refreshToken => _refreshToken;
 
   Future<void> logout() async {
+    _accessToken = null;
     _refreshToken = null;
     _username = null;
     _totalPoints = 0;

@@ -1,5 +1,7 @@
 import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:fin_wealth/config/secrets.dart';
 import 'dart:async';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -13,6 +15,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<LoginEvent>(_onLoginEvent);
+    on<GoogleLoginEvent>(_onGoogleLoginEvent);
     on<CheckAuthStatus>(_onCheckAuthStatus);
     on<CheckAccountExpiry>(_onCheckAccountExpiry);
     on<AuthUserUpdated>((event, emit) {
@@ -64,6 +67,42 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       ));
     } catch (_) {
       // Network error → im lặng
+    }
+  }
+
+  Future<void> _onGoogleLoginEvent(GoogleLoginEvent event, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      final googleSignIn = GoogleSignIn(
+        serverClientId: Secrets.googleServerClientId,
+      );
+      await googleSignIn.signOut(); // Clear cached account to force account picker
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        emit(AuthInitial()); // User cancelled → silent, no error
+        return;
+      }
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        emit(const AuthFailure(error: 'Không lấy được token từ Google. Kiểm tra cấu hình OAuth.'));
+        return;
+      }
+      final userData = await authRepository.googleSignIn(idToken, authEntry: event.authEntry);
+      emit(AuthSuccess(userData: userData));
+    } on AccountExpiredException catch (e) {
+      emit(AuthAccountExpired(
+        username: e.username,
+        upgradeUrl: e.upgradeUrl,
+        zaloGroup: e.zaloGroup,
+        zaloSupport: e.zaloSupport,
+      ));
+    } catch (error) {
+      String msg = error.toString().replaceFirst('Exception: ', '');
+      if (msg.contains('network_error') || msg.contains('SocketException')) {
+        msg = 'Không thể kết nối máy chủ. Kiểm tra kết nối mạng.';
+      }
+      emit(AuthFailure(error: msg));
     }
   }
 

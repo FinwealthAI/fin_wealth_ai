@@ -145,10 +145,8 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
     );
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đăng nhập Google chưa được hỗ trợ trên thiết bị này')),
-    );
+  void _handleGoogleSignIn() {
+    context.read<AuthBloc>().add(GoogleLoginEvent(authEntry: 'login'));
   }
 
   @override
