@@ -2,7 +2,7 @@ import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:fin_wealth/config/secrets.dart';
+import 'package:fin_wealth/config/api_config.dart';
 import 'dart:async';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -75,8 +75,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
     try {
       final googleSignIn = GoogleSignIn(
-        clientId: kIsWeb ? Secrets.googleServerClientId : null,
-        serverClientId: kIsWeb ? null : Secrets.googleServerClientId,
+        clientId: kIsWeb ? ApiConfig.googleServerClientId : null,
+        serverClientId: kIsWeb ? null : ApiConfig.googleServerClientId,
       );
       await googleSignIn.signOut(); // Clear cached account to force account picker
       final account = await googleSignIn.signIn();
