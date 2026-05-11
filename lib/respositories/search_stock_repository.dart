@@ -29,6 +29,11 @@ class SearchStockRepository {
     return Map<String, dynamic>.from(resp.data);
   }
 
+  Future<Map<String, dynamic>> getValueChain(String ticker) async {
+    final resp = await dio.get(ApiConfig.valueChain(ticker));
+    return Map<String, dynamic>.from(resp.data);
+  }
+
   Future<Map<String, dynamic>> getCompanyRatio(String ticker, [String range = '5y']) async {
     final resp = await dio.get('${ApiConfig.mobileApi}/company-ratio/$ticker/?range=$range');
     return Map<String, dynamic>.from(resp.data);

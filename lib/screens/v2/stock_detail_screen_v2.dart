@@ -37,11 +37,18 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   Map<String, dynamic>? _valuation;
   Map<String, dynamic>? _ratio;
   Map<String, dynamic>? _growth;
+  String _growthPeriod = 'quarter'; // 'quarter' | 'year'
   Map<String, dynamic>? _safety;
   Map<String, dynamic>? _technical;
 
   Map<String, dynamic>? _valuationHistory;
   Map<String, dynamic>? _insight;
+
+  Map<String, dynamic>? _chain;
+  bool _loadingChain = true;
+  Object? _errChain;
+  int _selectedChartIdx = 0;
+  int _chartPeriodDays = 365; // 180 | 365 | 1095 | -1 (all)
 
   bool _loadingOverview = true,
       _loadingValuation = true,
@@ -74,6 +81,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadingSignals = false;
       _loadingTechnical = false;
       _loadingInsight = false;
+      _loadingChain = false;
     }
   }
 
@@ -95,6 +103,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadSignals(),
       _loadTechnical(),
       _loadInsight(),
+      _loadChain(),
     ]);
   }
 
@@ -127,6 +136,28 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       setState(() {
         _errInsight = e;
         _loadingInsight = false;
+      });
+    }
+  }
+
+  Future<void> _loadChain() async {
+    setState(() {
+      _loadingChain = true;
+      _errChain = null;
+    });
+    try {
+      final d = await _repo.getValueChain(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _chain = d;
+        _selectedChartIdx = 0;
+        _loadingChain = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errChain = e;
+        _loadingChain = false;
       });
     }
   }
@@ -230,24 +261,16 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     }
   }
 
-  Future<void> _loadGrowth() async {
-    setState(() {
-      _loadingGrowth = true;
-      _errGrowth = null;
-    });
+  Future<void> _loadGrowth([String? period]) async {
+    final p = period ?? _growthPeriod;
+    setState(() { _loadingGrowth = true; _errGrowth = null; });
     try {
-      final d = await _repo.getGrowth(widget.ticker);
+      final d = await _repo.getGrowth(widget.ticker, p);
       if (!mounted) return;
-      setState(() {
-        _growth = d;
-        _loadingGrowth = false;
-      });
+      setState(() { _growth = d; _growthPeriod = p; _loadingGrowth = false; });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _errGrowth = e;
-        _loadingGrowth = false;
-      });
+      setState(() { _errGrowth = e; _loadingGrowth = false; });
     }
   }
 
@@ -875,27 +898,660 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
   // ---------- Tab 3: Chuỗi giá trị ----------
   Widget _buildValueChain() {
+    if (_loadingChain) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    if (_errChain != null && _chain == null) {
+      return Center(
+        child: TextButton.icon(
+          onPressed: _loadChain,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Thử lại'),
+        ),
+      );
+    }
+
     final text = Theme.of(context).textTheme;
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      children: [
-        FwCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    final found = _chain?['found'] == true;
+    final charts = (_chain?['charts'] as List?) ?? [];
+    final groups = (_chain?['groups'] as List?) ?? [];
+
+    return RefreshIndicator(
+      onRefresh: _loadChain,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          // ── Charts section ─────────────────────────────────────────────
+          if (charts.isNotEmpty) ...[
+            FwCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.account_tree_outlined,
-                      size: 16, color: AppColors.brandPrimaryDark),
-                  const SizedBox(width: 6),
-                  Text('Chuỗi giá trị', style: text.titleMedium),
+                  Row(children: [
+                    const Icon(Icons.bar_chart_rounded,
+                        size: 16, color: AppColors.brandPrimaryDark),
+                    const SizedBox(width: 6),
+                    Text('Biểu đồ & Dữ liệu liên quan',
+                        style: text.titleMedium),
+                  ]),
+                  const SizedBox(height: AppSpacing.md),
+                  // Horizontal chart selector
+                  SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: charts.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (_, i) {
+                        final ch = charts[i] as Map;
+                        final active = i == _selectedChartIdx;
+                        final corr = ch['correlation'] as String? ?? 'none';
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedChartIdx = i),
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 130),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? AppColors.brandPrimaryDark
+                                      .withValues(alpha: 0.15)
+                                  : AppColors.darkSurface,
+                              border: Border.all(
+                                color: active
+                                    ? AppColors.brandPrimaryDark
+                                    : AppColors.darkBorder,
+                              ),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                if (corr != 'none') ...[
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    margin: const EdgeInsets.only(right: 5),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: corr == 'positive'
+                                          ? AppColors.successDark
+                                          : AppColors.dangerDark,
+                                    ),
+                                  ),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    ch['title'] as String? ?? '',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: active
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: active
+                                          ? AppColors.brandPrimaryDark
+                                          : AppColors.darkTextSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  // Time period filter
+                  Row(
+                    children: [
+                      for (final (label, days) in [
+                        ('6T', 180),
+                        ('1N', 365),
+                        ('3N', 1095),
+                        ('Tất cả', -1),
+                      ])
+                        _ChartPeriodBtn(
+                          label: label,
+                          active: _chartPeriodDays == days,
+                          onTap: () =>
+                              setState(() => _chartPeriodDays = days),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  // Chart
+                  _buildEcoChart(charts[_selectedChartIdx] as Map),
+                  // Breadcrumb + latest date
+                  const SizedBox(height: 6),
+                  _buildChartMeta(charts[_selectedChartIdx] as Map),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Bản đồ chuỗi giá trị chi tiết hiện chỉ có trên web. Truy cập finwealth.vn → Sơ đồ kinh tế của ${widget.ticker} để xem.',
-                style: text.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+
+          // ── Value chain groups ─────────────────────────────────────────
+          if (found && groups.isNotEmpty)
+            FwCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.account_tree_outlined,
+                        size: 16, color: AppColors.brandPrimaryDark),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Chuỗi giá trị: ${widget.ticker}',
+                        style: text.titleMedium,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.lg),
+                  // Timeline with vertical connector
+                  Stack(
+                    children: [
+                      // Vertical line
+                      Positioned(
+                        left: 19,
+                        top: 24,
+                        bottom: 24,
+                        child: Container(
+                          width: 1,
+                          color: AppColors.darkBorder,
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          for (int i = 0; i < groups.length; i++) ...[
+                            _buildVcGroup(groups[i] as Map, i),
+                            if (i < groups.length - 1)
+                              const SizedBox(height: AppSpacing.lg),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
+            )
+          else if (!found)
+            FwCard(
+              child: Column(
+                children: [
+                  const Icon(Icons.account_tree_outlined,
+                      size: 36, color: AppColors.darkTextMuted),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('Chưa có sơ đồ chuỗi giá trị cho ${widget.ticker}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: AppColors.darkTextMuted, fontSize: 13)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static const List<_VcStyle> _vcStyles = [
+    _VcStyle(
+      iconData: Icons.layers_outlined,
+      iconColor: Color(0xFF60A5FA),  // blue-400
+      bgColor: Color(0x1A3B82F6),
+      borderColor: Color(0x333B82F6),
+      pillBg: Color(0x263B82F6),
+      pillText: Color(0xFF93C5FD),
+    ),
+    _VcStyle(
+      iconData: Icons.bolt_outlined,
+      iconColor: Color(0xFFA78BFA),  // purple-400
+      bgColor: Color(0x1A8B5CF6),
+      borderColor: Color(0x338B5CF6),
+      pillBg: Color(0x268B5CF6),
+      pillText: Color(0xFFC4B5FD),
+    ),
+    _VcStyle(
+      iconData: Icons.trending_up,
+      iconColor: Color(0xFF34D399),  // emerald-400
+      bgColor: Color(0x1A10B981),
+      borderColor: Color(0x3310B981),
+      pillBg: Color(0x2610B981),
+      pillText: Color(0xFF6EE7B7),
+    ),
+  ];
+
+  Widget _buildVcGroup(Map group, int idx) {
+    final style = _vcStyles[idx.clamp(0, 2)];
+    final title = group['title'] as String? ?? '';
+    final note = group['note'] as String? ?? '';
+    final keyCount = group['key_count'] as int? ?? 0;
+    final keys = (group['keys'] as List?) ?? [];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Circle icon
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: style.bgColor,
+            border: Border.all(color: style.borderColor),
+          ),
+          child: Icon(style.iconData, size: 18, color: style.iconColor),
+        ),
+        const SizedBox(width: 12),
+        // Content
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: style.bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: style.borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: Text(title,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.darkTextPrimary)),
+                  ),
+                  Text('$keyCount yếu tố',
+                      style: const TextStyle(
+                          fontSize: 9, color: AppColors.darkTextMuted)),
+                ]),
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(note,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.darkTextSecondary)),
+                ],
+                if (keys.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final k in keys)
+                        _buildKeyPills(k as Map, style),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKeyPills(Map key, _VcStyle style) {
+    final rootTitle = key['title'] as String? ?? '';
+    final children = (key['children'] as List?) ?? [];
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Root pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: style.pillBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: style.borderColor),
+          ),
+          child: Text(rootTitle,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: style.pillText)),
+        ),
+        // Arrow + child pills
+        if (children.isNotEmpty) ...[
+          Text('›',
+              style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.darkTextMuted.withValues(alpha: 0.5))),
+          for (final c in children)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: style.pillBg.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: style.borderColor),
+              ),
+              child: Text((c as Map)['title'] as String? ?? '',
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                      color: style.pillText.withValues(alpha: 0.8))),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildChartMeta(Map ch) {
+    final breadcrumb = ch['breadcrumb'] as String? ?? '';
+    final latestDate = ch['latest_date'] as String? ?? '';
+    final corr = ch['correlation'] as String? ?? 'none';
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (breadcrumb.isNotEmpty)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.folder_open_outlined,
+                size: 11, color: AppColors.darkTextMuted),
+            const SizedBox(width: 3),
+            Text(breadcrumb,
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.darkTextMuted)),
+          ]),
+        if (latestDate.isNotEmpty)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.access_time,
+                size: 11, color: AppColors.darkTextMuted),
+            const SizedBox(width: 3),
+            Text('Cập nhật: $latestDate',
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.darkTextMuted)),
+          ]),
+        if (corr == 'positive')
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.successDark.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text('Thuận chiều',
+                style: TextStyle(fontSize: 9, color: AppColors.successDark)),
+          )
+        else if (corr == 'negative')
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.dangerDark.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text('Nghịch chiều',
+                style: TextStyle(fontSize: 9, color: AppColors.dangerDark)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildEcoChart(Map ch) {
+    final data = (ch['data'] as Map?) ?? {};
+    final labels = (data['labels'] as List?)?.map((e) => e?.toString() ?? '').toList() ?? [];
+    final datasets = (data['datasets'] as List?) ?? [];
+    if (datasets.isEmpty || labels.isEmpty) {
+      return const SizedBox(
+        height: 180,
+        child: Center(
+          child: Text('Không có dữ liệu biểu đồ',
+              style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12)),
+        ),
+      );
+    }
+
+    final ds0 = datasets[0] as Map;
+    final ds1 = datasets.length > 1 ? datasets[1] as Map : null;
+    final vals0 = (ds0['values'] as List?) ?? [];
+    final vals1 = ds1 != null ? (ds1['values'] as List?) ?? [] : <dynamic>[];
+
+    // Filter by period
+    final cutoff = _chartPeriodDays < 0
+        ? null
+        : DateTime.now().subtract(Duration(days: _chartPeriodDays));
+
+    final filteredLabels = <String>[];
+    final filtered0 = <double>[];
+    final filtered1 = <double?>[];
+
+    for (int i = 0; i < labels.length; i++) {
+      if (i >= vals0.length) break;
+      final dt = DateTime.tryParse(labels[i]);
+      if (dt == null) continue;
+      if (cutoff != null && dt.isBefore(cutoff)) continue;
+      final v0 = vals0[i];
+      if (v0 == null) continue;
+      filteredLabels.add(labels[i]);
+      filtered0.add((v0 as num).toDouble());
+      if (i < vals1.length && vals1[i] != null) {
+        filtered1.add((vals1[i] as num).toDouble());
+      } else {
+        filtered1.add(null);
+      }
+    }
+
+    if (filtered0.isEmpty) {
+      return const SizedBox(
+        height: 120,
+        child: Center(
+          child: Text('Không có dữ liệu trong khoảng thời gian này',
+              style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12)),
+        ),
+      );
+    }
+
+    final n = filtered0.length;
+    final spots0 = [for (int i = 0; i < n; i++) FlSpot(i.toDouble(), filtered0[i])];
+    final hasStock = filtered1.any((v) => v != null);
+    final spots1 = hasStock
+        ? [
+            for (int i = 0; i < n; i++)
+              if (filtered1[i] != null) FlSpot(i.toDouble(), filtered1[i]!)
+          ]
+        : <FlSpot>[];
+
+    // Y ranges
+    final min0 = filtered0.reduce((a, b) => a < b ? a : b);
+    final max0 = filtered0.reduce((a, b) => a > b ? a : b);
+    final pad0 = (max0 - min0).abs() * 0.15 + 0.001;
+
+    final min1 = hasStock
+        ? filtered1.whereType<double>().reduce((a, b) => a < b ? a : b)
+        : 0.0;
+    final max1 = hasStock
+        ? filtered1.whereType<double>().reduce((a, b) => a > b ? a : b)
+        : 1.0;
+    final pad1 = (max1 - min1).abs() * 0.15 + 0.001;
+
+    // X label helper — pick ~5 evenly spaced
+    String xLabel(String iso) {
+      final dt = DateTime.tryParse(iso);
+      if (dt == null) return iso;
+      final m = dt.month.toString().padLeft(2, '0');
+      final y = dt.year.toString().substring(2);
+      return '$m/$y';
+    }
+
+    const double leftReserved = 46;
+    const double rightReserved = 46;
+    const double bottomReserved = 22;
+
+    // Primary indicator line chart
+    final primary = LineChartData(
+      minX: 0,
+      maxX: (n - 1).toDouble(),
+      minY: min0 - pad0,
+      maxY: max0 + pad0,
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        getDrawingHorizontalLine: (_) =>
+            const FlLine(color: AppColors.darkBorder, strokeWidth: 0.5),
+      ),
+      borderData: FlBorderData(show: false),
+      titlesData: FlTitlesData(
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: leftReserved,
+            getTitlesWidget: (v, meta) {
+              if (v == meta.max || v == meta.min) {
+                return const SizedBox.shrink();
+              }
+              final s = v.abs() >= 10000
+                  ? '${(v / 1000).toStringAsFixed(0)}k'
+                  : v.abs() >= 1000
+                      ? '${(v / 1000).toStringAsFixed(1)}k'
+                      : v.toStringAsFixed(1);
+              return Text(s,
+                  style: const TextStyle(
+                      color: AppColors.darkTextMuted, fontSize: 9));
+            },
+          ),
+        ),
+        rightTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: false,
+            reservedSize: hasStock ? rightReserved : 8,
+          ),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: bottomReserved,
+            getTitlesWidget: (v, _) {
+              final i = v.round();
+              if (i < 0 || i >= filteredLabels.length) {
+                return const SizedBox.shrink();
+              }
+              // Show ~5 labels
+              final step = (n / 5).ceil().clamp(1, n);
+              if (i % step != 0 && i != n - 1) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(xLabel(filteredLabels[i]),
+                    style: const TextStyle(
+                        color: AppColors.darkTextMuted, fontSize: 9)),
+              );
+            },
+          ),
+        ),
+      ),
+      lineBarsData: [
+        LineChartBarData(
+          spots: spots0,
+          isCurved: true,
+          color: AppColors.brandPrimaryDark,
+          barWidth: 2,
+          dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(
+            show: true,
+            color: AppColors.brandPrimaryDark.withValues(alpha: 0.08),
+          ),
+        ),
+      ],
+      lineTouchData: LineTouchData(
+        touchTooltipData: LineTouchTooltipData(
+          getTooltipColor: (_) => AppColors.darkSurface,
+          getTooltipItems: (spots) => spots.map((s) {
+            final i = s.x.round().clamp(0, filteredLabels.length - 1);
+            return LineTooltipItem(
+              '${xLabel(filteredLabels[i])}\n${s.y.toStringAsFixed(2)}',
+              const TextStyle(
+                  color: AppColors.brandPrimaryDark,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+
+    // Stock price overlay (right axis)
+    LineChartData? stockOverlay;
+    if (hasStock && spots1.isNotEmpty) {
+      stockOverlay = LineChartData(
+        minX: 0,
+        maxX: (n - 1).toDouble(),
+        minY: min1 - pad1,
+        maxY: max1 + pad1,
+        backgroundColor: Colors.transparent,
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+              sideTitles:
+                  SideTitles(showTitles: false, reservedSize: leftReserved)),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: rightReserved,
+              getTitlesWidget: (v, meta) {
+                if (v == meta.max || v == meta.min) {
+                  return const SizedBox.shrink();
+                }
+                final s = v >= 1000
+                    ? '${(v / 1000).toStringAsFixed(0)}k'
+                    : v.toStringAsFixed(0);
+                return Text(s,
+                    style: const TextStyle(
+                        color: AppColors.darkTextSecondary, fontSize: 9));
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: false, reservedSize: bottomReserved)),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots1,
+            isCurved: true,
+            color: AppColors.darkTextMuted,
+            barWidth: 1.5,
+            dotData: const FlDotData(show: false),
+            dashArray: [4, 3],
+          ),
+        ],
+        lineTouchData: const LineTouchData(enabled: false),
+      );
+    }
+
+    // Legend row
+    final ds0Title = ds0['title'] as String? ?? 'Chỉ số';
+    final ds1Title = ds1?['title'] as String? ?? 'Giá CP';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          _LegendDot(color: AppColors.brandPrimaryDark, label: ds0Title),
+          if (hasStock) ...[
+            const SizedBox(width: 12),
+            _LegendDot(
+                color: AppColors.darkTextMuted, label: ds1Title, line: true),
+          ],
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 200,
+          child: Stack(
+            children: [
+              LineChart(primary),
+              if (stockOverlay != null) LineChart(stockOverlay),
             ],
           ),
         ),
@@ -907,9 +1563,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   Widget _buildHealth() {
     final text = Theme.of(context).textTheme;
     return RefreshIndicator(
-      onRefresh: () async {
-        await Future.wait([_loadGrowth(), _loadSafety()]);
-      },
+      onRefresh: () async => Future.wait([_loadGrowth(), _loadSafety()]),
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
@@ -917,21 +1571,30 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header + toggle
                 Row(
                   children: [
                     Text('Doanh thu & Lợi nhuận', style: text.titleMedium),
                     const Spacer(),
-                    _LegendDot(
-                        color: AppColors.brandSecondaryDark, label: 'DT'),
-                    const SizedBox(width: 8),
-                    _LegendDot(
-                        color: AppColors.successDark, label: 'LN'),
+                    _PeriodToggle(
+                      value: _growthPeriod,
+                      onChanged: (p) => _loadGrowth(p),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text('Số thực tế (Tỷ VNĐ)', style: text.labelSmall),
+                // Legend
+                Row(children: [
+                  _LegendDot(color: AppColors.brandSecondaryDark, label: 'DT'),
+                  const SizedBox(width: 8),
+                  _LegendDot(color: AppColors.successDark, label: 'LN'),
+                  const SizedBox(width: 16),
+                  _LegendDot(color: AppColors.brandSecondaryDark.withValues(alpha: 0.6), label: '%DT', line: true),
+                  const SizedBox(width: 8),
+                  _LegendDot(color: AppColors.successDark.withValues(alpha: 0.6), label: '%LN', line: true),
+                ]),
                 const SizedBox(height: AppSpacing.md),
-                SizedBox(height: 180, child: _buildGrowthChart()),
+                _buildGrowthChart(),
               ],
             ),
           ),
@@ -956,7 +1619,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     if (s == null) return const SizedBox.shrink();
 
     final ratios = <(String, String?, Color)>[
-      ('ROE', _fmtPct(s['roae']), AppColors.successDark),
+      ('ROE', _fmtPct(s['roe']), AppColors.successDark),
       ('ROA', _fmtPct(s['roaa']), AppColors.successDark),
       ('Nợ/VCSH',
           _fmtNum(s['debt_to_equity_latest']), AppColors.brandSecondaryDark),
@@ -964,7 +1627,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
           _fmtNum(s['interest_coverage']), AppColors.successDark),
       ('CFO/DT', _fmtPct(s['cfo_to_revenue_latest']),
           AppColors.brandSecondaryDark),
-      ('CPS', _fmtNum(s['cps']), AppColors.warningDark),
+      ('CPS', _fmtNum(s['cps'], dec: 0), AppColors.warningDark),
     ];
     final cf = (s['cashflow'] as Map?) ?? const {};
 
@@ -1059,9 +1722,11 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     return d == null ? null : '${d.toStringAsFixed(1)}%';
   }
 
-  static String? _fmtNum(dynamic v) {
+  static String? _fmtNum(dynamic v, {int dec = 2}) {
     final d = _toD(v);
-    return d == null ? null : d.toStringAsFixed(2);
+    if (d == null) return null;
+    final fmt = NumberFormat('#,##0${dec > 0 ? '.${'0' * dec}' : ''}', 'vi_VN');
+    return fmt.format(d);
   }
 
   // ---------- Bottom bar ----------
@@ -1504,61 +2169,241 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
   Widget _buildGrowthChart() {
     if (_loadingGrowth) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return const SizedBox(
+        height: 300,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
     }
     if (_errGrowth != null && _growth == null) {
-      return Center(
-        child: TextButton.icon(
-          onPressed: _loadGrowth,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Thử lại'),
+      return SizedBox(
+        height: 120,
+        child: Center(
+          child: TextButton.icon(
+            onPressed: _loadGrowth,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Thử lại'),
+          ),
         ),
       );
     }
     final g = _growth;
     if (g == null) {
-      return const Center(
-          child: Text('Chưa có dữ liệu',
-              style: TextStyle(color: AppColors.darkTextMuted)));
+      return const SizedBox(
+        height: 80,
+        child: Center(child: Text('Chưa có dữ liệu',
+            style: TextStyle(color: AppColors.darkTextMuted))),
+      );
     }
-    final revenue = ((g['abs_revenue'] as List<dynamic>?) ?? const [])
-        .map((e) => e == null ? 0.0 : (e as num).toDouble())
-        .toList();
-    final profit = ((g['abs_profit'] as List<dynamic>?) ?? const [])
-        .map((e) => e == null ? 0.0 : (e as num).toDouble())
-        .toList();
-    if (revenue.isEmpty && profit.isEmpty) {
-      return const Center(
-          child: Text('Không có số liệu tăng trưởng',
-              style: TextStyle(color: AppColors.darkTextMuted)));
-    }
-    final n = revenue.length > profit.length ? revenue.length : profit.length;
 
-    return BarChart(
-      BarChartData(
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: const FlTitlesData(show: false),
-        barGroups: [
-          for (int i = 0; i < n; i++)
-            BarChartGroupData(
-              x: i,
-              barsSpace: 4,
-              barRods: [
-                BarChartRodData(
-                  toY: i < revenue.length ? revenue[i] : 0,
-                  width: 7,
-                  color: AppColors.brandSecondaryDark,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                BarChartRodData(
-                  toY: i < profit.length ? profit[i] : 0,
-                  width: 7,
-                  color: AppColors.successDark,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ],
+    final labels = ((g['labels'] as List?) ?? []).map((e) => e?.toString() ?? '').toList();
+    final revenue = ((g['abs_revenue'] as List?) ?? [])
+        .map((e) => e == null ? 0.0 : (e as num).toDouble()).toList();
+    final profit = ((g['abs_profit'] as List?) ?? [])
+        .map((e) => e == null ? 0.0 : (e as num).toDouble()).toList();
+    final revGrowth = ((g['revenue_growth'] as List?) ?? [])
+        .map((e) => e == null ? null : (e as num).toDouble()).toList();
+    final profGrowth = ((g['profit_growth'] as List?) ?? [])
+        .map((e) => e == null ? null : (e as num).toDouble()).toList();
+
+    if (revenue.isEmpty && profit.isEmpty) {
+      return const SizedBox(
+        height: 80,
+        child: Center(child: Text('Không có số liệu tăng trưởng',
+            style: TextStyle(color: AppColors.darkTextMuted))),
+      );
+    }
+
+    final n = [revenue.length, profit.length, labels.length]
+        .reduce((a, b) => a > b ? a : b);
+
+    String shortLabel(String iso) {
+      if (iso.length < 7) return iso;
+      final p = iso.split('-');
+      if (p.length < 2) return iso;
+      final y = p[0].substring(2);
+      final m = int.tryParse(p[1]) ?? 0;
+      if (_growthPeriod == 'year') return '20$y';
+      return 'Q${(m / 3).ceil()}/$y';
+    }
+
+    // Shared layout constants — must match exactly between bar and line charts
+    // so the plot areas overlap correctly in the Stack.
+    const double leftReserved  = 38; // trục trái: giá trị tuyệt đối
+    const double rightReserved = 42; // trục phải: % tăng trưởng
+    const double bottomReserved = 22;
+    const double barW = 6.0;
+
+    // ── Growth % range ────────────────────────────────────────────────────
+    final allGrowth = [...revGrowth, ...profGrowth].whereType<double>().toList();
+    final gMin = allGrowth.isEmpty ? -50.0
+        : (allGrowth.reduce((a, b) => a < b ? a : b) - 15).clamp(-300.0, -10.0);
+    final gMax = allGrowth.isEmpty ? 100.0
+        : (allGrowth.reduce((a, b) => a > b ? a : b) + 15).clamp(10.0, 400.0);
+
+    FlSpot? toSpot(int i, List<double?> list) {
+      if (i >= list.length || list[i] == null) return null;
+      return FlSpot(i.toDouble(), list[i]!);
+    }
+    final revSpots  = [for (int i = 0; i < n; i++) toSpot(i, revGrowth)].whereType<FlSpot>().toList();
+    final profSpots = [for (int i = 0; i < n; i++) toSpot(i, profGrowth)].whereType<FlSpot>().toList();
+    final hasGrowth = revSpots.isNotEmpty || profSpots.isNotEmpty;
+
+    // ── Bar chart ─────────────────────────────────────────────────────────
+    final barData = BarChartData(
+      alignment: BarChartAlignment.spaceAround,
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        getDrawingHorizontalLine: (_) =>
+            const FlLine(color: AppColors.darkBorder, strokeWidth: 0.5),
+      ),
+      borderData: FlBorderData(show: false),
+      titlesData: FlTitlesData(
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: leftReserved,
+            getTitlesWidget: (v, meta) {
+              if (v == meta.max || v == meta.min) return const SizedBox.shrink();
+              final s = v.abs() >= 1000
+                  ? '${(v / 1000).toStringAsFixed(0)}k'
+                  : v.toStringAsFixed(0);
+              return Text(s,
+                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9));
+            },
+          ),
+        ),
+        // Ẩn right axis — nhường cho LineChart overlay
+        rightTitles: AxisTitles(
+          sideTitles: SideTitles(showTitles: false, reservedSize: rightReserved),
+        ),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: bottomReserved,
+            getTitlesWidget: (v, _) {
+              final i = v.toInt();
+              if (i < 0 || i >= labels.length) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(shortLabel(labels[i]),
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9)),
+              );
+            },
+          ),
+        ),
+      ),
+      barGroups: [
+        for (int i = 0; i < n; i++)
+          BarChartGroupData(x: i, barsSpace: 2, barRods: [
+            BarChartRodData(
+              toY: i < revenue.length ? revenue[i] : 0,
+              width: barW,
+              color: AppColors.brandSecondaryDark,
+              borderRadius: BorderRadius.circular(2),
             ),
+            BarChartRodData(
+              toY: i < profit.length ? profit[i] : 0,
+              width: barW,
+              color: AppColors.successDark,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ]),
+      ],
+    );
+
+    // ── Line chart overlay ────────────────────────────────────────────────
+    final lineData = hasGrowth
+        ? LineChartData(
+            // minX/maxX căn với spaceAround của bar chart
+            minX: -0.5,
+            maxX: n - 0.5,
+            minY: gMin,
+            maxY: gMax,
+            clipData: const FlClipData.all(),
+            backgroundColor: Colors.transparent,
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              getDrawingHorizontalLine: (v) => FlLine(
+                color: v.round() == 0 ? Colors.white30 : Colors.transparent,
+                strokeWidth: 1,
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              // Ẩn left — nhường cho BarChart
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(showTitles: false, reservedSize: leftReserved),
+              ),
+              rightTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: rightReserved,
+                  getTitlesWidget: (v, meta) {
+                    if (v == meta.max || v == meta.min) return const SizedBox.shrink();
+                    return Text('${v.toInt()}%',
+                        style: const TextStyle(
+                            color: AppColors.darkTextSecondary, fontSize: 9));
+                  },
+                ),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(showTitles: false, reservedSize: bottomReserved),
+              ),
+            ),
+            lineBarsData: [
+              if (revSpots.isNotEmpty)
+                LineChartBarData(
+                  spots: revSpots,
+                  isCurved: true,
+                  color: AppColors.brandSecondaryDark,
+                  barWidth: 2,
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                      radius: 3, color: AppColors.brandSecondaryDark, strokeWidth: 0),
+                  ),
+                  dashArray: [4, 3],
+                ),
+              if (profSpots.isNotEmpty)
+                LineChartBarData(
+                  spots: profSpots,
+                  isCurved: true,
+                  color: AppColors.successDark,
+                  barWidth: 2,
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                      radius: 3, color: AppColors.successDark, strokeWidth: 0),
+                  ),
+                  dashArray: [4, 3],
+                ),
+            ],
+            lineTouchData: LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipColor: (_) => AppColors.darkSurface,
+                getTooltipItems: (spots) => spots.map((s) {
+                  final sign = s.y >= 0 ? '+' : '';
+                  return LineTooltipItem(
+                    '$sign${s.y.toStringAsFixed(1)}%',
+                    TextStyle(color: s.bar.color, fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                  );
+                }).toList(),
+              ),
+            ),
+          )
+        : null;
+
+    return SizedBox(
+      height: 220,
+      child: Stack(
+        children: [
+          BarChart(barData),
+          if (lineData != null) LineChart(lineData),
         ],
       ),
     );
@@ -1566,6 +2411,56 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 }
 
 // ===== Helpers =====
+
+class _VcStyle {
+  final IconData iconData;
+  final Color iconColor;
+  final Color bgColor;
+  final Color borderColor;
+  final Color pillBg;
+  final Color pillText;
+  const _VcStyle({
+    required this.iconData,
+    required this.iconColor,
+    required this.bgColor,
+    required this.borderColor,
+    required this.pillBg,
+    required this.pillText,
+  });
+}
+
+class _ChartPeriodBtn extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _ChartPeriodBtn(
+      {required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.brandPrimaryDark : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.darkBorder),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color:
+                active ? Colors.white : AppColors.darkTextSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SectionError extends StatelessWidget {
   final String message;
@@ -1680,18 +2575,20 @@ class _RangePill extends StatelessWidget {
 class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
-  const _LegendDot({required this.color, required this.label});
+  final bool line;
+  const _LegendDot({required this.color, required this.label, this.line = false});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        line
+            ? Container(width: 14, height: 2, color: color)
+            : Container(
+                width: 8, height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
         const SizedBox(width: 4),
         Text(label,
             style: const TextStyle(
@@ -1699,6 +2596,50 @@ class _LegendDot extends StatelessWidget {
                 color: AppColors.darkTextSecondary,
                 fontWeight: FontWeight.w600)),
       ],
+    );
+  }
+}
+
+class _PeriodToggle extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _PeriodToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.darkBg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _btn('Quý', 'quarter'),
+          _btn('Năm', 'year'),
+        ],
+      ),
+    );
+  }
+
+  Widget _btn(String label, String period) {
+    final active = value == period;
+    return GestureDetector(
+      onTap: () => onChanged(period),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? AppColors.brandPrimaryDark : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: active ? Colors.white : AppColors.darkTextMuted,
+            )),
+      ),
     );
   }
 }

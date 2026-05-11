@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -257,6 +258,163 @@ class _MarginScreenV2State extends State<MarginScreenV2>
     }
   }
 
+  Future<void> _showProfileLoader() async {
+    final dio = context.read<InvestmentOpportunitiesRepository>().dio;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) => _ProfileLoaderSheet(
+        dio: dio,
+        onSelect: (id) async {
+          Navigator.pop(sheetCtx);
+          await _applyProfile(id);
+        },
+      ),
+    );
+  }
+
+  // id & name được set khi user load 1 profile, dùng để update thay vì tạo mới
+  int? _activeProfileId;
+  String? _activeProfileName;
+
+  Future<void> _showSaveDialog() async {
+    final nameCtrl = TextEditingController(text: _activeProfileName ?? '');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkSurface,
+        title: const Text('Lưu tài khoản', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Tên tài khoản (vd: HSC margin)',
+            hintStyle: const TextStyle(color: Colors.white38),
+            enabledBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.white24),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.brandPrimaryDark),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.brandPrimaryDark),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final name = nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    await _doSave(name);
+  }
+
+  Future<void> _doSave(String name) async {
+    try {
+      final dio = context.read<InvestmentOpportunitiesRepository>().dio;
+      final portfolio = _stocks.map((s) => {
+        'ticker': s.ticker,
+        'q': s.q,
+        'q_pending': s.qPending,
+        'p': s.price,
+        'c_percent': s.cPercent / 100,
+        'im_percent': s.imPercent / 100,
+        'al': s.al ?? 0,
+      }).toList();
+      final body = {
+        if (_activeProfileId != null) 'id': _activeProfileId,
+        'account_name': name,
+        'cash_balance': _cash,
+        'credit_limit': _creditLimit,
+        'mm_ratio': _mmRatio,
+        'portfolio_data': portfolio,
+      };
+      final resp = await dio.post(ApiConfig.marginProfiles, data: body);
+      if (!mounted) return;
+      setState(() {
+        _activeProfileId = resp.data['id'] as int?;
+        _activeProfileName = name;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Đã lưu "$name"'),
+        backgroundColor: AppColors.brandPrimaryDark,
+        duration: const Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi lưu: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _applyProfile(int id) async {
+    try {
+      final dio = context.read<InvestmentOpportunitiesRepository>().dio;
+      final resp = await dio.get(ApiConfig.marginProfiles, queryParameters: {'id': id});
+      if (resp.data is! Map) return;
+      final data = resp.data as Map;
+      final portfolio = (data['portfolio_data'] as List?) ?? const [];
+      final stocks = portfolio.map<MarginStock>((p) {
+        final m = p as Map;
+        return MarginStock(
+          ticker: (m['ticker'] as String? ?? '').toUpperCase(),
+          q: (m['q'] as num?)?.toDouble() ?? 0,
+          qPending: (m['q_pending'] as num?)?.toDouble() ?? 0,
+          price: (m['p'] as num?)?.toDouble() ?? 0,
+          cPercent: ((m['c_percent'] as num?)?.toDouble() ?? 0) * 100,
+          imPercent: ((m['im_percent'] as num?)?.toDouble() ?? 1) * 100,
+          al: (m['al'] as num?)?.toDouble(),
+        );
+      }).toList();
+      if (!mounted) return;
+      setState(() {
+        _activeProfileId = id;
+        _activeProfileName = data['account_name'] as String?;
+        _cash = (data['cash_balance'] as num?)?.toDouble() ?? _cash;
+        _creditLimit = (data['credit_limit'] as num?)?.toDouble() ?? _creditLimit;
+        _mmRatio = (data['mm_ratio'] as num?)?.toDouble() ?? _mmRatio;
+        _stocks
+          ..clear()
+          ..addAll(stocks.isEmpty ? [MarginStock()] : stocks);
+      });
+      // refresh giá mới nhất cho từng mã
+      for (final s in _stocks) {
+        if (s.ticker.isNotEmpty) await _fetchTickerInfo(s);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã tải tài khoản "${data['account_name']}"'),
+            backgroundColor: AppColors.brandPrimaryDark,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không tải được tài khoản: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _fetchTickerInfo(MarginStock stk) async {
     if (stk.ticker.isEmpty) return;
     // First try local param map
@@ -338,7 +496,10 @@ class _MarginScreenV2State extends State<MarginScreenV2>
             creditLimit: _creditLimit,
             mmRatio: _mmRatio,
             xRatio: _xRatio,
-            onEdit: () => _showAccountDialog(),
+            profileName: _activeProfileName,
+            onEdit: _showAccountDialog,
+            onLoad: _showProfileLoader,
+            onSave: _showSaveDialog,
           ),
           const SizedBox(height: 12),
           _MrGauge(mr: t0.mr, isCall: t0.isCall),
@@ -763,13 +924,19 @@ class _SummaryCard extends StatelessWidget {
 
 class _AccountCard extends StatelessWidget {
   final double cash, creditLimit, mmRatio, xRatio;
+  final String? profileName;
   final VoidCallback onEdit;
+  final VoidCallback onLoad;
+  final VoidCallback onSave;
   const _AccountCard(
       {required this.cash,
       required this.creditLimit,
       required this.mmRatio,
       required this.xRatio,
-      required this.onEdit});
+      this.profileName,
+      required this.onEdit,
+      required this.onLoad,
+      required this.onSave});
 
   @override
   Widget build(BuildContext context) {
@@ -781,11 +948,20 @@ class _AccountCard extends StatelessWidget {
         border: Border.all(color: Colors.white12),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (profileName != null) ...[
+                  Text(profileName!,
+                      style: TextStyle(
+                          color: AppColors.brandPrimaryDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                ],
                 _item('Số dư tiền (C)', _fmt(cash),
                     color: cash < 0 ? AppColors.dangerDark : AppColors.successDark),
                 const SizedBox(height: 4),
@@ -801,9 +977,27 @@ class _AccountCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Colors.white54),
-            onPressed: onEdit,
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(Icons.folder_open_outlined,
+                    color: AppColors.brandPrimaryDark, size: 22),
+                tooltip: 'Tải tài khoản đã lưu',
+                onPressed: onLoad,
+              ),
+              IconButton(
+                icon: Icon(Icons.save_outlined,
+                    color: AppColors.brandPrimaryDark, size: 22),
+                tooltip: 'Lưu tài khoản',
+                onPressed: onSave,
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: Colors.white54, size: 20),
+                tooltip: 'Sửa thông số',
+                onPressed: onEdit,
+              ),
+            ],
           ),
         ],
       ),
@@ -859,6 +1053,16 @@ class _StockCardState extends State<_StockCard> {
       TextEditingController(text: _fmtNum(widget.stock.al ?? 0));
 
   bool _fetching = false;
+  Timer? _debounce;
+
+  void _onTickerChanged(String value) {
+    final t = value.trim().toUpperCase();
+    _debounce?.cancel();
+    if (t.length < 3) return;
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted && _ticker.text.trim().toUpperCase() == t) _fetch();
+    });
+  }
 
   void _sync() {
     widget.stock.q = _parseNum(_q.text);
@@ -884,6 +1088,7 @@ class _StockCardState extends State<_StockCard> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ticker.dispose();
     _q.dispose();
     _qPend.dispose();
@@ -909,46 +1114,39 @@ class _StockCardState extends State<_StockCard> {
         children: [
           // Ticker row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                flex: 3,
                 child: _Input(
                   label: 'Mã CK',
                   controller: _ticker,
                   caps: true,
-                  onEditingComplete: () {},
-                  onChanged: (_) {},
+                  onChanged: _onTickerChanged,
                 ),
               ),
+              if (_fetching) ...[
+                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 10),
+                  child: SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
-              SizedBox(
-                height: 40,
-                child: ElevatedButton(
-                  onPressed: _fetching ? null : _fetch,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brandPrimaryDark.withValues(alpha: 0.2),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: GestureDetector(
+                  onTap: widget.onRemove,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(Icons.close, color: Colors.redAccent, size: 16),
                   ),
-                  child: _fetching
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Tra giá',
-                          style: TextStyle(color: AppColors.brandPrimaryDark, fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: widget.onRemove,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Icon(Icons.close, color: Colors.redAccent, size: 16),
                 ),
               ),
             ],
@@ -1424,7 +1622,6 @@ class _Input extends StatelessWidget {
   final bool caps;
   final String? hint;
   final ValueChanged<String>? onChanged;
-  final VoidCallback? onEditingComplete;
 
   const _Input({
     required this.label,
@@ -1433,7 +1630,6 @@ class _Input extends StatelessWidget {
     this.caps = false,
     this.hint,
     this.onChanged,
-    this.onEditingComplete,
   });
 
   @override
@@ -1447,12 +1643,13 @@ class _Input extends StatelessWidget {
         TextField(
           controller: controller,
           onChanged: onChanged,
-          onEditingComplete: onEditingComplete,
           textCapitalization:
               caps ? TextCapitalization.characters : TextCapitalization.none,
-          keyboardType: decimal
-              ? const TextInputType.numberWithOptions(decimal: true, signed: true)
-              : TextInputType.number,
+          keyboardType: caps
+              ? TextInputType.text
+              : decimal
+                  ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+                  : TextInputType.number,
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
             hintText: hint,
@@ -1508,4 +1705,110 @@ double _parseNum(String s) {
   // Handles both 1.000.000 (VN format) and 1000000
   final cleaned = s.replaceAll('.', '').replaceAll(',', '.');
   return double.tryParse(cleaned) ?? 0;
+}
+
+// ─── Profile loader bottom sheet ──────────────────────────────────────────────
+
+class _ProfileLoaderSheet extends StatefulWidget {
+  final Dio dio;
+  final ValueChanged<int> onSelect;
+  const _ProfileLoaderSheet({required this.dio, required this.onSelect});
+
+  @override
+  State<_ProfileLoaderSheet> createState() => _ProfileLoaderSheetState();
+}
+
+class _ProfileLoaderSheetState extends State<_ProfileLoaderSheet> {
+  List<Map<String, dynamic>>? _profiles;
+  Object? _err;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final resp = await widget.dio.get(ApiConfig.marginProfiles);
+      final list = (resp.data['profiles'] as List?) ?? const [];
+      if (mounted) {
+        setState(() => _profiles = list.cast<Map<String, dynamic>>());
+      }
+    } catch (e) {
+      if (mounted) setState(() => _err = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Tài khoản đã lưu',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            if (_profiles == null && _err == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_err != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text('Lỗi tải danh sách: $_err',
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+              )
+            else if (_profiles!.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text('Chưa có tài khoản nào được lưu.\nVui lòng lưu trên web trước.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white54, fontSize: 13)),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _profiles!.length,
+                  separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (_, i) {
+                    final p = _profiles![i];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.account_balance_wallet_outlined,
+                          color: AppColors.brandPrimaryDark),
+                      title: Text(p['account_name'] as String? ?? 'Không tên',
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      subtitle: Text(
+                        'Tiền: ${_fmt((p['cash_balance'] as num?)?.toDouble() ?? 0)} · ${p['stock_count'] ?? 0} mã',
+                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                      onTap: () => widget.onSelect(p['id'] as int),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

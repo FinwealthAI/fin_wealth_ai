@@ -105,4 +105,8 @@ class ApiConfig {
   // Margin calculator
   static String get marginParams => '$mobileApi/margin/params/';
   static String get marginTickerInfo => '$mobileApi/margin/ticker-info/';
+  static String get marginProfiles => '$mobileApi/margin/profiles/';
+
+  // Value chain + economic charts
+  static String valueChain(String ticker) => '$mobileApi/value-chain/$ticker/';
 }
