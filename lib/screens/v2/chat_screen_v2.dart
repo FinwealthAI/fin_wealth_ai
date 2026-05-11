@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 import '../../respositories/auth_repository.dart';
 import '../../services/chat_history_service.dart';
@@ -374,16 +375,31 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(
-                    m.text,
-                    style: TextStyle(
-                      color: m.fromUser
-                          ? Colors.white
-                          : AppColors.darkTextPrimary,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
+                : m.fromUser
+                    ? Text(
+                        m.text,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+                      )
+                    : Html(
+                        data: m.text,
+                        style: {
+                          'body': Style(
+                            color: AppColors.darkTextPrimary,
+                            fontSize: FontSize(14),
+                            lineHeight: LineHeight(1.5),
+                            margin: Margins.zero,
+                            padding: HtmlPaddings.zero,
+                          ),
+                          'h1': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(20), fontWeight: FontWeight.w700, margin: Margins.only(top: 16, bottom: 8)),
+                          'h2': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(17), fontWeight: FontWeight.w700, margin: Margins.only(top: 14, bottom: 6)),
+                          'h3': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(15), fontWeight: FontWeight.w600, margin: Margins.only(top: 12, bottom: 4)),
+                          'p': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.5), margin: Margins.only(bottom: 10)),
+                          'strong,b': Style(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
+                          'ul,ol': Style(margin: Margins.only(bottom: 10, left: 4)),
+                          'li': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.5), margin: Margins.only(bottom: 4)),
+                          'a': Style(color: AppColors.brandPrimaryDark, textDecoration: TextDecoration.underline),
+                        },
+                      ),
           ),
         );
       },

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_html/flutter_html.dart';
 
 import '../../config/api_config.dart';
 import '../../respositories/auth_repository.dart';
@@ -173,7 +174,7 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
         _removeTyping();
         _addAiMsg('Đây là báo cáo phân tích đã được Mr. Wealth chuẩn bị ạ:', avatar: _Avatar.mrWealth);
         await Future.delayed(const Duration(milliseconds: 500));
-        _addAiMsg(data['content'] ?? '', avatar: _Avatar.mrWealth, isHtml: false);
+        _addAiMsg(data['content'] ?? '', avatar: _Avatar.mrWealth, isHtml: true);
         _addFollowUp();
         setState(() => _isLoading = false);
         return;
@@ -224,7 +225,7 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
           _removeTyping();
           _addAiMsg('Đây là báo cáo phân tích đã được Mr. Wealth chuẩn bị ạ:', avatar: _Avatar.mrWealth);
           await Future.delayed(const Duration(milliseconds: 300));
-          _addAiMsg(data['content'] ?? '', avatar: _Avatar.mrWealth);
+          _addAiMsg(data['content'] ?? '', avatar: _Avatar.mrWealth, isHtml: true);
           _addFollowUp();
           if (mounted) setState(() => _isLoading = false);
         } else if (data['status'] == 'FAILURE' || data['status'] == 'REVOKED') {
@@ -284,7 +285,7 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
           avatar: _Avatar.mrWealth,
         );
         await Future.delayed(const Duration(milliseconds: 300));
-        _addAiMsg(data['summary'], avatar: _Avatar.mrWealth);
+        _addAiMsg(data['summary'], avatar: _Avatar.mrWealth, isHtml: true);
         _addFollowUp();
       } else {
         _addAiMsg(
@@ -397,13 +398,34 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
               ),
               child: msg.isTyping
                   ? _TypingIndicator()
-                  : Text(
-                      msg.text,
-                      style: const TextStyle(
-                          color: AppColors.darkTextPrimary,
-                          fontSize: 14,
-                          height: 1.6),
-                    ),
+                  : msg.isHtml
+                      ? Html(
+                          data: msg.text,
+                          style: {
+                            'body': Style(
+                              color: AppColors.darkTextPrimary,
+                              fontSize: FontSize(14),
+                              lineHeight: LineHeight(1.6),
+                              margin: Margins.zero,
+                              padding: HtmlPaddings.zero,
+                            ),
+                            'h1': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(20), fontWeight: FontWeight.w700, margin: Margins.only(top: 16, bottom: 8)),
+                            'h2': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(17), fontWeight: FontWeight.w700, margin: Margins.only(top: 14, bottom: 6)),
+                            'h3': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(15), fontWeight: FontWeight.w600, margin: Margins.only(top: 12, bottom: 4)),
+                            'p': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.6), margin: Margins.only(bottom: 10)),
+                            'strong,b': Style(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
+                            'ul,ol': Style(margin: Margins.only(bottom: 10, left: 4)),
+                            'li': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.6), margin: Margins.only(bottom: 4)),
+                            'a': Style(color: AppColors.brandPrimaryDark, textDecoration: TextDecoration.underline),
+                          },
+                        )
+                      : Text(
+                          msg.text,
+                          style: const TextStyle(
+                              color: AppColors.darkTextPrimary,
+                              fontSize: 14,
+                              height: 1.6),
+                        ),
             ),
           ),
         ],
