@@ -12,11 +12,11 @@ const int kLowPointsThreshold = 30;
 class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development
-  static const bool useRelativePaths = bool.fromEnvironment('USE_RELATIVE_PATHS', defaultValue: kIsWeb);
+  static const bool useRelativePaths = bool.fromEnvironment('USE_RELATIVE_PATHS', defaultValue: false);
 
   // Toggle this to use local backend instead of production
   // Default to true for development, but will be false in production builds
-  static const bool useLocalBackend = bool.fromEnvironment('USE_LOCAL_BACKEND', defaultValue: true);
+  static const bool useLocalBackend = bool.fromEnvironment('USE_LOCAL_BACKEND', defaultValue: !kReleaseMode);
 
   // Google OAuth Client ID
   static const String googleServerClientId = String.fromEnvironment(
