@@ -209,7 +209,13 @@ class _HtmlContent extends StatelessWidget {
       child: Html(
         data: parsedHtml,
         extensions: [
-          ImageExtension(),
+          ImageExtension(
+            builder: (context) {
+              final src = context.attributes['src'];
+              if (src == null) return const SizedBox.shrink();
+              return Image.network(src);
+            },
+          ),
         ],
         onLinkTap: (url, _, __) async {
           if (url == null) return;

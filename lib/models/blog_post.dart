@@ -40,7 +40,8 @@ class BlogPost {
         publishedAt: j['published_at'] as String?,
         viewsCount: (j['views_count'] as int?) ?? 0,
         related: (j['related'] as List<dynamic>?)
-                ?.map((e) => BlogPost.fromJson(e as Map<String, dynamic>))
+                ?.where((e) => e is Map<String, dynamic>)
+                .map((e) => BlogPost.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );

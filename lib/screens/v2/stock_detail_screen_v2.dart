@@ -676,7 +676,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                     if (_toD(_overview?['avg_target_price']) != null)
                       _LegendDot(
                           color: Colors.orangeAccent,
-                          label: 'Định giá TB${_overview?['valuation_date'] != null && _overview!['valuation_date'].toString().isNotEmpty ? ' (${_overview!['valuation_date']})' : ''}'),
+                          label: 'Định giá TB${(_overview?['valuation_date']?.toString() ?? '').isNotEmpty ? ' (${_overview?['valuation_date']})' : ''}'),
                     if ((_technical?['data'] as Map?)?['levels']?['nearest_support'] != null)
                       const _LegendDot(
                           color: AppColors.successDark,
