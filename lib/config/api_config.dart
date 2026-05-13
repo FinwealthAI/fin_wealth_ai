@@ -12,7 +12,7 @@ const int kLowPointsThreshold = 30;
 class ApiConfig {
   // Set to true when deploying to production (same server)
   // Set to false for local development
-  static const bool useRelativePaths = bool.fromEnvironment('USE_RELATIVE_PATHS', defaultValue: false);
+  static const bool useRelativePaths = bool.fromEnvironment('USE_RELATIVE_PATHS', defaultValue: kIsWeb);
 
   // Toggle this to use local backend instead of production
   // Default to true for development, but will be false in production builds

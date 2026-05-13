@@ -145,7 +145,10 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
     );
     _addTyping();
 
-    final dio = Dio();
+    final dio = Dio(BaseOptions(
+      baseUrl: ApiConfig.baseUrl,
+      headers: {'Content-Type': 'application/json'},
+    ));
     try {
       final res = await dio.get(
         ApiConfig.runWorkflow(ticker),
@@ -192,8 +195,14 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
       _startPolling(taskId, token);
     } on DioException catch (e) {
       _removeTyping();
-      _addAiMsg('Dạ kết nối đang không ổn định. Anh/Chị thử lại sau giúp em nhé!', avatar: _Avatar.mai);
-      setState(() => _isLoading = false);
+      String errorMsg = 'Dạ kết nối đang không ổn định.';
+      if (e.response != null) {
+        errorMsg += ' (Lỗi ${e.response?.statusCode})';
+      } else {
+        errorMsg += ' (Network Error)';
+      }
+      _addAiMsg('$errorMsg Anh/Chị thử lại sau giúp em nhé!', avatar: _Avatar.mai);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -213,7 +222,10 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
       }
 
       try {
-        final dio = Dio();
+        final dio = Dio(BaseOptions(
+          baseUrl: ApiConfig.baseUrl,
+          headers: {'Content-Type': 'application/json'},
+        ));
         final res = await dio.get(
           ApiConfig.checkTask(taskId),
           options: Options(headers: {'Authorization': 'Bearer $token'}),
@@ -245,7 +257,10 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
     );
     _addTyping();
 
-    final dio = Dio();
+    final dio = Dio(BaseOptions(
+      baseUrl: ApiConfig.baseUrl,
+      headers: {'Content-Type': 'application/json'},
+    ));
     try {
       final res = await dio.post(
         ApiConfig.financialAnalysis,
@@ -293,9 +308,13 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
           avatar: _Avatar.mai,
         );
       }
-    } on DioException catch (_) {
+    } on DioException catch (e) {
       _removeTyping();
-      _addAiMsg('Dạ kết nối đang không ổn định. Anh/Chị thử lại sau giúp em nhé!', avatar: _Avatar.mai);
+      String errorMsg = 'Dạ kết nối đang không ổn định.';
+      if (e.response != null) {
+        errorMsg += ' (Lỗi ${e.response?.statusCode})';
+      }
+      _addAiMsg('$errorMsg Anh/Chị thử lại sau giúp em nhé!', avatar: _Avatar.mai);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
