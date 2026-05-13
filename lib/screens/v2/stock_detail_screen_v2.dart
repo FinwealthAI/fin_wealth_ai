@@ -781,6 +781,24 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                 ),
                 const SizedBox(height: AppSpacing.md),
                 SizedBox(height: 180, child: _buildValuationChart()),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _LegendDot(
+                      color: _valuationKind == 'PE'
+                          ? AppColors.brandPrimaryDark
+                          : AppColors.brandSecondaryDark,
+                      label: _valuationKind == 'PE' ? 'P/E' : 'P/B',
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    const _LegendDot(
+                      color: Colors.redAccent,
+                      label: 'Trung bình 1 năm',
+                      isDashed: true,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -2104,13 +2122,21 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
         : AppColors.brandSecondaryDark;
     final yMin = ys.reduce((a, b) => a < b ? a : b);
     final yMax = ys.reduce((a, b) => a > b ? a : b);
-    final span = (yMax - yMin).abs();
+    final avg = (isPE ? r['avg_pe_1y'] : r['avg_pb_1y']) as num?;
+    
+    double chartMin = yMin;
+    double chartMax = yMax;
+    if (avg != null) {
+      if (avg < chartMin) chartMin = avg.toDouble();
+      if (avg > chartMax) chartMax = avg.toDouble();
+    }
+    final span = (chartMax - chartMin).abs();
     final pad = span < 0.05 ? 0.5 : span * 0.05;
 
     return LineChart(
       LineChartData(
-        minY: yMin - pad,
-        maxY: yMax + pad,
+        minY: chartMin - pad,
+        maxY: chartMax + pad,
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
@@ -2127,16 +2153,28 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             getTooltipColor: (_) =>
                 AppColors.darkSurface.withValues(alpha: 0.95),
             tooltipRoundedRadius: 8,
-            getTooltipItems: (spots) => spots
-                .map((s) => LineTooltipItem(
-                      '${isPE ? 'P/E' : 'P/B'}  ${s.y.toStringAsFixed(2)}',
-                      TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ))
-                .toList(),
+            getTooltipItems: (spots) {
+              return spots.map((s) {
+                if (s.barIndex == 1) {
+                  return LineTooltipItem(
+                    'Trung bình: ${s.y.toStringAsFixed(2)}',
+                    const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  );
+                }
+                return LineTooltipItem(
+                  '${isPE ? 'P/E' : 'P/B'}: ${s.y.toStringAsFixed(2)}',
+                  TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }).toList();
+            },
           ),
         ),
         lineBarsData: [
@@ -2162,6 +2200,18 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
               ),
             ),
           ),
+          if (avg != null)
+            LineChartBarData(
+              spots: [
+                FlSpot(0, avg.toDouble()),
+                FlSpot((ys.length - 1).toDouble(), avg.toDouble()),
+              ],
+              isCurved: false,
+              color: Colors.redAccent,
+              barWidth: 1.5,
+              dotData: const FlDotData(show: false),
+              dashArray: [6, 4],
+            ),
         ],
       ),
     );
@@ -2576,19 +2626,36 @@ class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
   final bool line;
-  const _LegendDot({required this.color, required this.label, this.line = false});
+  final bool isDashed;
+  const _LegendDot({
+    required this.color,
+    required this.label,
+    this.line = false,
+    this.isDashed = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        line
-            ? Container(width: 14, height: 2, color: color)
-            : Container(
-                width: 8, height: 8,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
+        isDashed
+            ? Row(
+                children: [
+                  for (int i = 0; i < 3; i++) ...[
+                    Container(width: 4, height: 2, color: color),
+                    if (i < 2) const SizedBox(width: 2),
+                  ],
+                ],
+              )
+            : line
+                ? Container(width: 14, height: 2, color: color)
+                : Container(
+                    width: 8,
+                    height: 8,
+                    decoration:
+                        BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
         const SizedBox(width: 4),
         Text(label,
             style: const TextStyle(

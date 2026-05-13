@@ -81,9 +81,9 @@ class ApiConfig {
   static String strategyReview(int id) => '$baseUrl/filter-stock/api/v1/strategy/$id/review/';
 
   // AI Report endpoints
-  static String runWorkflow(String ticker) => '$baseUrl/run-workflow/$ticker/';
-  static String checkTask(String taskId) => '$baseUrl/check-task/$taskId/';
-  static String get financialAnalysis => '$baseUrl/dify/api/financial-analysis/';
+  static String runWorkflow(String ticker) => '$api/run-workflow/$ticker/';
+  static String checkTask(String taskId) => '$api/check-task/$taskId/';
+  static String get financialAnalysis => '$api/financial-analysis/';
   // Investment profile
   static String get investmentProfile => '$baseUrl/api/investment-profile/';
 
