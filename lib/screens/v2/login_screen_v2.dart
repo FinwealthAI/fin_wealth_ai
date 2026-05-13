@@ -6,6 +6,9 @@ import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
+import '../../widgets/common/platform_google_button.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'forgot_password_screen_v2.dart';
 import 'signup_screen_v2.dart';
 import 'upgrade_screen_v2.dart';
@@ -274,13 +277,16 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                               child: Divider(color: AppColors.darkBorder)),
                         ]),
                         const SizedBox(height: AppSpacing.lg),
-                        FwButton(
-                          label: 'Tiếp tục với Google',
-                          icon: Icons.g_mobiledata,
-                          variant: FwButtonVariant.secondary,
-                          fullWidth: true,
-                          onPressed: loading ? null : _handleGoogleSignIn,
-                        ),
+                        if (kIsWeb)
+                          getWebGoogleButton()
+                        else
+                          FwButton(
+                            label: 'Tiếp tục với Google',
+                            icon: Icons.g_mobiledata,
+                            variant: FwButtonVariant.secondary,
+                            fullWidth: true,
+                            onPressed: loading ? null : _handleGoogleSignIn,
+                          ),
                         const SizedBox(height: AppSpacing.lg),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 abstract class AuthEvent extends Equatable {
   @override
@@ -25,6 +26,11 @@ class LogoutRequested extends AuthEvent {}
 class GoogleLoginEvent extends AuthEvent {
   final String authEntry; // 'login' or 'signup'
   GoogleLoginEvent({this.authEntry = 'login'});
+}
+
+class GoogleWebLoginSuccessEvent extends AuthEvent {
+  final GoogleSignInAccount account;
+  GoogleWebLoginSuccessEvent(this.account);
 }
 
 class AuthUserUpdated extends AuthEvent {

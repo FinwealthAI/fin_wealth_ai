@@ -13,10 +13,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
 
   late StreamSubscription<void> _logoutSubscription;
+  late final GoogleSignIn _googleSignIn;
+  StreamSubscription<GoogleSignInAccount?>? _googleSignInSubscription;
 
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
+    _googleSignIn = GoogleSignIn(
+      clientId: kIsWeb ? ApiConfig.googleServerClientId : null,
+      serverClientId: kIsWeb ? null : ApiConfig.googleServerClientId,
+    );
+
+    if (kIsWeb) {
+      _googleSignInSubscription = _googleSignIn.onCurrentUserChanged.listen((account) {
+        if (account != null) {
+          add(GoogleWebLoginSuccessEvent(account));
+        }
+      });
+    }
+
     on<LoginEvent>(_onLoginEvent);
     on<GoogleLoginEvent>(_onGoogleLoginEvent);
+    on<GoogleWebLoginSuccessEvent>(_onGoogleWebLoginSuccess);
     on<CheckAuthStatus>(_onCheckAuthStatus);
     on<CheckAccountExpiry>(_onCheckAccountExpiry);
     on<AuthUserUpdated>((event, emit) {
@@ -34,6 +50,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   @override
   Future<void> close() {
     _logoutSubscription.cancel();
+    _googleSignInSubscription?.cancel();
     return super.close();
   }
 
@@ -74,12 +91,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onGoogleLoginEvent(GoogleLoginEvent event, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
-      final googleSignIn = GoogleSignIn(
-        clientId: kIsWeb ? ApiConfig.googleServerClientId : null,
-        serverClientId: kIsWeb ? null : ApiConfig.googleServerClientId,
-      );
-      await googleSignIn.signOut(); // Clear cached account to force account picker
-      final account = await googleSignIn.signIn();
+      await _googleSignIn.signOut(); // Clear cached account to force account picker
+      final account = await _googleSignIn.signIn();
       if (account == null) {
         emit(AuthInitial()); // User cancelled → silent, no error
         return;
@@ -91,6 +104,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
       final userData = await authRepository.googleSignIn(idToken, authEntry: event.authEntry);
+      emit(AuthSuccess(userData: userData));
+    } on AccountExpiredException catch (e) {
+      emit(AuthAccountExpired(
+        username: e.username,
+        upgradeUrl: e.upgradeUrl,
+        zaloGroup: e.zaloGroup,
+        zaloSupport: e.zaloSupport,
+      ));
+    } catch (error) {
+      String msg = error.toString().replaceFirst('Exception: ', '');
+      if (msg.contains('network_error') || msg.contains('SocketException')) {
+        msg = 'Không thể kết nối máy chủ. Kiểm tra kết nối mạng.';
+      }
+      emit(AuthFailure(error: msg));
+    }
+  }
+
+  Future<void> _onGoogleWebLoginSuccess(GoogleWebLoginSuccessEvent event, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      final auth = await event.account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        emit(const AuthFailure(error: 'Không lấy được token từ Google (Web). Hãy thử lại.'));
+        return;
+      }
+      final userData = await authRepository.googleSignIn(idToken, authEntry: 'login');
       emit(AuthSuccess(userData: userData));
     } on AccountExpiredException catch (e) {
       emit(AuthAccountExpired(
