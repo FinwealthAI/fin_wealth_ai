@@ -198,10 +198,16 @@ class _HtmlContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sửa lỗi url tương đối từ django-summernote thành url tuyệt đối
+    final String parsedHtml = html
+        .replaceAll('src="/media/', 'src="https://finwealth.vn/media/')
+        .replaceAll("src='/media/", "src='https://finwealth.vn/media/")
+        .replaceAll('href="/', 'href="https://finwealth.vn/');
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Html(
-        data: html,
+        data: parsedHtml,
         onLinkTap: (url, _, __) async {
           if (url == null) return;
           final uri = Uri.tryParse(url);

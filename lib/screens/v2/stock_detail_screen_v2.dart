@@ -674,9 +674,9 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                         color: AppColors.brandPrimaryDark,
                         label: 'Giá đóng cửa'),
                     if (_toD(_overview?['avg_target_price']) != null)
-                      const _LegendDot(
+                      _LegendDot(
                           color: Colors.orangeAccent,
-                          label: 'Định giá TB'),
+                          label: 'Định giá TB${_overview?['valuation_date'] != null && _overview!['valuation_date'].toString().isNotEmpty ? ' (${_overview!['valuation_date']})' : ''}'),
                     if ((_technical?['data'] as Map?)?['levels']?['nearest_support'] != null)
                       const _LegendDot(
                           color: AppColors.successDark,
@@ -2245,15 +2245,33 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       );
     }
 
-    final labels = ((g['labels'] as List?) ?? []).map((e) => e?.toString() ?? '').toList();
-    final revenue = ((g['abs_revenue'] as List?) ?? [])
+    List<String> labels = ((g['labels'] as List?) ?? []).map((e) => e?.toString() ?? '').toList();
+    List<double> revenue = ((g['abs_revenue'] as List?) ?? [])
         .map((e) => e == null ? 0.0 : (e as num).toDouble()).toList();
-    final profit = ((g['abs_profit'] as List?) ?? [])
+    List<double> profit = ((g['abs_profit'] as List?) ?? [])
         .map((e) => e == null ? 0.0 : (e as num).toDouble()).toList();
-    final revGrowth = ((g['revenue_growth'] as List?) ?? [])
+    List<double?> revGrowth = ((g['revenue_growth'] as List?) ?? [])
         .map((e) => e == null ? null : (e as num).toDouble()).toList();
-    final profGrowth = ((g['profit_growth'] as List?) ?? [])
+    List<double?> profGrowth = ((g['profit_growth'] as List?) ?? [])
         .map((e) => e == null ? null : (e as num).toDouble()).toList();
+
+    if (_growthPeriod == 'year') {
+      final currentYear = DateTime.now().year;
+      final validIdx = <int>[];
+      for (int i = 0; i < labels.length; i++) {
+        final lbl = labels[i];
+        final dt = DateTime.tryParse(lbl);
+        if (dt != null && dt.year >= currentYear) {
+          continue;
+        }
+        validIdx.add(i);
+      }
+      labels = validIdx.map((i) => labels[i]).toList();
+      revenue = validIdx.map((i) => i < revenue.length ? revenue[i] : 0.0).toList();
+      profit = validIdx.map((i) => i < profit.length ? profit[i] : 0.0).toList();
+      revGrowth = validIdx.map((i) => i < revGrowth.length ? revGrowth[i] : null).toList();
+      profGrowth = validIdx.map((i) => i < profGrowth.length ? profGrowth[i] : null).toList();
+    }
 
     if (revenue.isEmpty && profit.isEmpty) {
       return const SizedBox(
@@ -2772,6 +2790,11 @@ class _OpportunityRiskCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text('Cơ hội & Rủi ro',
                   style: text.titleSmall?.copyWith(fontSize: 12)),
+              if (insight != null && insight!['updated_at'] != null && insight!['updated_at'].toString().isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text('(${insight!['updated_at']})',
+                    style: const TextStyle(fontSize: 10, color: AppColors.darkTextMuted)),
+              ],
               const Spacer(),
               if (upside == null)
                 const SizedBox(
