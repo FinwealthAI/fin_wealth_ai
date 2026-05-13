@@ -65,18 +65,36 @@ class SearchStockRepository {
   }
 
   Future<Map<String, dynamic>> getUserNews() async {
-    final resp = await dio.get(ApiConfig.userNews);
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final options = token != null 
+        ? Options(headers: {'Authorization': 'Bearer $token'})
+        : null;
+
+    final resp = await dio.get(ApiConfig.userNews, options: options);
     return Map<String, dynamic>.from(resp.data);
   }
 
 
 Future<Map<String, dynamic>> markNotification(int pk) async {
-  final resp = await dio.get('${ApiConfig.mobileApi}/notifications/mark/$pk/');
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+  final options = token != null 
+      ? Options(headers: {'Authorization': 'Bearer $token'})
+      : null;
+
+  final resp = await dio.get('${ApiConfig.mobileApi}/notifications/mark/$pk/', options: options);
   return Map<String, dynamic>.from(resp.data);
 }
 
 Future<Map<String, dynamic>> markAllNotifications() async {
-  final resp = await dio.get('${ApiConfig.mobileApi}/notifications/mark-all/');
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('access_token');
+  final options = token != null 
+      ? Options(headers: {'Authorization': 'Bearer $token'})
+      : null;
+
+  final resp = await dio.get('${ApiConfig.mobileApi}/notifications/mark-all/', options: options);
   return Map<String, dynamic>.from(resp.data);
 }
 

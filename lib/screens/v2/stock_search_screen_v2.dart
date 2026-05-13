@@ -19,13 +19,14 @@ class _StockSearchScreenV2State extends State<StockSearchScreenV2> {
   String _query = '';
 
   List<StockValuation> _all = const [];
-  bool _loading = true;
+  bool _loading = false;
   Object? _err;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // Bỏ việc tải danh sách để tăng tốc độ mở màn hình search
+    // _load();
   }
 
   Future<void> _load() async {
@@ -115,14 +116,8 @@ class _StockSearchScreenV2State extends State<StockSearchScreenV2> {
       );
     }
     if (_err != null && _all.isEmpty) {
-      return Center(
-        child: FwEmptyState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Không tải được danh sách',
-          message: 'Bạn vẫn có thể nhập mã và nhấn Enter để mở.',
-          action: FwButton(label: 'Thử lại', onPressed: _load),
-        ),
-      );
+      // Đã bỏ logic tải tự động, nên khối lỗi này không còn cần thiết
+      return const SizedBox.shrink();
     }
     if (results.isEmpty) {
       return Center(
