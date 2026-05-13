@@ -208,7 +208,7 @@ class _HtmlContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Html(
         data: parsedHtml,
-        extensions: const [
+        extensions: [
           ImageExtension(),
         ],
         onLinkTap: (url, _, __) async {
