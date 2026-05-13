@@ -208,6 +208,9 @@ class _HtmlContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Html(
         data: parsedHtml,
+        extensions: const [
+          ImageExtension(),
+        ],
         onLinkTap: (url, _, __) async {
           if (url == null) return;
           final uri = Uri.tryParse(url);
@@ -284,7 +287,6 @@ class _HtmlContent extends StatelessWidget {
             padding: HtmlPaddings.all(4),
           ),
           'img': Style(
-            width: Width(double.infinity),
             margin: Margins.symmetric(vertical: 10),
           ),
           'table': Style(
