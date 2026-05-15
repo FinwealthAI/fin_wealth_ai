@@ -25,7 +25,11 @@ class LogoutRequested extends AuthEvent {}
 
 class GoogleLoginEvent extends AuthEvent {
   final String authEntry; // 'login' or 'signup'
-  GoogleLoginEvent({this.authEntry = 'login'});
+  final String? referralCode;
+  GoogleLoginEvent({this.authEntry = 'login', this.referralCode});
+
+  @override
+  List<Object> get props => [authEntry, referralCode ?? ''];
 }
 
 class GoogleWebLoginSuccessEvent extends AuthEvent {

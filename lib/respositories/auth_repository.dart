@@ -391,19 +391,24 @@ class AuthRepository {
     required String phone,
     required String password,
     required String confirmPassword,
+    String? referralCode,
   }) async {
     try {
+      final data = <String, dynamic>{
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'phone': phone,
+        'password': password,
+        'password_confirm': confirmPassword,
+        'role': 'investor',
+      };
+      if (referralCode != null && referralCode.trim().isNotEmpty) {
+        data['referral_code'] = referralCode.trim();
+      }
       final response = await dio.post(
         ApiConfig.signup,
-        data: {
-          'first_name': firstName,
-          'last_name': lastName,
-          'email': email,
-          'phone': phone,
-          'password': password,
-          'password_confirm': confirmPassword,
-          'role': 'investor',
-        },
+        data: data,
         options: Options(
           contentType: Headers.jsonContentType,
           validateStatus: (status) => status != null && status < 500,
@@ -484,48 +489,72 @@ class AuthRepository {
   }
 
   /// Google Sign-In
-  /// Nhận ID token từ Google Sign-In SDK và gọi API backend
-  Future<Map<String, dynamic>> googleSignIn(String idToken, {String authEntry = 'login'}) async {
-    try {
-      final response = await dio.post(
-        ApiConfig.googleLogin,
-        data: {
-          'id_token': idToken,
-          'auth_entry': authEntry, // 'login' hoặc 'signup'
-        },
-        options: Options(
-          contentType: Headers.jsonContentType,
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        _accessToken = response.data['access'] as String;
-        _refreshToken = response.data['refresh'] as String;
-        
-        // Set authorization header
-        dio.options.headers['Authorization'] = 'Bearer $_accessToken';
-        
-        // Get user data
-        final user = response.data['user'] as Map<String, dynamic>;
-        _username = user['username'];
-        _totalPoints = user['point'] ?? 0;
-        _avatar = user['avatar'];
-        
-        // Save tokens
-        await _saveTokens();
-        
-        return user;
-      } else if (response.statusCode == 400) {
-        // Email đã tồn tại hoặc lỗi validation
-        throw Exception(response.data['error'] ?? 'Đăng nhập Google thất bại');
-      } else if (response.statusCode == 401) {
-        throw Exception('Token không hợp lệ');
-      }
-      
-      throw Exception('Đăng nhập Google thất bại (${response.statusCode})');
-    } catch (e) {
-      throw Exception('Lỗi đăng nhập Google: $e');
+  /// Nhận ID token từ Google Sign-In SDK và gọi API backend.
+  /// Throw [AccountExpiredException] nếu backend trả 403 `account_expired`.
+  Future<Map<String, dynamic>> googleSignIn(
+    String idToken, {
+    String authEntry = 'login',
+    String? referralCode,
+  }) async {
+    final data = <String, dynamic>{
+      'id_token': idToken,
+      'auth_entry': authEntry, // 'login' hoặc 'signup'
+    };
+    if (referralCode != null && referralCode.trim().isNotEmpty) {
+      data['referral_code'] = referralCode.trim();
     }
+
+    final response = await dio.post(
+      ApiConfig.googleLogin,
+      data: data,
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 403 &&
+        response.data is Map &&
+        response.data['code'] == 'account_expired') {
+      final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
+      final upgradeUrl = upgradeRelative.isNotEmpty
+          ? '${ApiConfig.websiteUrl}$upgradeRelative'
+          : ApiConfig.websiteUrl;
+      throw AccountExpiredException(
+        username: response.data['username'] as String? ?? '',
+        upgradeUrl: upgradeUrl,
+        zaloGroup: response.data['zalo_group'] as String? ?? '',
+        zaloSupport: response.data['zalo_support'] as String? ?? '',
+      );
+    }
+
+    if (response.statusCode == 200) {
+      _accessToken = response.data['access'] as String;
+      _refreshToken = response.data['refresh'] as String;
+
+      // Set authorization header
+      dio.options.headers['Authorization'] = 'Bearer $_accessToken';
+
+      // Get user data
+      final user = response.data['user'] as Map<String, dynamic>;
+      _username = user['username'];
+      _totalPoints = user['point'] ?? 0;
+      _avatar = user['avatar'];
+
+      // Save tokens
+      await _saveTokens();
+
+      return user;
+    }
+
+    if (response.statusCode == 400) {
+      // Email đã tồn tại hoặc lỗi validation
+      throw Exception(response.data['error'] ?? 'Đăng nhập Google thất bại');
+    }
+    if (response.statusCode == 401) {
+      throw Exception('Token không hợp lệ');
+    }
+
+    throw Exception('Đăng nhập Google thất bại (${response.statusCode})');
   }
 }

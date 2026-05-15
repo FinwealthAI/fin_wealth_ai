@@ -22,6 +22,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
   final _phone = TextEditingController();
   final _pw = TextEditingController();
   final _confirmPw = TextEditingController();
+  final _referral = TextEditingController();
 
   bool _loading = false;
   bool _showPw = false;
@@ -35,6 +36,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
     _phone.dispose();
     _pw.dispose();
     _confirmPw.dispose();
+    _referral.dispose();
     super.dispose();
   }
 
@@ -63,6 +65,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
         phone: _phone.text,
         password: _pw.text,
         confirmPassword: _confirmPw.text,
+        referralCode: _referral.text,
       );
 
       if (!mounted) return;
@@ -94,7 +97,11 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
   }
 
   void _handleGoogleSignUp() {
-    context.read<AuthBloc>().add(GoogleLoginEvent(authEntry: 'signup'));
+    final ref = _referral.text.trim();
+    context.read<AuthBloc>().add(GoogleLoginEvent(
+          authEntry: 'signup',
+          referralCode: ref.isEmpty ? null : ref,
+        ));
   }
 
   @override
@@ -109,6 +116,8 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
             ),
             (route) => false,
           );
+        } else if (state is AuthAccountExpired) {
+          showAccountExpiredSheet(context, state);
         } else if (state is AuthFailure && state.error != 'Not logged in') {
           _showError(state.error);
         }
@@ -202,6 +211,15 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
                         icon: Icon(_showConfirmPw ? Icons.visibility_off : Icons.visibility),
                         onPressed: () => setState(() => _showConfirmPw = !_showConfirmPw),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: _referral,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Mã giới thiệu (không bắt buộc)',
+                      prefixIcon: Icon(Icons.card_giftcard_outlined),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),

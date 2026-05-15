@@ -103,7 +103,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthFailure(error: 'Không lấy được token từ Google. Kiểm tra cấu hình OAuth.'));
         return;
       }
-      final userData = await authRepository.googleSignIn(idToken, authEntry: event.authEntry);
+      final userData = await authRepository.googleSignIn(
+        idToken,
+        authEntry: event.authEntry,
+        referralCode: event.referralCode,
+      );
       emit(AuthSuccess(userData: userData));
     } on AccountExpiredException catch (e) {
       emit(AuthAccountExpired(
