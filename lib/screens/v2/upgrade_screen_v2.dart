@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../config/api_config.dart';
 import '../../respositories/auth_repository.dart';
 
 class UpgradeScreenV2 extends StatelessWidget {
@@ -9,6 +8,7 @@ class UpgradeScreenV2 extends StatelessWidget {
   final bool fromExpiredSession;
   const UpgradeScreenV2({super.key, this.fromExpiredSession = false});
 
+  static const _hscRegisterUrl = 'https://register.hsc.com.vn/?cid=0013910134';
   static const _zaloGroup = 'https://zalo.me/g/bqeltx653';
   static const _adminPhone = '0768583768';
 
@@ -27,9 +27,8 @@ class UpgradeScreenV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authRepo = context.read<AuthRepository>();
-    final upgradeUrl = authRepo.upgradeUrl ??
-        '${ApiConfig.websiteUrl}/open-account/hsc/?u=${authRepo.username ?? ''}';
+    // Dùng link HSC trực tiếp — tránh redirect qua web trên mobile
+    const upgradeUrl = _hscRegisterUrl;
 
     return Scaffold(
       body: Container(
