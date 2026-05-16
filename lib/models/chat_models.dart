@@ -31,6 +31,27 @@ class ChatMessage {
     );
   }
 
+  ChatMessage copyWith({
+    String? id,
+    String? query,
+    String? answer,
+    String? role,
+    DateTime? timestamp,
+    String? conversationId,
+    String? avatarUrl,
+    String? text, // Temporary helper to match usage in screen
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      query: query ?? this.query,
+      answer: text ?? answer ?? this.answer,
+      role: role ?? this.role,
+      timestamp: timestamp ?? this.timestamp,
+      conversationId: conversationId ?? this.conversationId,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
+
   /// Convenience getter for display text depending on role
   String get content => role == 'user' ? (query ?? '') : (answer ?? '');
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../respositories/auth_repository.dart';
 import '../../services/chat_history_service.dart';
@@ -148,10 +149,22 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           final clean = line.trim();
           if (!clean.startsWith('data: ')) continue;
           final dataStr = clean.substring(6).trim();
-          if (dataStr.isEmpty || dataStr == '[DONE]') continue;
+          if (dataStr.isEmpty) continue;
+          if (dataStr == '[DONE]') break;
+          
           try {
             final j = jsonDecode(dataStr);
-            if (j['event'] == 'message' && j['answer'] != null) {
+            
+            // Cập nhật conversation_id và task_id nếu có
+            if (j['conversation_id'] != null) {
+              newConvId = j['conversation_id'].toString();
+            }
+            if (j['task_id'] != null) {
+              _currentTaskId = j['task_id'].toString();
+            }
+            
+            // Xử lý nội dung câu trả lời (Native agent trả về trực tiếp trong trường 'answer')
+            if (j['answer'] != null) {
               buffer.write(j['answer']);
               if (mounted) {
                 setState(() {
@@ -164,15 +177,16 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                 });
               }
               _scrollToBottom();
-            }
-            if (j['conversation_id'] != null) {
-              newConvId = j['conversation_id'].toString();
-            }
-            if (j['task_id'] != null) {
-              _currentTaskId = j['task_id'].toString();
-            }
-            if (j['event'] == 'message_end') {
-              break;
+            } else if (j['message_id'] != null) {
+              // Cập nhật ID tin nhắn ngay cả khi chưa có nội dung (chunk đầu tiên)
+              if (mounted) {
+                setState(() {
+                  _messages[assistantIndex] =
+                      _messages[assistantIndex].copyWith(
+                    id: j['message_id'].toString(),
+                  );
+                });
+              }
             }
           } catch (_) {}
         }
@@ -380,25 +394,32 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                         m.text,
                         style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
                       )
-                    : Html(
+                    : MarkdownBody(
                         data: m.text,
-                        style: {
-                          'body': Style(
-                            color: AppColors.darkTextPrimary,
-                            fontSize: FontSize(14),
-                            lineHeight: LineHeight(1.5),
-                            margin: Margins.zero,
-                            padding: HtmlPaddings.zero,
+                        selectable: true,
+                        styleSheet: MarkdownStyleSheet(
+                          p: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14, height: 1.5),
+                          h1: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 20, fontWeight: FontWeight.w700),
+                          h2: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 17, fontWeight: FontWeight.w700),
+                          h3: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 15, fontWeight: FontWeight.w600),
+                          strong: const TextStyle(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
+                          em: const TextStyle(color: AppColors.darkTextPrimary, fontStyle: FontStyle.italic),
+                          listBullet: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14),
+                          code: TextStyle(
+                            color: AppColors.brandSecondaryDark,
+                            backgroundColor: AppColors.darkBg.withValues(alpha: 0.5),
+                            fontFamily: 'monospace',
+                            fontSize: 13,
                           ),
-                          'h1': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(20), fontWeight: FontWeight.w700, margin: Margins.only(top: 16, bottom: 8)),
-                          'h2': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(17), fontWeight: FontWeight.w700, margin: Margins.only(top: 14, bottom: 6)),
-                          'h3': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(15), fontWeight: FontWeight.w600, margin: Margins.only(top: 12, bottom: 4)),
-                          'p': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.5), margin: Margins.only(bottom: 10)),
-                          'strong,b': Style(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
-                          'ul,ol': Style(margin: Margins.only(bottom: 10, left: 4)),
-                          'li': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.5), margin: Margins.only(bottom: 4)),
-                          'a': Style(color: AppColors.brandPrimaryDark, textDecoration: TextDecoration.underline),
-                        },
+                          codeblockDecoration: BoxDecoration(
+                            color: AppColors.darkBg.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          blockquote: const TextStyle(color: AppColors.darkTextSecondary, fontStyle: FontStyle.italic),
+                          blockquoteDecoration: const BoxDecoration(
+                            border: Border(left: BorderSide(color: AppColors.brandPrimary, width: 3)),
+                          ),
+                        ),
                       ),
           ),
         );
