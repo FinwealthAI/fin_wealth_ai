@@ -123,7 +123,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         username: username,
         conversationId: _conversationId,
         token: token,
-        inputs: {'category': 'general', 'category_detail': 'default'},
+        inputs: {},
       );
 
       if (response.statusCode != 200) {
