@@ -28,6 +28,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   String? _currentTaskId;
   bool _isTyping = false;
   bool _loadingHistory = false;
+  bool _showScrollToBottom = false;
 
   final _smartTags = const [
     'Phân tích VNM',
@@ -40,11 +41,29 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     if (_authRepo.accessToken != null) {
       _initConversation();
     }
     if (widget.initialTicker != null) {
       _input.text = 'Phân tích ${widget.initialTicker}';
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scroll.hasClients) {
+      final show = _scroll.offset < _scroll.position.maxScrollExtent - 200;
+      if (show != _showScrollToBottom) {
+        setState(() => _showScrollToBottom = show);
+      }
     }
   }
 
@@ -299,13 +318,27 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       body: Column(
         children: [
           Expanded(
-            child: _loadingHistory
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                    ? _buildWelcome()
-                    : _buildMessages(),
+            child: Stack(
+              children: [
+                _loadingHistory
+                    ? const Center(child: CircularProgressIndicator())
+                    : _messages.isEmpty
+                        ? _buildWelcome()
+                        : _buildMessages(),
+                if (_showScrollToBottom)
+                  Positioned(
+                    right: AppSpacing.lg,
+                    bottom: AppSpacing.lg,
+                    child: FloatingActionButton.small(
+                      backgroundColor: AppColors.darkSurfaceElevated,
+                      onPressed: _scrollToBottom,
+                      child: const Icon(Icons.arrow_downward, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          if (!isGuest) _buildSmartTags(),
+          if (!isGuest && false) _buildSmartTags(), // Removed as requested
           _buildInput(isGuest),
         ],
       ),
@@ -355,72 +388,108 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   Widget _buildMessages() {
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.lg),
       itemCount: _messages.length,
       itemBuilder: (ctx, i) {
         final m = _messages[i];
-        return Align(
-          alignment:
-              m.fromUser ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-            constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.78),
-            decoration: BoxDecoration(
-              color: m.fromUser
-                  ? AppColors.brandPrimary
-                  : AppColors.darkSurfaceElevated,
-              borderRadius: BorderRadius.circular(AppRadius.lg).copyWith(
-                bottomRight: m.fromUser ? const Radius.circular(4) : null,
-                bottomLeft: m.fromUser ? null : const Radius.circular(4),
+        final isUser = m.fromUser;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isUser) ...[
+                const CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.transparent,
+                  backgroundImage: AssetImage('assets/images/mr_wealth_avatar.png'),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                  constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.72),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AppColors.brandPrimary
+                        : AppColors.darkSurfaceElevated,
+                    borderRadius: BorderRadius.circular(AppRadius.lg).copyWith(
+                      bottomRight: isUser ? const Radius.circular(4) : null,
+                      bottomLeft: isUser ? null : const Radius.circular(4),
+                    ),
+                    border: isUser
+                        ? null
+                        : Border.all(
+                            color: AppColors.brandPrimary.withValues(alpha: 0.2)),
+                    boxShadow: isUser ? null : AppShadows.purpleGlow,
+                  ),
+                  child: m.text.isEmpty && !isUser
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Mr. Wealth đang gõ...',
+                              style: TextStyle(
+                                color: AppColors.darkTextSecondary,
+                                fontSize: 13,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        )
+                      : isUser
+                          ? Text(
+                              m.text,
+                              style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+                            )
+                          : MarkdownBody(
+                              data: m.text,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(
+                                p: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14, height: 1.5),
+                                h1: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 20, fontWeight: FontWeight.w700),
+                                h2: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 17, fontWeight: FontWeight.w700),
+                                h3: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 15, fontWeight: FontWeight.w600),
+                                strong: const TextStyle(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
+                                em: const TextStyle(color: AppColors.darkTextPrimary, fontStyle: FontStyle.italic),
+                                listBullet: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14),
+                                code: TextStyle(
+                                  color: AppColors.brandSecondaryDark,
+                                  backgroundColor: AppColors.darkBg.withValues(alpha: 0.5),
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                ),
+                                codeblockDecoration: BoxDecoration(
+                                  color: AppColors.darkBg.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                blockquote: const TextStyle(color: AppColors.darkTextSecondary, fontStyle: FontStyle.italic),
+                                blockquoteDecoration: const BoxDecoration(
+                                  border: Border(left: BorderSide(color: AppColors.brandPrimary, width: 3)),
+                                ),
+                              ),
+                            ),
+                ),
               ),
-              border: m.fromUser
-                  ? null
-                  : Border.all(
-                      color: AppColors.brandPrimary
-                          .withValues(alpha: 0.3)),
-              boxShadow: m.fromUser ? null : AppShadows.purpleGlow,
-            ),
-            child: m.text.isEmpty && !m.fromUser
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : m.fromUser
-                    ? Text(
-                        m.text,
-                        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
-                      )
-                    : MarkdownBody(
-                        data: m.text,
-                        selectable: true,
-                        styleSheet: MarkdownStyleSheet(
-                          p: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14, height: 1.5),
-                          h1: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 20, fontWeight: FontWeight.w700),
-                          h2: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 17, fontWeight: FontWeight.w700),
-                          h3: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 15, fontWeight: FontWeight.w600),
-                          strong: const TextStyle(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
-                          em: const TextStyle(color: AppColors.darkTextPrimary, fontStyle: FontStyle.italic),
-                          listBullet: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 14),
-                          code: TextStyle(
-                            color: AppColors.brandSecondaryDark,
-                            backgroundColor: AppColors.darkBg.withValues(alpha: 0.5),
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                          ),
-                          codeblockDecoration: BoxDecoration(
-                            color: AppColors.darkBg.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          blockquote: const TextStyle(color: AppColors.darkTextSecondary, fontStyle: FontStyle.italic),
-                          blockquoteDecoration: const BoxDecoration(
-                            border: Border(left: BorderSide(color: AppColors.brandPrimary, width: 3)),
-                          ),
-                        ),
-                      ),
+              if (isUser) ...[
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.darkSurface,
+                  backgroundImage: _authRepo.avatar != null && _authRepo.avatar!.isNotEmpty
+                      ? NetworkImage(_authRepo.avatar!)
+                      : null,
+                  child: (_authRepo.avatar == null || _authRepo.avatar!.isEmpty)
+                      ? const Icon(Icons.person, size: 20, color: AppColors.darkTextMuted)
+                      : null,
+                ),
+              ],
+            ],
           ),
         );
       },
