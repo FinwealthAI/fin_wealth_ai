@@ -688,7 +688,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                     if (_signals.isNotEmpty)
                       const _LegendDot(
                           color: AppColors.successDark,
-                          label: 'Tín hiệu mua ▲'),
+                          label: 'Điểm theo dõi mua ▲'),
                   ],
                 ),
               ],
@@ -2041,7 +2041,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                 if (s.barIndex == signalBarIdx) {
                   final names = signalStrategyMap[s.x.toInt()] ?? const [];
                   final txt = names.isEmpty ? 'Mua' : names.join(', ');
-                  return build('Tín hiệu', AppColors.successDark, txt);
+                  return build('Theo dõi', AppColors.successDark, txt);
                 }
                 return null;
               }).toList();

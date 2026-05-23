@@ -638,7 +638,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FwSectionHeader(
-          title: 'Top cơ hội hôm nay',
+          title: 'Nổi bật hôm nay',
           icon: Icons.workspace_premium,
           actionLabel: 'Xem tất cả',
           onAction: () => RootShellNav.goStrategy(),
@@ -646,7 +646,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
         if (signals.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Chưa có tín hiệu mở mới hôm nay',
+            child: Text('Chưa có vị thế theo dõi mới hôm nay',
                 style: TextStyle(color: AppColors.darkTextMuted)),
           )
         else
@@ -830,7 +830,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
               ),
               const SizedBox(width: AppSpacing.sm),
               ChoiceChip(
-                label: const Text('Theo lợi nhuận'),
+                label: const Text('Theo hiệu suất'),
                 selected: _openSort == 1,
                 onSelected: (_) => setState(() => _openSort = 1),
               ),

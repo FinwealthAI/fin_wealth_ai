@@ -150,7 +150,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
   @override
   Widget build(BuildContext context) {
     final tabs = _showPerf
-        ? const ['Thống kê', 'Tín hiệu mở', 'Lịch sử', 'Đánh giá']
+        ? const ['Thống kê', 'Danh sách theo dõi', 'Lịch sử', 'Đánh giá']
         : const ['Đánh giá'];
 
     return Scaffold(
@@ -370,10 +370,10 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
         _sectionTitle('Tổng quan'),
         const SizedBox(height: 8),
         _statCard([
-          _StatRow(label: 'Tổng lợi nhuận', value: '${_fmtPct(_toD(s['total_return']))}'),
+          _StatRow(label: 'Tổng hiệu suất', value: '${_fmtPct(_toD(s['total_return']))}'),
           _StatRow(label: 'Win rate TB', value: '${_fmtPct(_toD(s['win_rate']))}'),
-          _StatRow(label: 'Tổng lệnh', value: '${(s['total_trades'] ?? 0).toInt()}'),
-          _StatRow(label: 'Đang mở', value: '${(s['active_trades'] ?? 0).toInt()}'),
+          _StatRow(label: 'Tổng vị thế', value: '${(s['total_trades'] ?? 0).toInt()}'),
+          _StatRow(label: 'Đang theo dõi', value: '${(s['active_trades'] ?? 0).toInt()}'),
         ]),
         // Backtest metrics from card
         if (_card.backtestMetrics != null) ...[
@@ -389,9 +389,9 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
   Widget _buildBacktestMetrics(Map<String, dynamic> m) {
     return _statCard([
       _StatRow(label: 'Win Rate', value: '${_fmtPct(_toD(m['win_rate']))}'),
-      _StatRow(label: 'Expectancy/lệnh', value: '${_fmtPct(_toD(m['expectancy_pct']))}'),
+      _StatRow(label: 'Expectancy/vị thế', value: '${_fmtPct(_toD(m['expectancy_pct']))}'),
       _StatRow(label: 'Avg Hold Days', value: '${_toD(m['avg_hold_days'])?.toStringAsFixed(1) ?? "--"} ngày'),
-      _StatRow(label: 'Tổng lệnh BT', value: '${m['total_trades'] ?? "--"}'),
+      _StatRow(label: 'Tổng vị thế BT', value: '${m['total_trades'] ?? "--"}'),
       _StatRow(label: 'Sharpe Ratio', value: _toD(m['sharpe_ratio'])?.toStringAsFixed(2) ?? '--'),
       _StatRow(label: 'Max Drawdown', value: m['max_drawdown'] != null ? '-${_toD(m['max_drawdown'])!.toStringAsFixed(1)}%' : '--'),
     ]);
@@ -405,7 +405,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
     }
     final positions = (_detail?['active_positions'] as List?) ?? [];
     if (positions.isEmpty) {
-      return _emptyState(Icons.show_chart_outlined, 'Hiện không có tín hiệu đang mở');
+      return _emptyState(Icons.show_chart_outlined, 'Hiện không có mã nào đang theo dõi');
     }
     return ListView.separated(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -436,7 +436,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
     }
     final positions = (_detail?['closed_positions'] as List?) ?? [];
     if (positions.isEmpty) {
-      return _emptyState(Icons.history, 'Chưa có lịch sử giao dịch');
+      return _emptyState(Icons.history, 'Chưa có lịch sử theo dõi');
     }
     return ListView.separated(
       padding: const EdgeInsets.all(AppSpacing.lg),
