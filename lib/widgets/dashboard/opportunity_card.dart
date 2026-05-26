@@ -298,7 +298,7 @@ class OpportunityCard extends StatelessWidget {
 
   static _OpportunitySpec _spec(OpportunityKind k) => switch (k) {
         OpportunityKind.golden => const _OpportunitySpec(
-            label: 'FA·TA vượt trội',
+            label: 'Hội tụ TA + FA',
             accent: AppColors.brandPrimaryDark,
           ),
         OpportunityKind.value => const _OpportunitySpec(

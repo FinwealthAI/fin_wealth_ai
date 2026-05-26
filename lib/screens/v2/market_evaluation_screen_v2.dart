@@ -108,14 +108,6 @@ class _MarketEvaluationScreenV2State extends State<MarketEvaluationScreenV2> {
       children: [
         _ScoreCard(snapshot: s),
         const SizedBox(height: 16),
-        _ScoresBreakdownCard(snapshot: s),
-        const SizedBox(height: 16),
-        _VnindexCard(snapshot: s),
-        const SizedBox(height: 16),
-        _MacroBreadthCard(snapshot: s),
-        const SizedBox(height: 16),
-        _AiSentimentCard(sentiment: s.aiSentiment),
-        const SizedBox(height: 16),
         _HistorySection(
           history: _history,
           days: _historyDays,
@@ -124,6 +116,14 @@ class _MarketEvaluationScreenV2State extends State<MarketEvaluationScreenV2> {
             _load();
           },
         ),
+        const SizedBox(height: 16),
+        _ScoresBreakdownCard(snapshot: s),
+        const SizedBox(height: 16),
+        _VnindexCard(snapshot: s),
+        const SizedBox(height: 16),
+        _MacroBreadthCard(snapshot: s),
+        const SizedBox(height: 16),
+        _AiSentimentCard(sentiment: s.aiSentiment),
       ],
     );
   }
@@ -154,92 +154,199 @@ class _ScoreCard extends StatelessWidget {
     final s = snapshot.finalScore;
     final color = _scoreColor(s);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.darkSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gauge vòng tròn
-          SizedBox(
-            width: 96,
-            height: 96,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: s / 100,
-                  strokeWidth: 8,
-                  backgroundColor: AppColors.darkBorder,
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
-                  strokeCap: StrokeCap.round,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                s.toStringAsFixed(1),
+                style: TextStyle(
+                    color: color, fontSize: 36, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Text('/100',
+                    style: const TextStyle(
+                        color: AppColors.darkTextMuted, fontSize: 13)),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
                 ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      s.toStringAsFixed(1),
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      '/100',
-                      style: TextStyle(
-                          color: AppColors.darkTextMuted, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: color.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(
-                    _zoneLabel(s),
+                child: Text(_zoneLabel(s),
                     style: TextStyle(
-                        color: color,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.label,
-                  style: const TextStyle(
-                      color: AppColors.darkTextPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  snapshot.snapshotUpdatedAt.isNotEmpty
-                      ? 'Cập nhật: ${snapshot.snapshotUpdatedAt}'
-                      : '',
-                  style: const TextStyle(
-                      color: AppColors.darkTextMuted, fontSize: 12),
-                ),
-              ],
-            ),
+                        color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            snapshot.label,
+            style: const TextStyle(
+                color: AppColors.darkTextPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600),
+          ),
+          if (snapshot.snapshotUpdatedAt.isNotEmpty)
+            Text(snapshot.snapshotUpdatedAt,
+                style: const TextStyle(
+                    color: AppColors.darkTextMuted, fontSize: 11)),
+          const SizedBox(height: 14),
+          _ZoneGaugeBar(score: s),
         ],
       ),
     );
   }
+}
+
+class _ZoneGaugeBar extends StatelessWidget {
+  final double score;
+  const _ZoneGaugeBar({required this.score});
+
+  static const _zones = [
+    (end: 35.0, color: AppColors.dangerDark,       label: 'Xấu'),
+    (end: 50.0, color: AppColors.warningDark,      label: 'Thận trọng'),
+    (end: 65.0, color: AppColors.brandPrimaryDark, label: 'Khá'),
+    (end: 100.0, color: AppColors.successDark,     label: 'Tốt'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (_, constraints) {
+      final w = constraints.maxWidth;
+      final indicatorX = (score / 100 * w).clamp(0, w).toDouble();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Thanh màu + chỉ thị ───────────────────────
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Thanh nền phân vùng
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  children: [
+                    for (int i = 0; i < _zones.length; i++) ...[
+                      Flexible(
+                        flex: (i == 0 ? 35 : i == 1 ? 15 : i == 2 ? 15 : 35),
+                        child: Container(
+                          height: 12,
+                          color: _zones[i].color.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      if (i < _zones.length - 1)
+                        Container(width: 1, height: 12, color: AppColors.darkBg),
+                    ],
+                  ],
+                ),
+              ),
+              // Chỉ thị vị trí điểm
+              Positioned(
+                left: (indicatorX - 1.5).clamp(0, w - 3),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4)],
+                      ),
+                    ),
+                    // Mũi tên nhỏ bên dưới
+                    CustomPaint(size: const Size(8, 5), painter: _TrianglePainter()),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // ── Nhãn mốc ────────────────────────────────
+          Stack(
+            children: [
+              SizedBox(height: 14, width: w),
+              for (final milestone in [0, 35, 50, 65, 100])
+                Positioned(
+                  left: (milestone / 100 * w).clamp(0, w - 1),
+                  child: Transform.translate(
+                    offset: Offset(milestone == 0 ? 0 : milestone == 100 ? -20 : -10, 0),
+                    child: Text(
+                      '$milestone',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: _labelColor(milestone.toDouble()),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          // ── Legend vùng ────────────────────────────────
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: _zones.map((z) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(
+                    color: z.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(z.label,
+                    style: const TextStyle(
+                        color: AppColors.darkTextMuted, fontSize: 10)),
+              ],
+            )).toList(),
+          ),
+        ],
+      );
+    });
+  }
+
+  Color _labelColor(double v) {
+    if (v >= 65) return AppColors.successDark;
+    if (v >= 50) return AppColors.brandPrimaryDark;
+    if (v >= 35) return AppColors.warningDark;
+    return AppColors.dangerDark;
+  }
+}
+
+class _TrianglePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
 }
 
 // ── Breakdown 5 điểm thành phần ───────────────────────────────────────────────
@@ -382,27 +489,25 @@ class _VnindexCard extends StatelessWidget {
                   fontSize: 26,
                   fontWeight: FontWeight.bold),
             ),
+            const SizedBox(width: 12),
+            if (snapshot.pctChange20d != null)
+              Text(
+                '${snapshot.pctChange20d! >= 0 ? '+' : ''}${_fmt(snapshot.pctChange20d)}% (20d)',
+                style: TextStyle(
+                  color: snapshot.pctChange20d! >= 0 ? AppColors.successDark : AppColors.dangerDark,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             const Spacer(),
             _Chip('RSI ${_fmt(snapshot.rsi14)}', AppColors.brandPrimaryDark),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(children: [
-            _StatItem('MA20', _fmt(snapshot.ma20, dec: 2)),
-            _StatItem('MA60', _fmt(snapshot.ma60, dec: 2)),
+            _StatItem('MA20', _fmt(snapshot.ma20, dec: 0)),
+            _StatItem('MA60', _fmt(snapshot.ma60, dec: 0)),
             _StatItem('Biến động', '${_fmt(snapshot.volatility20dPct)}%'),
-            _StatItem('20d', '${snapshot.pctChange20d != null ? (snapshot.pctChange20d! >= 0 ? '+' : '') : ''}${_fmt(snapshot.pctChange20d)}%'),
           ]),
-          if (snapshot.nearestSupport != null || snapshot.nearestResistance != null) ...[
-            const Divider(height: 20, color: AppColors.darkBorder),
-            Row(children: [
-              _StatItem('Hỗ trợ', _fmt(snapshot.nearestSupport, dec: 2)),
-              _StatItem('Kháng cự', _fmt(snapshot.nearestResistance, dec: 2)),
-              if (snapshot.pctToSupport != null)
-                _StatItem('Đến HT', '${_fmt(snapshot.pctToSupport)}%'),
-              if (snapshot.pctToResistance != null)
-                _StatItem('Đến KC', '${_fmt(snapshot.pctToResistance)}%'),
-            ]),
-          ],
         ],
       ),
     );
@@ -483,16 +588,12 @@ class _MacroBreadthCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _InfoPill('VIX', _f(snapshot.vix)),
-              _InfoPill('DXY', _f(snapshot.dxy)),
-              _InfoPill('US10Y', '${_f(snapshot.us10y)}%'),
-              _InfoPill('VN10Y', '${_f(snapshot.vn10y)}%'),
-              _InfoPill('USD/VND', snapshot.usdvnd != null ? snapshot.usdvnd!.toStringAsFixed(0) : '--'),
-              _InfoPill('Brent', _f(snapshot.brentOil, dec: 1)),
+              _InfoPill('VIX', _f(snapshot.vix, dec: 1)),
               _InfoPill('ERP', '${_f(snapshot.erp)}%'),
-              _InfoPill('PE trung vị', _f(snapshot.medianPe, dec: 1)),
-              _InfoPill('Trên MA20', snapshot.pctAboveMa20 != null ? '${_f(snapshot.pctAboveMa20, dec: 1)}%' : '--'),
-              _InfoPill('Trên MA50', snapshot.pctAboveMa50 != null ? '${_f(snapshot.pctAboveMa50, dec: 1)}%' : '--'),
+              _InfoPill('PE TT', _f(snapshot.medianPe, dec: 1)),
+              _InfoPill('Trên MA20', snapshot.pctAboveMa20 != null ? '${_f(snapshot.pctAboveMa20, dec: 0)}%' : '--'),
+              _InfoPill('Brent', _f(snapshot.brentOil, dec: 0)),
+              _InfoPill('USD/VND', snapshot.usdvnd != null ? snapshot.usdvnd!.toStringAsFixed(0) : '--'),
             ],
           ),
         ],
@@ -716,12 +817,12 @@ class _HistorySection extends StatelessWidget {
                   style: TextStyle(color: AppColors.darkTextMuted)),
             )
           else
-            SizedBox(height: 180, child: _ScoreLineChart(history: history)),
+            SizedBox(height: 240, child: _CombinedChart(history: history)),
           const SizedBox(height: 8),
           Row(children: [
             _LegendDot(AppColors.brandPrimaryDark, 'Điểm tổng hợp'),
             const SizedBox(width: 16),
-            _LegendDot(AppColors.warningDark, 'Điểm quant'),
+            _LegendDot(AppColors.successDark, 'VNINDEX'),
           ]),
         ],
       ),
@@ -745,20 +846,38 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-class _ScoreLineChart extends StatelessWidget {
+// Chart kết hợp: điểm tổng hợp (trục trái 0-100) + VNINDEX (trục phải, normalize về 0-100)
+class _CombinedChart extends StatelessWidget {
   final List<MarketEvaluationHistoryItem> history;
-  const _ScoreLineChart({required this.history});
+  const _CombinedChart({required this.history});
 
   @override
   Widget build(BuildContext context) {
-    final finalSpots = <FlSpot>[];
-    final quantSpots = <FlSpot>[];
+    final scoreSpots = <FlSpot>[];
+    final vniRawSpots = <({int i, double v})>[];
+
     for (var i = 0; i < history.length; i++) {
       final h = history[i];
-      if (h.finalScore != null) finalSpots.add(FlSpot(i.toDouble(), h.finalScore!));
-      if (h.quantScore != null) quantSpots.add(FlSpot(i.toDouble(), h.quantScore!));
+      if (h.finalScore != null) scoreSpots.add(FlSpot(i.toDouble(), h.finalScore!));
+      if (h.vnindex != null) vniRawSpots.add((i: i, v: h.vnindex!));
     }
+
+    // Normalize VNINDEX vào dải 0-100 để vẽ trên cùng canvas
+    double minVni = 0, maxVni = 100;
+    if (vniRawSpots.isNotEmpty) {
+      minVni = vniRawSpots.map((e) => e.v).reduce((a, b) => a < b ? a : b);
+      maxVni = vniRawSpots.map((e) => e.v).reduce((a, b) => a > b ? a : b);
+      if (maxVni == minVni) maxVni = minVni + 1;
+    }
+    final vniRange = maxVni - minVni;
+    final vniSpots = vniRawSpots
+        .map((e) => FlSpot(e.i.toDouble(), (e.v - minVni) / vniRange * 100))
+        .toList();
+
     final labelStep = history.length > 60 ? 20 : history.length > 30 ? 10 : 5;
+
+    // Giá trị VNINDEX thực ứng với trục phải tại 0/25/50/75/100 (normalized)
+    double vniAt(double norm) => minVni + norm / 100 * vniRange;
 
     return LineChart(
       LineChartData(
@@ -780,8 +899,18 @@ class _ScoreLineChart extends StatelessWidget {
               reservedSize: 28,
               getTitlesWidget: (v, _) => Text(
                 v.toInt().toString(),
-                style: const TextStyle(
-                    color: AppColors.darkTextMuted, fontSize: 10),
+                style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9),
+              ),
+            ),
+          ),
+          rightTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: vniSpots.isNotEmpty,
+              interval: 25,
+              reservedSize: 44,
+              getTitlesWidget: (v, _) => Text(
+                vniAt(v).toStringAsFixed(0),
+                style: const TextStyle(color: AppColors.successDark, fontSize: 9),
               ),
             ),
           ),
@@ -789,39 +918,41 @@ class _ScoreLineChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               interval: labelStep.toDouble(),
-              reservedSize: 22,
+              reservedSize: 20,
               getTitlesWidget: (v, _) {
                 final idx = v.toInt();
                 if (idx < 0 || idx >= history.length) return const SizedBox.shrink();
-                final date = history[idx].date;
-                final parts = date.split('-');
-                final label = parts.length >= 3 ? '${parts[2]}/${parts[1]}' : date;
+                final parts = history[idx].date.split('-');
+                final label = parts.length >= 3 ? '${parts[2]}/${parts[1]}' : '';
                 return Text(label,
-                    style: const TextStyle(
-                        color: AppColors.darkTextMuted, fontSize: 9));
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9));
               },
             ),
           ),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => AppColors.darkSurfaceElevated,
             getTooltipItems: (spots) => spots.map((s) {
-              final color = s.barIndex == 0
-                  ? AppColors.brandPrimaryDark
-                  : AppColors.warningDark;
-              return LineTooltipItem(
-                s.y.toStringAsFixed(1),
-                TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
-              );
+              if (s.barIndex == 0) {
+                return LineTooltipItem(
+                  'Điểm: ${s.y.toStringAsFixed(1)}',
+                  const TextStyle(color: AppColors.brandPrimaryDark, fontSize: 11, fontWeight: FontWeight.w600),
+                );
+              } else {
+                final actual = vniAt(s.y);
+                return LineTooltipItem(
+                  'VNI: ${actual.toStringAsFixed(0)}',
+                  const TextStyle(color: AppColors.successDark, fontSize: 11, fontWeight: FontWeight.w600),
+                );
+              }
             }).toList(),
           ),
         ),
         lineBarsData: [
           LineChartBarData(
-            spots: finalSpots,
+            spots: scoreSpots,
             isCurved: true,
             color: AppColors.brandPrimaryDark,
             barWidth: 2,
@@ -831,14 +962,14 @@ class _ScoreLineChart extends StatelessWidget {
               color: AppColors.brandPrimaryDark.withValues(alpha: 0.08),
             ),
           ),
-          LineChartBarData(
-            spots: quantSpots,
-            isCurved: true,
-            color: AppColors.warningDark,
-            barWidth: 1.5,
-            dashArray: [4, 4],
-            dotData: const FlDotData(show: false),
-          ),
+          if (vniSpots.isNotEmpty)
+            LineChartBarData(
+              spots: vniSpots,
+              isCurved: true,
+              color: AppColors.successDark,
+              barWidth: 1.5,
+              dotData: const FlDotData(show: false),
+            ),
         ],
       ),
     );

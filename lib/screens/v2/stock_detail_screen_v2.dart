@@ -2680,9 +2680,9 @@ class _QuantWealthCard extends StatelessWidget {
                   ),
                 const SizedBox(height: 8),
                 Row(children: [
-                  _ScorePill('FA', _qFmt(fa), faLabel, AppColors.brandSecondaryDark),
+                  Flexible(child: _ScorePill('FA', _qFmt(fa), faLabel, AppColors.brandSecondaryDark)),
                   const SizedBox(width: 8),
-                  _ScorePill('TA', _qFmt(ta), taLabel, AppColors.brandPrimaryDark),
+                  Flexible(child: _ScorePill('TA', _qFmt(ta), taLabel, AppColors.brandPrimaryDark)),
                 ]),
               ]),
             ),
@@ -2713,7 +2713,10 @@ class _ScorePill extends StatelessWidget {
         Text(type, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
         Text(score, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
         if (label != null)
-          Text(label!, style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9)),
+          Text(label!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9)),
       ]),
     );
   }
@@ -2753,8 +2756,12 @@ class _QuantFaCard extends StatelessWidget {
             ),
             if (fa['label'] != null) ...[
               const SizedBox(width: 6),
-              Text(fa['label'] as String,
-                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              Flexible(
+                child: Text(fa['label'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              ),
             ],
           ]),
         ),
@@ -2818,8 +2825,12 @@ class _QuantTaCard extends StatelessWidget {
             ),
             if (ta['label'] != null) ...[
               const SizedBox(width: 6),
-              Text(ta['label'] as String,
-                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              Flexible(
+                child: Text(ta['label'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              ),
             ],
           ]),
         ),
