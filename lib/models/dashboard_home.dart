@@ -24,6 +24,8 @@ class WealthScoreItem {
   final double technicalScore;
   final double score;
   final String? strengthLabel;
+  final String? faLabel;
+  final String? taLabel;
   final double? boostScore;
   final List<String> matchedPresetNames;
   final double? close;
@@ -35,6 +37,8 @@ class WealthScoreItem {
     required this.technicalScore,
     required this.score,
     this.strengthLabel,
+    this.faLabel,
+    this.taLabel,
     this.boostScore,
     this.matchedPresetNames = const [],
     this.close,
@@ -47,6 +51,8 @@ class WealthScoreItem {
         technicalScore: _toD(j['technical_score']) ?? 0,
         score: _toD(j['score']) ?? 0,
         strengthLabel: j['strength_label'] as String?,
+        faLabel: j['fa_label'] as String?,
+        taLabel: j['ta_label'] as String?,
         boostScore: _toD(j['boost_score']),
         matchedPresetNames:
             (j['matched_preset_names'] as List?)?.map((e) => e.toString()).toList() ?? const [],
@@ -324,6 +330,8 @@ class DashboardHome {
               changePercent: _toD(m['change_pct']),
               faTier: m['fa_tier'] as String?,
               taTier: m['ta_tier'] as String?,
+              faLabel: m['fa_label'] as String?,
+              taLabel: m['ta_label'] as String?,
               strengthLabel: m['strength_label'] as String?,
             );
           })

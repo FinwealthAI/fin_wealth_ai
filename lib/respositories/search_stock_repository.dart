@@ -114,14 +114,27 @@ Future<Map<String, dynamic>> markAllNotifications() async {
     // Explicitly fetching token to ensure auth header is sent
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
-    
-    final options = token != null 
+
+    final options = token != null
         ? Options(headers: {'Authorization': 'Bearer $token'})
         : null;
 
     final resp = await dio.get(
         '${ApiConfig.api}/quant/latest/$ticker/',
         options: options
+    );
+    return Map<String, dynamic>.from(resp.data);
+  }
+
+  Future<Map<String, dynamic>> getQuantScores(String ticker) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final options = token != null
+        ? Options(headers: {'Authorization': 'Bearer $token'})
+        : null;
+    final resp = await dio.get(
+      '${ApiConfig.api}/quant/scores/$ticker/',
+      options: options,
     );
     return Map<String, dynamic>.from(resp.data);
   }

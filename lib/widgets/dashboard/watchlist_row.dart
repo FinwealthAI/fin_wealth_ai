@@ -7,6 +7,8 @@ class WatchlistRow extends StatelessWidget {
   final double changePct;
   final String? faTier;
   final String? taTier;
+  final String? faLabel;
+  final String? taLabel;
   final VoidCallback? onTap;
   final VoidCallback? onRemove;
 
@@ -17,6 +19,8 @@ class WatchlistRow extends StatelessWidget {
     required this.changePct,
     this.faTier,
     this.taTier,
+    this.faLabel,
+    this.taLabel,
     this.onTap,
     this.onRemove,
   });
@@ -26,6 +30,9 @@ class WatchlistRow extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final positive = changePct >= 0;
     final color = positive ? AppColors.successDark : AppColors.dangerDark;
+
+    final showFa = faTier != null && faTier != 'unranked';
+    final showTa = taTier != null && taTier != 'unranked';
 
     return InkWell(
       onTap: onTap,
@@ -48,22 +55,28 @@ class WatchlistRow extends StatelessWidget {
                       style: text.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (faTier != null && faTier != 'unranked')
-                        _TierChip(label: 'FA', tier: faTier!),
-                      if (faTier != null && faTier != 'unranked' &&
-                          taTier != null && taTier != 'unranked')
-                        const SizedBox(width: 4),
-                      if (taTier != null && taTier != 'unranked')
-                        _TierChip(label: 'TA', tier: taTier!),
-                      if ((faTier == null || faTier == 'unranked') &&
-                          (taTier == null || taTier == 'unranked'))
-                        Text('Chưa có dữ liệu',
-                            style: text.bodySmall
-                                ?.copyWith(color: AppColors.darkTextMuted)),
-                    ],
-                  ),
+                  if (showFa || showTa)
+                    Row(
+                      children: [
+                        if (showFa)
+                          _LabelChip(
+                            prefix: 'FA',
+                            label: faLabel ?? _tierText(faTier!),
+                            tier: faTier!,
+                          ),
+                        if (showFa && showTa) const SizedBox(width: 4),
+                        if (showTa)
+                          _LabelChip(
+                            prefix: 'TA',
+                            label: taLabel ?? _tierText(taTier!),
+                            tier: taTier!,
+                          ),
+                      ],
+                    )
+                  else
+                    Text('Chưa có dữ liệu',
+                        style: text.bodySmall
+                            ?.copyWith(color: AppColors.darkTextMuted)),
                 ],
               ),
             ),
@@ -72,9 +85,7 @@ class WatchlistRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  price >= 1000
-                      ? '${(price / 1000).toStringAsFixed(1)}k'
-                      : price.toStringAsFixed(2),
+                  '${price.toStringAsFixed(1)}k',
                   style: text.titleMedium
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
@@ -115,36 +126,60 @@ class WatchlistRow extends StatelessWidget {
       ),
     );
   }
+
+  static String _tierText(String tier) => switch (tier) {
+        'manh' => 'Mạnh',
+        'chu_y' => 'Chú ý',
+        _ => 'N/A',
+      };
 }
 
-class _TierChip extends StatelessWidget {
+class _LabelChip extends StatelessWidget {
+  final String prefix;
   final String label;
   final String tier;
 
-  const _TierChip({required this.label, required this.tier});
+  const _LabelChip({
+    required this.prefix,
+    required this.label,
+    required this.tier,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final (color, tierLabel) = _resolve(tier);
+    final color = switch (tier) {
+      'manh' => AppColors.successDark,
+      'chu_y' => AppColors.warningDark,
+      _ => AppColors.brandPrimaryDark,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(
-        '$label $tierLabel',
-        style: text.labelSmall?.copyWith(color: color, fontSize: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            prefix,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: AppColors.darkTextMuted,
+            ),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
-  }
-
-  static (Color, String) _resolve(String tier) {
-    return switch (tier.toLowerCase()) {
-      'manh' => (AppColors.successDark, 'Mạnh'),
-      'chu_y' => (AppColors.warningDark, 'Chú ý'),
-      _ => (AppColors.darkTextMuted, '—'),
-    };
   }
 }

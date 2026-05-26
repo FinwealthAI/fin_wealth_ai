@@ -405,6 +405,8 @@ class AiOpportunitySignal {
   final double? takeProfit;
   final String? faTier;
   final String? taTier;
+  final String? faLabel;
+  final String? taLabel;
   final double? winRate;
   final double? profitFactor;
   final double? maxDrawdown;
@@ -420,6 +422,8 @@ class AiOpportunitySignal {
     this.takeProfit,
     this.faTier,
     this.taTier,
+    this.faLabel,
+    this.taLabel,
     this.winRate,
     this.profitFactor,
     this.maxDrawdown,
@@ -449,6 +453,8 @@ class AiOpportunitySignal {
       takeProfit: pos is Map ? toD(pos['take_profit']) : null,
       faTier: j['fa_tier'] as String?,
       taTier: j['ta_tier'] as String?,
+      faLabel: j['fa_label'] as String?,
+      taLabel: j['ta_label'] as String?,
       winRate: toD(meta?['win_rate']),
       profitFactor: toD(meta?['profit_factor']),
       maxDrawdown: toD(meta?['max_drawdown']),

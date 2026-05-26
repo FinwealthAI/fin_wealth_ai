@@ -9,6 +9,9 @@ class OpportunityCard extends StatelessWidget {
   final OpportunityKind kind;
   final double score;
   final double changePct;
+  final double? close;
+  final String? faLabel;
+  final String? taLabel;
   final String? strategyName;
   final IconData? strategyIcon;
   final Color? strategyAccent;
@@ -28,6 +31,9 @@ class OpportunityCard extends StatelessWidget {
     required this.kind,
     required this.score,
     required this.changePct,
+    this.close,
+    this.faLabel,
+    this.taLabel,
     this.strategyName,
     this.strategyIcon,
     this.strategyAccent,
@@ -48,6 +54,13 @@ class OpportunityCard extends StatelessWidget {
     'yeu': 'Yếu',
     'unranked': 'N/A',
   };
+
+  static String _fmtPrice(double p) {
+    if (p >= 1000) {
+      return '${(p / 1000).toStringAsFixed(1)}k';
+    }
+    return p.toStringAsFixed(1);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +84,7 @@ class OpportunityCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Row 1: ticker + kind badge
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -108,18 +122,22 @@ class OpportunityCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
+
+              // Row 2: price + change% + WS score badge
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    score.toStringAsFixed(1).replaceAll('.', ','),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.darkTextPrimary,
+                  if (close != null) ...[
+                    Text(
+                      _fmtPrice(close!),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkTextPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
+                    const SizedBox(width: 6),
+                  ],
                   Icon(
                     positive ? Icons.show_chart : Icons.trending_down,
                     size: 12,
@@ -135,13 +153,55 @@ class OpportunityCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (faTier != null) _tierChip('FA', faTier!),
-                  if (taTier != null) ...[
-                    const SizedBox(width: 4),
-                    _tierChip('TA', taTier!),
-                  ],
+                  // WealthScore badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: spec.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'WS',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: spec.accent.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          score.toStringAsFixed(1).replaceAll('.', ','),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: spec.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.sm),
+
+              // Row 3: FA / TA labels
+              if (faTier != null || taTier != null || faLabel != null || taLabel != null)
+                Row(
+                  children: [
+                    if (faLabel != null || faTier != null)
+                      _labelChip('FA', faLabel ?? (_tierLabel[faTier] ?? faTier ?? ''), faTier),
+                    if ((faLabel != null || faTier != null) &&
+                        (taLabel != null || taTier != null))
+                      const SizedBox(width: 4),
+                    if (taLabel != null || taTier != null)
+                      _labelChip('TA', taLabel ?? (_tierLabel[taTier] ?? taTier ?? ''), taTier),
+                  ],
+                ),
+
+              // Row 4: strategy badge (optional)
               if (strategyName != null && strategyName!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Row(
@@ -191,8 +251,7 @@ class OpportunityCard extends StatelessWidget {
     return sb.toString().trim();
   }
 
-  static Widget _tierChip(String label, String tier) {
-    final text = _tierLabel[tier] ?? tier;
+  static Widget _labelChip(String prefix, String label, String? tier) {
     Color color;
     switch (tier) {
       case 'manh':
@@ -205,7 +264,7 @@ class OpportunityCard extends StatelessWidget {
         color = AppColors.dangerDark;
         break;
       case 'unranked':
-        color = const Color(0xFF8B5CF6); // Purple from image
+        color = const Color(0xFF8B5CF6);
         break;
       default:
         color = AppColors.brandPrimaryDark;
@@ -219,14 +278,14 @@ class OpportunityCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label,
+          Text(prefix,
               style: const TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
                 color: AppColors.darkTextMuted,
               )),
           const SizedBox(width: 3),
-          Text(text,
+          Text(label,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,

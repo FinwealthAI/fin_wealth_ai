@@ -337,6 +337,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
       publishedAt: s.date,
       onReadMore: _openDailyBlog,
       onAskAI: widget.onOpenChat,
+      onViewMarket: RootShellNav.goMarket,
     );
   }
 
@@ -638,7 +639,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FwSectionHeader(
-          title: 'Nổi bật hôm nay',
+          title: 'Top Wealth hôm nay',
           icon: Icons.workspace_premium,
           actionLabel: 'Xem tất cả',
           onAction: () => RootShellNav.goStrategy(),
@@ -651,7 +652,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
           )
         else
           SizedBox(
-            height: 180,
+            height: 220,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:
@@ -683,6 +684,8 @@ class HomeScreenV2State extends State<HomeScreenV2>
                     strategyAccent: strategyAccentFromColor(sig.presetColor),
                     faTier: sig.faTier,
                     taTier: sig.taTier,
+                    faLabel: sig.faLabel,
+                    taLabel: sig.taLabel,
                     stopLoss: sig.stopLoss,
                     takeProfit: sig.takeProfit,
                     winRate: sig.winRate,
@@ -788,6 +791,8 @@ class HomeScreenV2State extends State<HomeScreenV2>
                     changePct: w.changePercent ?? 0,
                     faTier: w.faTier,
                     taTier: w.taTier,
+                    faLabel: w.faLabel,
+                    taLabel: w.taLabel,
                     onTap: () => _openDetail(w.ticker),
                   ),
               ],
@@ -814,7 +819,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FwSectionHeader(
-          title: 'Vị thế đang mở',
+          title: 'Theo dõi định lượng',
           icon: Icons.flag_outlined,
           actionLabel: '${_dash?.openCount ?? 0} mở',
           onAction: () {},
@@ -926,7 +931,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(
-                    'Vào ${p.entryDate}',
+                    p.entryDate,
                     style: text.bodySmall
                         ?.copyWith(color: AppColors.darkTextMuted),
                   ),
@@ -934,28 +939,24 @@ class HomeScreenV2State extends State<HomeScreenV2>
               ),
             ),
 
-            // Right: pct + entry price
+            // Right: current price + pct
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(pctLabel,
-                    style: text.labelMedium?.copyWith(
-                        color: pctColor, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                if (p.entryPrice != null)
+                if (p.currentPrice != null)
                   Text(
-                    'Giá vào: ${p.entryPrice!.toStringAsFixed(0)}',
-                    style: text.bodySmall
-                        ?.copyWith(color: AppColors.darkTextMuted),
+                    '${p.currentPrice!.toStringAsFixed(1)}k',
+                    style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   )
-                else if (p.presetName != null)
+                else if (p.entryPrice != null)
                   Text(
-                    p.presetName!,
-                    style: text.bodySmall
-                        ?.copyWith(color: AppColors.darkTextMuted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    '${p.entryPrice!.toStringAsFixed(1)}k',
+                    style: text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
+                const SizedBox(height: 2),
+                Text(pctLabel,
+                    style: text.bodySmall?.copyWith(
+                        color: pctColor, fontWeight: FontWeight.w700)),
               ],
             ),
 

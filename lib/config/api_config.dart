@@ -109,4 +109,9 @@ class ApiConfig {
 
   // Value chain + economic charts
   static String valueChain(String ticker) => '$mobileApi/value-chain/$ticker/';
+
+  // Market Evaluation (đánh giá thị trường)
+  static String get marketEvaluation => '$mobileApi/market-evaluation/';
+  static String marketEvaluationHistory({int days = 90}) =>
+      '$mobileApi/market-evaluation/history/?days=$days';
 }

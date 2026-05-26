@@ -163,8 +163,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
   }
 
   static String _tier(double score) {
-    if (score < 5) return 'unranked';
-    if (score < 30) return 'chu_y';
+    if (score < 10) return 'unranked';
+    if (score < 50) return 'chu_y';
     return 'manh';
   }
 
@@ -293,6 +293,9 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             kind: kind,
             score: w.score,
             changePct: w.changePct ?? 0,
+            close: w.close,
+            faLabel: w.faLabel,
+            taLabel: w.taLabel,
             strategyName: preset,
             faTier: _tier(w.fundamentalScore),
             taTier: _tier(w.technicalScore),

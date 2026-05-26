@@ -47,6 +47,10 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   Map<String, dynamic>? _chain;
   bool _loadingChain = true;
   Object? _errChain;
+
+  Map<String, dynamic>? _quant;
+  bool _loadingQuant = true;
+  Object? _errQuant;
   int _selectedChartIdx = 0;
   int _chartPeriodDays = 365; // 180 | 365 | 1095 | -1 (all)
 
@@ -68,7 +72,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
     if (_authRepo.accessToken != null) {
       _loadAll();
     } else {
@@ -82,6 +86,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadingTechnical = false;
       _loadingInsight = false;
       _loadingChain = false;
+      _loadingQuant = false;
     }
   }
 
@@ -104,7 +109,29 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadTechnical(),
       _loadInsight(),
       _loadChain(),
+      _loadQuant(),
     ]);
+  }
+
+  Future<void> _loadQuant() async {
+    setState(() {
+      _loadingQuant = true;
+      _errQuant = null;
+    });
+    try {
+      final d = await _repo.getQuantScores(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _quant = d;
+        _loadingQuant = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errQuant = e;
+        _loadingQuant = false;
+      });
+    }
   }
 
   Future<void> _loadTechnical() async {
@@ -400,6 +427,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             isGuest ? _guestTab() : _buildValuation(),
             isGuest ? _guestTab() : _buildValueChain(),
             isGuest ? _guestTab() : _buildHealth(),
+            isGuest ? _guestTab() : _buildQuant(),
           ],
         ),
       ),
@@ -625,6 +653,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
           Tab(text: 'Định giá'),
           Tab(text: 'Chuỗi GT'),
           Tab(text: 'Sức khỏe'),
+          Tab(text: 'Định lượng'),
         ],
       ),
     );
@@ -1574,6 +1603,52 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
           ),
         ),
       ],
+    );
+  }
+
+  // ---------- Tab 5: Định lượng ----------
+  Widget _buildQuant() {
+    if (_loadingQuant) {
+      return ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          FwSkeleton(height: 110, radius: AppRadius.lg),
+          const SizedBox(height: AppSpacing.lg),
+          FwSkeleton(height: 160, radius: AppRadius.lg),
+          const SizedBox(height: AppSpacing.lg),
+          FwSkeleton(height: 160, radius: AppRadius.lg),
+        ],
+      );
+    }
+    if (_errQuant != null && _quant == null) {
+      return _SectionError(message: 'Không tải được dữ liệu định lượng', onRetry: _loadQuant);
+    }
+
+    final q = _quant;
+    if (q == null) {
+      return const Center(
+        child: Text('Chưa có dữ liệu định lượng', style: TextStyle(color: AppColors.darkTextMuted)),
+      );
+    }
+
+    final wealth = q['wealth'] as Map? ?? {};
+    final fa = q['fa'] as Map? ?? {};
+    final ta = q['ta'] as Map? ?? {};
+
+    return RefreshIndicator(
+      onRefresh: _loadQuant,
+      color: AppColors.brandPrimary,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          _QuantWealthCard(wealth: wealth),
+          const SizedBox(height: AppSpacing.lg),
+          _QuantFaCard(fa: fa),
+          const SizedBox(height: AppSpacing.lg),
+          _QuantTaCard(ta: ta),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
     );
   }
 
@@ -2529,6 +2604,335 @@ class _ChartPeriodBtn extends StatelessWidget {
     );
   }
 }
+
+// ── Quant Widgets ─────────────────────────────────────────────────────────────
+
+double? _toOptD(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v);
+  return null;
+}
+
+String _qFmt(dynamic v) => _toOptD(v)?.toStringAsFixed(1) ?? '—';
+
+class _QuantWealthCard extends StatelessWidget {
+  final Map wealth;
+  const _QuantWealthCard({required this.wealth});
+
+  Color _labelColor(String? label) {
+    if (label == null) return AppColors.darkTextMuted;
+    if (label.contains('Hội tụ')) return AppColors.goldenAccent;
+    if (label.contains('Sóng') || label.contains('Giá trị đang nổi')) return AppColors.successDark;
+    if (label.contains('Tiềm năng') || label.contains('Chờ')) return AppColors.warningDark;
+    return AppColors.darkTextMuted;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final score = _toOptD(wealth['score']);
+    final fa = _toOptD(wealth['fa_score']);
+    final ta = _toOptD(wealth['ta_score']);
+    final label = wealth['strength_label'] as String?;
+    final faLabel = wealth['fa_label'] as String?;
+    final taLabel = wealth['ta_label'] as String?;
+    final date = wealth['date'] as String?;
+    final labelColor = _labelColor(label);
+
+    return FwCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.auto_awesome, size: 14, color: AppColors.goldenAccent),
+            const SizedBox(width: 6),
+            Text('WealthScore', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (date != null)
+              Text(date, style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            // Score tổng
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(score != null ? score.toStringAsFixed(1) : '—',
+                  style: TextStyle(
+                      fontSize: 36, fontWeight: FontWeight.bold,
+                      color: score != null && score >= 65 ? AppColors.successDark
+                          : score != null && score >= 50 ? AppColors.brandPrimaryDark
+                          : score != null && score >= 35 ? AppColors.warningDark
+                          : AppColors.dangerDark)),
+              const Text('/100', style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12)),
+            ]),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (label != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: labelColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: labelColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(label,
+                        style: TextStyle(color: labelColor, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _ScorePill('FA', _qFmt(fa), faLabel, AppColors.brandSecondaryDark),
+                  const SizedBox(width: 8),
+                  _ScorePill('TA', _qFmt(ta), taLabel, AppColors.brandPrimaryDark),
+                ]),
+              ]),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScorePill extends StatelessWidget {
+  final String type;
+  final String score;
+  final String? label;
+  final Color color;
+  const _ScorePill(this.type, this.score, this.label, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(type, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+        Text(score, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
+        if (label != null)
+          Text(label!, style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 9)),
+      ]),
+    );
+  }
+}
+
+class _QuantFaCard extends StatelessWidget {
+  final Map fa;
+  const _QuantFaCard({required this.fa});
+
+  @override
+  Widget build(BuildContext context) {
+    final pillars = <(String, dynamic, Color)>[
+      ('Tăng trưởng', fa['growth'], AppColors.successDark),
+      ('Chất lượng', fa['quality'], AppColors.brandPrimaryDark),
+      ('Sức khỏe TC', fa['health'], AppColors.brandSecondaryDark),
+      ('Định giá', fa['valuation'], AppColors.warningDark),
+    ];
+    return FwCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(children: [
+            const Icon(Icons.business_outlined, size: 14, color: AppColors.brandSecondaryDark),
+            const SizedBox(width: 6),
+            Text('FA Score — Cơ bản', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                  color: AppColors.brandSecondaryDark.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text(_qFmt(fa['score']),
+                  style: const TextStyle(
+                      color: AppColors.brandSecondaryDark,
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            if (fa['label'] != null) ...[
+              const SizedBox(width: 6),
+              Text(fa['label'] as String,
+                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+            ],
+          ]),
+        ),
+        const Divider(height: 1, color: AppColors.darkBorder),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(children: [
+            for (final p in pillars) ...[
+              _QuantPillarRow(label: p.$1, value: _toOptD(p.$2), color: p.$3),
+              const SizedBox(height: 10),
+            ],
+            if (fa['data_coverage'] != null)
+              Row(children: [
+                const Icon(Icons.info_outline, size: 12, color: AppColors.darkTextMuted),
+                const SizedBox(width: 4),
+                Text('Độ phủ dữ liệu: ${fa['data_coverage']}%',
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              ]),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _QuantTaCard extends StatelessWidget {
+  final Map ta;
+  const _QuantTaCard({required this.ta});
+
+  @override
+  Widget build(BuildContext context) {
+    final pillars = <(String, dynamic, Color)>[
+      ('Xu hướng', ta['trend'], AppColors.brandPrimaryDark),
+      ('Động lực', ta['momentum'], AppColors.successDark),
+      ('Khối lượng', ta['volume'], AppColors.brandSecondaryDark),
+      ('Vị thế giá', ta['position'], AppColors.warningDark),
+    ];
+    final divergence = ta['divergence_signal'] as String?;
+    final reversalRisk = ta['reversal_risk'] == true;
+    final entropy = _toOptD(ta['entropy_multiplier']);
+
+    return FwCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(children: [
+            const Icon(Icons.show_chart, size: 14, color: AppColors.brandPrimaryDark),
+            const SizedBox(width: 6),
+            Text('TA Score — Kỹ thuật', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                  color: AppColors.brandPrimaryDark.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text(_qFmt(ta['score']),
+                  style: const TextStyle(
+                      color: AppColors.brandPrimaryDark,
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            if (ta['label'] != null) ...[
+              const SizedBox(width: 6),
+              Text(ta['label'] as String,
+                  style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+            ],
+          ]),
+        ),
+        const Divider(height: 1, color: AppColors.darkBorder),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final p in pillars) ...[
+              _QuantPillarRow(label: p.$1, value: _toOptD(p.$2), color: p.$3),
+              const SizedBox(height: 10),
+            ],
+            // Signals
+            if (divergence != null || reversalRisk || entropy != null) ...[
+              const Divider(height: 16, color: AppColors.darkBorder),
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                if (divergence != null)
+                  _SignalChip(
+                    label: 'Phân kỳ: $divergence',
+                    color: divergence == 'bullish' ? AppColors.successDark : AppColors.dangerDark,
+                    icon: divergence == 'bullish' ? Icons.trending_up : Icons.trending_down,
+                  ),
+                if (reversalRisk)
+                  const _SignalChip(
+                    label: 'Rủi ro đảo chiều',
+                    color: AppColors.dangerDark,
+                    icon: Icons.warning_amber_rounded,
+                  ),
+                if (entropy != null)
+                  _SignalChip(
+                    label: 'Entropy ×${entropy.toStringAsFixed(2)}',
+                    color: AppColors.darkTextMuted,
+                    icon: Icons.blur_on,
+                  ),
+              ]),
+            ],
+            if (ta['data_coverage'] != null) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                const Icon(Icons.info_outline, size: 12, color: AppColors.darkTextMuted),
+                const SizedBox(width: 4),
+                Text('Độ phủ dữ liệu: ${ta['data_coverage']}%',
+                    style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+              ]),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _QuantPillarRow extends StatelessWidget {
+  final String label;
+  final double? value;
+  final Color color;
+  const _QuantPillarRow({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      SizedBox(
+        width: 80,
+        child: Text(label, style: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 13)),
+      ),
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: value != null ? (value! / 100).clamp(0.0, 1.0) : 0,
+            minHeight: 8,
+            backgroundColor: AppColors.darkBorder,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 36,
+        child: Text(
+          value != null ? value!.toStringAsFixed(1) : '—',
+          textAlign: TextAlign.right,
+          style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _SignalChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+  const _SignalChip({required this.label, required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
+}
+
+// ── Section error / helpers ────────────────────────────────────────────────────
 
 class _SectionError extends StatelessWidget {
   final String message;

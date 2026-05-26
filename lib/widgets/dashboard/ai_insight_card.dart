@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
-import '../common/fw_badge.dart';
 import '../common/fw_mini_button.dart';
 
 enum MarketSentiment { bullish, neutral, bearish }
@@ -14,6 +13,7 @@ class AiInsightCard extends StatelessWidget {
   final String publishedAt;
   final VoidCallback? onReadMore;
   final VoidCallback? onAskAI;
+  final VoidCallback? onViewMarket;
 
   const AiInsightCard({
     super.key,
@@ -25,6 +25,7 @@ class AiInsightCard extends StatelessWidget {
     required this.publishedAt,
     this.onReadMore,
     this.onAskAI,
+    this.onViewMarket,
   });
 
   @override
@@ -33,10 +34,10 @@ class AiInsightCard extends StatelessWidget {
     final positive = vnIndexChangePct >= 0;
     final changeColor =
         positive ? AppColors.successDark : AppColors.dangerDark;
-    final (sentimentLabel, sentimentTone) = switch (sentiment) {
-      MarketSentiment.bullish => ('Tươi sáng', FwBadgeTone.success),
-      MarketSentiment.neutral => ('Trung lập', FwBadgeTone.warning),
-      MarketSentiment.bearish => ('Bi quan', FwBadgeTone.danger),
+    final sentimentColor = switch (sentiment) {
+      MarketSentiment.bullish => AppColors.successDark,
+      MarketSentiment.neutral => AppColors.warningDark,
+      MarketSentiment.bearish => AppColors.dangerDark,
     };
 
     return Container(
@@ -97,7 +98,34 @@ class AiInsightCard extends StatelessWidget {
                   ],
                 ),
               ),
-              FwBadge(label: sentimentLabel, tone: sentimentTone),
+              GestureDetector(
+                onTap: onViewMarket,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: sentimentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: sentimentColor.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.show_chart, size: 12, color: sentimentColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Đánh giá Thị trường',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: sentimentColor,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(Icons.arrow_forward_ios, size: 9, color: sentimentColor),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),

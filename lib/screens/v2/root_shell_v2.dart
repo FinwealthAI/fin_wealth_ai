@@ -12,8 +12,9 @@ import 'chat_screen_v2.dart';
 import 'home_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
 import 'margin_screen_v2.dart';
+import 'market_evaluation_screen_v2.dart';
 import 'profile_screen_v2.dart';
-import 'reports_screen_v2.dart';
+// import 'reports_screen_v2.dart';
 import 'screener_screen_v2.dart';
 import 'strategy_screen_v2.dart';
 import '../../widgets/dashboard/profile_bar.dart';
@@ -36,6 +37,10 @@ class RootShellNav {
   static void goStrategy() {
     key.currentState?.setIndex(1);
   }
+
+  static void goMarket() {
+    key.currentState?.setIndex(3);
+  }
 }
 
 class RootShellV2 extends StatefulWidget {
@@ -52,7 +57,7 @@ class RootShellV2State extends State<RootShellV2> {
     HomeScreenV2(onOpenChat: _openChat),
     const StrategyScreenV2(),
     const BlogScreenV2(),
-    const ReportsScreenV2(),
+    const MarketEvaluationScreenV2(),
     const _MoreMenuScreenV2(),
   ];
 
@@ -104,10 +109,10 @@ class RootShellV2State extends State<RootShellV2> {
             label: 'Blog',
           ),
           NavigationDestination(
-            icon: Icon(Icons.description_outlined),
+            icon: Icon(Icons.show_chart_outlined),
             selectedIcon:
-                Icon(Icons.description, color: AppColors.brandPrimaryDark),
-            label: 'Báo cáo',
+                Icon(Icons.show_chart, color: AppColors.brandPrimaryDark),
+            label: 'Thị trường',
           ),
           NavigationDestination(
             icon: Icon(Icons.grid_view_outlined),

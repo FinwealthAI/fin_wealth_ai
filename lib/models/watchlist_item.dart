@@ -7,6 +7,8 @@ class WatchlistItem {
   final double? changePercent;
   final String? faTier;
   final String? taTier;
+  final String? faLabel;
+  final String? taLabel;
   final String? strengthLabel;
 
   WatchlistItem({
@@ -18,6 +20,8 @@ class WatchlistItem {
     this.changePercent,
     this.faTier,
     this.taTier,
+    this.faLabel,
+    this.taLabel,
     this.strengthLabel,
   });
 
@@ -31,6 +35,8 @@ class WatchlistItem {
       changePercent: json['change_percent'] != null ? (json['change_percent'] as num).toDouble() : null,
       faTier: json['fa_tier'] as String?,
       taTier: json['ta_tier'] as String?,
+      faLabel: json['fa_label'] as String?,
+      taLabel: json['ta_label'] as String?,
       strengthLabel: json['strength_label'] as String?,
     );
   }

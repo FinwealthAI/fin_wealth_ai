@@ -13,6 +13,7 @@ import 'package:fin_wealth/respositories/search_stock_repository.dart';
 import 'package:fin_wealth/respositories/watchlist_repository.dart';
 import 'package:fin_wealth/respositories/blog_repository.dart';
 import 'package:fin_wealth/respositories/strategy_repository.dart';
+import 'package:fin_wealth/respositories/market_evaluation_repository.dart';
 
 // Blocs
 import 'package:fin_wealth/blocs/auth/auth_bloc.dart';
@@ -145,6 +146,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         RepositoryProvider(create: (_) => WatchlistRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => BlogRepository(widget.dio)),
         RepositoryProvider(create: (_) => StrategyRepository(dio: widget.dio)),
+        RepositoryProvider(create: (_) => MarketEvaluationRepository(dio: widget.dio)),
       ],
       child: MultiBlocProvider(
         providers: [
