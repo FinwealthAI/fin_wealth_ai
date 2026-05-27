@@ -207,6 +207,7 @@ class StrategyCardData {
   final String? exitLogicDesc;
   final bool hasAutoExit;
   final Map<String, dynamic>? backtestMetrics;
+  final String? screenerRunAt;
 
   StrategyCardData({
     required this.cardId,
@@ -234,6 +235,7 @@ class StrategyCardData {
     this.exitLogicDesc,
     this.hasAutoExit = false,
     this.backtestMetrics,
+    this.screenerRunAt,
   });
 
   factory StrategyCardData.fromJson(Map<String, dynamic> json) {
@@ -292,6 +294,7 @@ class StrategyCardData {
       backtestMetrics: json['backtest_metrics'] is Map
           ? Map<String, dynamic>.from(json['backtest_metrics'] as Map)
           : null,
+      screenerRunAt: json['screener_run_at'] as String?,
     );
   }
 

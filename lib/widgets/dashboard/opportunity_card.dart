@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/theme.dart';
 import '../common/fw_mini_button.dart';
 
-enum OpportunityKind { golden, value, wave, waiting }
+enum OpportunityKind { hasSignal, golden, value, wave, waiting }
 
 class OpportunityCard extends StatelessWidget {
   final String ticker;
@@ -297,6 +297,10 @@ class OpportunityCard extends StatelessWidget {
   }
 
   static _OpportunitySpec _spec(OpportunityKind k) => switch (k) {
+        OpportunityKind.hasSignal => const _OpportunitySpec(
+            label: 'Có tín hiệu',
+            accent: AppColors.successDark,
+          ),
         OpportunityKind.golden => const _OpportunitySpec(
             label: 'Hội tụ TA + FA',
             accent: AppColors.brandPrimaryDark,

@@ -81,8 +81,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
     final dash = _dash;
     if (dash == null) return const [];
     return [
+      ...dash.wsHasSignal.map((w) => (item: w, kind: OpportunityKind.hasSignal)),
       ...dash.wsGolden.map((w) => (item: w, kind: OpportunityKind.golden)),
-      ...dash.wsRising.map((w) => (item: w, kind: OpportunityKind.value)),
       ...dash.wsWave.map((w) => (item: w, kind: OpportunityKind.wave)),
       ...dash.wsValue.map((w) => (item: w, kind: OpportunityKind.waiting)),
     ];
@@ -189,37 +189,25 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             ),
           ),
           if (_tab == 0 && wsAll.isNotEmpty)
-            OpportunityFilterBar(
-              activeIndex: _opFilter,
-              onChanged: (i) => setState(() => _opFilter = i),
-              items: [
-                (kind: null, count: wsAll.length),
-                (
-                  kind: OpportunityKind.golden,
-                  count: wsAll
-                      .where((e) => e.kind == OpportunityKind.golden)
-                      .length
-                ),
-                (
-                  kind: OpportunityKind.value,
-                  count: wsAll
-                      .where((e) => e.kind == OpportunityKind.value)
-                      .length
-                ),
-                (
-                  kind: OpportunityKind.wave,
-                  count: wsAll
-                      .where((e) => e.kind == OpportunityKind.wave)
-                      .length
-                ),
-                (
-                  kind: OpportunityKind.waiting,
-                  count: wsAll
-                      .where((e) => e.kind == OpportunityKind.waiting)
-                      .length
-                ),
-              ],
-            ),
+            Builder(builder: (context) {
+              final dash = _dash;
+              final sigCount = dash?.wsHasSignalCount ?? 0;
+              final goldenCount = dash?.wsGoldenCount ?? 0;
+              final waveCount = dash?.wsWaveCount ?? 0;
+              final valueCount = dash?.wsValueCount ?? 0;
+              final total = sigCount + goldenCount + waveCount + valueCount;
+              return OpportunityFilterBar(
+                activeIndex: _opFilter,
+                onChanged: (i) => setState(() => _opFilter = i),
+                items: [
+                  (kind: null, count: total),
+                  (kind: OpportunityKind.hasSignal, count: sigCount),
+                  (kind: OpportunityKind.golden, count: goldenCount),
+                  (kind: OpportunityKind.wave, count: waveCount),
+                  (kind: OpportunityKind.waiting, count: valueCount),
+                ],
+              );
+            }),
           const SizedBox(height: AppSpacing.md),
           Expanded(
             child: switch (_tab) {
@@ -257,8 +245,8 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
 
     final selectedKind = const [
       null,
+      OpportunityKind.hasSignal,
       OpportunityKind.golden,
-      OpportunityKind.value,
       OpportunityKind.wave,
       OpportunityKind.waiting,
     ][_opFilter];
@@ -370,7 +358,7 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             title: s.title,
             tickers: tickers,
             signalsToday: s.tickerCount,
-            lastUpdate: s.subtitle ?? '',
+            lastUpdate: s.screenerRunAt ?? '',
             onTap: () => _openStrategyDetail(s),
             onToggleFollow: () => _toggleFollow(s),
           );

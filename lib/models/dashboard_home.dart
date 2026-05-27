@@ -26,6 +26,8 @@ class WealthScoreItem {
   final String? strengthLabel;
   final String? faLabel;
   final String? taLabel;
+  final String? faTier;
+  final String? taTier;
   final double? boostScore;
   final List<String> matchedPresetNames;
   final double? close;
@@ -39,6 +41,8 @@ class WealthScoreItem {
     this.strengthLabel,
     this.faLabel,
     this.taLabel,
+    this.faTier,
+    this.taTier,
     this.boostScore,
     this.matchedPresetNames = const [],
     this.close,
@@ -53,6 +57,8 @@ class WealthScoreItem {
         strengthLabel: j['strength_label'] as String?,
         faLabel: j['fa_label'] as String?,
         taLabel: j['ta_label'] as String?,
+        faTier: j['fa_tier'] as String?,
+        taTier: j['ta_tier'] as String?,
         boostScore: _toD(j['boost_score']),
         matchedPresetNames:
             (j['matched_preset_names'] as List?)?.map((e) => e.toString()).toList() ?? const [],
@@ -220,14 +226,17 @@ class DashboardHome {
   final List<int> shortSignalIds;
   final List<int> longSignalIds;
 
+  final List<WealthScoreItem> wsHasSignal;
   final List<WealthScoreItem> wsGolden;
   final List<WealthScoreItem> wsRising;
   final List<WealthScoreItem> wsWave;
   final List<WealthScoreItem> wsValue;
+  final int wsHasSignalCount;
   final int wsGoldenCount;
   final int wsRisingCount;
   final int wsWaveCount;
   final int wsValueCount;
+  final bool wsHasFollowedStrategies;
 
   final List<WatchlistItem> watchlist;
   final List<OpenPosition> openPositions;
@@ -250,14 +259,17 @@ class DashboardHome {
     this.expirationDate,
     this.shortSignalIds = const [],
     this.longSignalIds = const [],
+    this.wsHasSignal = const [],
     this.wsGolden = const [],
     this.wsRising = const [],
     this.wsWave = const [],
     this.wsValue = const [],
+    this.wsHasSignalCount = 0,
     this.wsGoldenCount = 0,
     this.wsRisingCount = 0,
     this.wsWaveCount = 0,
     this.wsValueCount = 0,
+    this.wsHasFollowedStrategies = false,
     this.watchlist = const [],
     this.openPositions = const [],
     this.openCount = 0,
@@ -309,14 +321,17 @@ class DashboardHome {
           ((data['short_signal_ids'] as List?) ?? const []).map((e) => _toI(e)).toList(),
       longSignalIds:
           ((data['long_signal_ids'] as List?) ?? const []).map((e) => _toI(e)).toList(),
+      wsHasSignal: ws('ws_has_signal'),
       wsGolden: ws('ws_golden'),
       wsRising: ws('ws_rising'),
       wsWave: ws('ws_wave'),
       wsValue: ws('ws_value'),
+      wsHasSignalCount: _toI(data['ws_has_signal_count']),
       wsGoldenCount: _toI(data['ws_golden_count']),
       wsRisingCount: _toI(data['ws_rising_count']),
       wsWaveCount: _toI(data['ws_wave_count']),
       wsValueCount: _toI(data['ws_value_count']),
+      wsHasFollowedStrategies: data['ws_has_followed_strategies'] == true,
       watchlist: ((data['watchlist'] as List?) ?? const [])
           .whereType<Map>()
           .map((e) {
