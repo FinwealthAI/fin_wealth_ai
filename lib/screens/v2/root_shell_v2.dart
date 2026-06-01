@@ -6,7 +6,6 @@ import '../../respositories/auth_repository.dart';
 import 'upgrade_screen_v2.dart';
 import '../../config/api_config.dart' show kLowPointsThreshold;
 import '../../theme/theme.dart';
-import 'ai_toolbox_screen_v2.dart';
 import 'blog_screen_v2.dart';
 import 'chat_screen_v2.dart';
 import 'home_screen_v2.dart';
@@ -31,7 +30,7 @@ class RootShellNav {
   }
 
   static void goMore() {
-    key.currentState?.setIndex(4);
+    key.currentState?.setIndex(3);
   }
 
   static void goStrategy() {
@@ -39,7 +38,7 @@ class RootShellNav {
   }
 
   static void goMarket() {
-    key.currentState?.setIndex(3);
+    key.currentState?.setIndex(2);
   }
 }
 
@@ -56,7 +55,6 @@ class RootShellV2State extends State<RootShellV2> {
   late final _tabs = <Widget>[
     HomeScreenV2(onOpenChat: _openChat),
     const StrategyScreenV2(),
-    const BlogScreenV2(),
     const MarketEvaluationScreenV2(),
     const _MoreMenuScreenV2(),
   ];
@@ -72,17 +70,11 @@ class RootShellV2State extends State<RootShellV2> {
     );
   }
 
-  void _openToolbox() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AiToolboxScreenV2()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
-      floatingActionButton: _MrWealthFab(onTap: _openToolbox),
+      floatingActionButton: _MrWealthFab(onTap: _openChat),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -97,21 +89,15 @@ class RootShellV2State extends State<RootShellV2> {
             label: 'Trang chủ',
           ),
           NavigationDestination(
-            icon: Icon(Icons.trending_up_outlined),
+            icon: Icon(Icons.rocket_launch_outlined),
             selectedIcon:
-                Icon(Icons.trending_up, color: AppColors.brandPrimaryDark),
+                Icon(Icons.rocket_launch, color: AppColors.brandPrimaryDark),
             label: 'Chiến lược',
           ),
           NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
+            icon: Icon(Icons.speed_outlined),
             selectedIcon:
-                Icon(Icons.menu_book, color: AppColors.brandPrimaryDark),
-            label: 'Blog',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.show_chart_outlined),
-            selectedIcon:
-                Icon(Icons.show_chart, color: AppColors.brandPrimaryDark),
+                Icon(Icons.speed, color: AppColors.brandPrimaryDark),
             label: 'Thị trường',
           ),
           NavigationDestination(
@@ -221,6 +207,11 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    _MenuItem(
+                      'Blog',
+                      Icons.menu_book_outlined,
+                      onTap: () => _push(context, const BlogScreenV2()),
+                    ),
                     _MenuItem(
                       'Lọc cổ phiếu',
                       Icons.tune_outlined,

@@ -1,252 +1,275 @@
-import 'package:dio/dio.dart';
-import 'package:fin_wealth/config/api_config.dart';
 import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/api_config.dart';
+import '../models/chat_models.dart';
+
+/// Service cho phần Chat V3 — nói chuyện với Agent V2 backend (`/api/chat/...`).
+///
+/// Điểm khác V2: `sendMessage` cũ chỉ trả `Response` rồi để màn hình tự parse.
+/// V3 cung cấp `streamMessage(...)` trả `Stream<Map>` đã decode sẵn từng sự kiện
+/// SSE (`{type: classify}`, `{type: agent_start}`, `{answer: ...}`, ...), kèm
+/// sự kiện kết thúc `{'type': '__done__'}`.
 class ChatHistoryService {
-  static final Dio _dio = Dio(BaseOptions(
-    baseUrl: ApiConfig.baseUrl,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  ));
+  static final Dio _dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
 
-  static const String _conversationKey = 'user_conversation';
+  static Options _opts({String? token, ResponseType? responseType}) => Options(
+        responseType: responseType,
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      );
 
-  /// Gửi tin nhắn chat
-  static Future<Response> sendMessage({
+  // ---------------------------------------------------------------------------
+  // Gửi tin nhắn — stream SSE đã decode
+  // ---------------------------------------------------------------------------
+
+  /// Gửi câu hỏi tới Agent V2 và stream các sự kiện đã decode.
+  ///
+  /// Mỗi phần tử là 1 object JSON từ dòng `data: {...}`. Khi gặp `data: [DONE]`
+  /// sẽ phát `{'type': '__done__'}` rồi kết thúc stream.
+  static Stream<Map<String, dynamic>> streamMessage({
     required String message,
-    required String username,
     String? conversationId,
+    ChatMode mode = ChatMode.flash,
     Map<String, dynamic>? inputs,
     String? token,
-  }) async {
-    final options = Options(
-      responseType: ResponseType.stream,
-      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
-    );
-
-    return _dio.post(
+  }) async* {
+    final response = await _dio.post(
       '/api/chat/send/',
       data: {
         'query': message,
-        'user': username,
-        'inputs': inputs ?? {},
         'conversation_id': conversationId,
-        'response_mode': 'streaming',
+        'mode': mode.wire,
+        'inputs': inputs ?? const {},
       },
-      options: options,
+      options: _opts(token: token, responseType: ResponseType.stream),
+    );
+
+    final stream = (response.data.stream as Stream)
+        .cast<List<int>>()
+        .transform(utf8.decoder);
+
+    final partial = StringBuffer();
+
+    Map<String, dynamic>? decode(String raw) {
+      final clean = raw.trim();
+      if (!clean.startsWith('data:')) return null;
+      final dataStr = clean.substring(clean.indexOf(':') + 1).trim();
+      if (dataStr.isEmpty) return null;
+      if (dataStr == '[DONE]') return {'type': '__done__'};
+      try {
+        final j = jsonDecode(dataStr);
+        if (j is Map<String, dynamic>) return j;
+      } catch (_) {}
+      return null;
+    }
+
+    await for (final chunk in stream) {
+      partial.write(chunk);
+      final lines = partial.toString().split('\n');
+      // Giữ lại đoạn cuối (có thể là dòng JSON chưa hoàn chỉnh).
+      partial
+        ..clear()
+        ..write(lines.removeLast());
+      for (final line in lines) {
+        final event = decode(line);
+        if (event == null) continue;
+        yield event;
+        if (event['type'] == '__done__') return;
+      }
+    }
+
+    // Flush phần còn lại sau khi stream đóng.
+    final leftover = decode(partial.toString());
+    if (leftover != null && leftover['type'] != '__done__') {
+      yield leftover;
+    }
+    yield {'type': '__done__'};
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stop / Feedback
+  // ---------------------------------------------------------------------------
+
+  /// Dừng việc generate response (backend hủy task theo `task_id`).
+  static Future<void> stopGenerate({
+    required String taskId,
+    String? token,
+  }) async {
+    await _dio.post(
+      '/api/chat/stop/',
+      data: {'task_id': taskId},
+      options: _opts(token: token),
     );
   }
 
-  /// Dừng generate tin nhắn
-  static Future<void> stopGenerate({
-    required String taskId,
-    required String username,
-    String? token,
-  }) async {
-    try {
-      await _dio.post(
-        '/api/chat/stop/',
-        data: {
-          'task_id': taskId,
-          'user': username,
-        },
-        options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
-      );
-    } catch (e) {
-      print('Lỗi dừng generate: $e');
-    }
-  }
-
-  /// Gửi feedback cho tin nhắn
+  /// Gửi feedback (like/dislike) cho tin nhắn.
   static Future<void> sendFeedback({
     required String messageId,
-    required String rating, // 'like' or 'dislike'
-    required String username,
+    required String rating, // 'like' | 'dislike'
+    String? comment,
     String? token,
   }) async {
-    try {
-      await _dio.post(
-        '/api/chat/feedback/',
-        data: {
-          'message_id': messageId,
-          'rating': rating,
-          'user': username,
-        },
-        options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
-      );
-    } catch (e) {
-      if (e is DioException) {
-        print('Lỗi gửi feedback: ${e.message}');
-        print('Response data: ${e.response?.data}');
-      } else {
-        print('Lỗi gửi feedback: $e');
-      }
-    }
+    await _dio.post(
+      '/api/chat/feedback/',
+      data: {
+        'message_id': messageId,
+        'rating': rating,
+        if (comment != null) 'comment': comment,
+      },
+      options: _opts(token: token),
+    );
   }
 
-  /// Tải lịch sử chat từ API
-  static Future<List<Map<String, dynamic>>> loadChatHistory(
-    String username, {
-    String? conversationId,
-    String? token,
-  }) async {
-    try {
-      String path = '/api/chat/conversations/messages/';
-      if (conversationId != null && conversationId.isNotEmpty) {
-        path = '/api/chat/conversations/$conversationId/messages/';
-      }
+  // ---------------------------------------------------------------------------
+  // Conversations
+  // ---------------------------------------------------------------------------
 
-      final response = await _dio.get(
-        path,
-        queryParameters: {
-          'user': username,
-        },
-        options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
-      );
-
-      if (response.data != null && response.data['data'] is List) {
-        final List<dynamic> data = response.data['data'];
-        final List<Map<String, dynamic>> messages = [];
-
-        for (final item in data) {
-          if (item['query'] != null && item['query'].toString().isNotEmpty) {
-            messages.add({
-              'role': 'user',
-              'content': item['query'],
-              'id': item['id'],
-              'conversation_id': item['conversation_id'],
-            });
-          }
-
-          if (item['answer'] != null && item['answer'].toString().isNotEmpty) {
-            messages.add({
-              'role': 'assistant',
-              'content': item['answer'],
-              'id': item['id'],
-              'conversation_id': item['conversation_id'],
-            });
-          }
-        }
-        return messages;
-      }
-      return [];
-    } catch (e) {
-      print('Lỗi khi tải lịch sử chat từ API: $e');
-      return [];
-    }
-  }
-
-  /// Xóa cuộc hội thoại
-  static Future<void> clearChatHistory(String username, String conversationId, {String? token}) async {
-    if (conversationId.isEmpty) return;
-    try {
-      await _dio.delete(
-        '/api/chat/conversations/$conversationId/delete/',
-        data: {
-          'user': username,
-        },
-        options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
-      );
-    } catch (e) {
-      print('Lỗi khi xóa conversation $conversationId: $e');
-      rethrow;
-    }
-  }
-
-  /// Lấy danh sách conversations của user
-  static Future<List<Map<String, dynamic>>> getUserConversations(
-    String username, {
-    int limit = 20,
+  /// Danh sách hội thoại của user.
+  static Future<List<ChatConversationSummary>> listConversations({
+    int limit = 30,
     String? token,
   }) async {
     try {
       final response = await _dio.get(
         '/api/chat/conversations/',
-        queryParameters: {
-          'user': username,
-          'limit': limit,
-        },
-        options: token != null ? Options(headers: {'Authorization': 'Bearer $token'}) : null,
+        queryParameters: {'limit': limit},
+        options: _opts(token: token),
       );
-
-      if (response.data != null && response.data['data'] is List) {
-        return List<Map<String, dynamic>>.from(response.data['data']);
-      }
-      return [];
-    } catch (e) {
-      print('Lỗi khi lấy danh sách conversations: $e');
-      return [];
+      final data = response.data?['data'] as List? ?? const [];
+      return data
+          .map((e) =>
+              ChatConversationSummary.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return const [];
     }
   }
 
-  /// Lấy conversation mới nhất
-  static Future<String?> getLatestConversationId(String username, {String? token}) async {
+  /// Tải lịch sử tin nhắn (đã chuẩn hoá thành list role/content).
+  static Future<List<Map<String, dynamic>>> loadChatHistory({
+    String? conversationId,
+    String? token,
+  }) async {
+    String path = '/api/chat/conversations/messages/';
+    if (conversationId != null && conversationId.isNotEmpty) {
+      path = '/api/chat/conversations/$conversationId/messages/';
+    }
+
+    final response = await _dio.get(path, options: _opts(token: token));
+
+    final List<Map<String, dynamic>> messages = [];
+    final data = response.data?['data'] as List?;
+    if (data != null) {
+      for (final item in data) {
+        if (item['query'] != null && item['query'].toString().isNotEmpty) {
+          messages.add({
+            'role': 'user',
+            'content': item['query'],
+            'id': item['id'],
+          });
+        }
+        if (item['answer'] != null && item['answer'].toString().isNotEmpty) {
+          messages.add({
+            'role': 'assistant',
+            'content': item['answer'],
+            'id': item['id'],
+          });
+        }
+      }
+    }
+    return messages;
+  }
+
+  /// Đổi tên hội thoại.
+  static Future<void> renameConversation(
+    String conversationId,
+    String name, {
+    String? token,
+  }) async {
+    await _dio.post(
+      '/api/chat/conversations/$conversationId/rename/',
+      data: {'name': name},
+      options: _opts(token: token),
+    );
+  }
+
+  /// Xóa hội thoại.
+  static Future<void> deleteConversation(
+    String conversationId, {
+    String? token,
+  }) async {
+    await _dio.delete(
+      '/api/chat/conversations/$conversationId/delete/',
+      options: _opts(token: token),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Valid tickers (cho ticker detection trong ô nhập)
+  // ---------------------------------------------------------------------------
+
+  static List<String>? _tickerCache;
+
+  static Future<List<String>> getValidTickers({String? token}) async {
+    if (_tickerCache != null) return _tickerCache!;
     try {
-      final conversations = await getUserConversations(username, limit: 1, token: token);
-      if (conversations.isNotEmpty) {
-        return conversations.first['id'];
-      }
-      return null;
-    } catch (e) {
-      print('Lỗi khi lấy conversation mới nhất: $e');
-      return null;
+      final response = await _dio.get(
+        '/api/chat/valid-tickers/',
+        options: _opts(token: token),
+      );
+      final list = (response.data?['tickers'] as List?)
+              ?.map((e) => e.toString().toUpperCase())
+              .toList() ??
+          <String>[];
+      _tickerCache = list;
+      return list;
+    } catch (_) {
+      return _tickerCache ?? const [];
     }
   }
 
-  /// Lấy conversation_id đã lưu cho user
+  // ---------------------------------------------------------------------------
+  // Conversation id persistence (per user)
+  // ---------------------------------------------------------------------------
+
+  static String _key(String username) => 'user_conversation_$username';
+
+  static Future<void> saveConversationId(
+      String username, String conversationId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key(username), conversationId);
+  }
+
   static Future<String?> getSavedConversationId(String username) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userKey = '${_conversationKey}_$username';
-      return prefs.getString(userKey);
-    } catch (e) {
-      print('Lỗi khi lấy conversation_id đã lưu: $e');
-      return null;
-    }
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_key(username));
   }
 
-  /// Lưu conversation_id cho user
-  static Future<void> saveConversationId(String username, String conversationId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userKey = '${_conversationKey}_$username';
-      await prefs.setString(userKey, conversationId);
-    } catch (e) {
-      print('Lỗi khi lưu conversation_id: $e');
-    }
-  }
-
-  /// Xóa conversation_id đã lưu
   static Future<void> clearSavedConversationId(String username) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userKey = '${_conversationKey}_$username';
-      await prefs.remove(userKey);
-    } catch (e) {
-      print('Lỗi khi xóa conversation_id: $e');
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key(username));
   }
 
-  /// Lấy hoặc tạo conversation_id cho user
-  static Future<String> getOrCreateConversationId(String username, {String? token}) async {
-    try {
-      String? savedId = await getSavedConversationId(username);
-      if (savedId != null && savedId.isNotEmpty) {
-        return savedId;
-      }
+  static Future<String?> getLatestConversationId({String? token}) async {
+    final convs = await listConversations(limit: 1, token: token);
+    return convs.isNotEmpty ? convs.first.id : null;
+  }
 
-      String? latestId = await getLatestConversationId(username, token: token);
-      if (latestId != null && latestId.isNotEmpty) {
-        await saveConversationId(username, latestId);
-        return latestId;
-      }
+  /// Lấy conversation id đã lưu, nếu chưa có thì lấy hội thoại mới nhất.
+  static Future<String> getOrCreateConversationId(
+    String username, {
+    String? token,
+  }) async {
+    final savedId = await getSavedConversationId(username);
+    if (savedId != null && savedId.isNotEmpty) return savedId;
 
-      return '';
-    } catch (e) {
-      print('Lỗi khi lấy/tạo conversation_id: $e');
-      return '';
+    final latestId = await getLatestConversationId(token: token);
+    if (latestId != null && latestId.isNotEmpty) {
+      await saveConversationId(username, latestId);
+      return latestId;
     }
+    return '';
   }
 }
