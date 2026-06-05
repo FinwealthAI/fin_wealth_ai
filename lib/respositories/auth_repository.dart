@@ -384,6 +384,9 @@ class AuthRepository {
     _logoutController.add(null);
   }
 
+  /// Bước 1 đăng ký: validate + gửi OTP tới email. KHÔNG tạo tài khoản ở bước
+  /// này. Trả về true nếu OTP đã gửi. Sau đó hiển thị màn hình nhập OTP rồi gọi
+  /// [verifySignupOtp] để hoàn tất và nhận JWT. (Đồng nhất với luồng web.)
   Future<bool> signUp({
     required String firstName,
     required String lastName,
@@ -393,60 +396,90 @@ class AuthRepository {
     required String confirmPassword,
     String? referralCode,
   }) async {
-    try {
-      final data = <String, dynamic>{
-        'first_name': firstName,
-        'last_name': lastName,
-        'email': email,
-        'phone': phone,
-        'password': password,
-        'password_confirm': confirmPassword,
-        'role': 'investor',
-      };
-      if (referralCode != null && referralCode.trim().isNotEmpty) {
-        data['referral_code'] = referralCode.trim();
-      }
-      final response = await dio.post(
-        ApiConfig.signup,
-        data: data,
-        options: Options(
-          contentType: Headers.jsonContentType,
-          validateStatus: (status) => status != null && status < 500,
-        ),
-      );
-
-      print('SignUp Response Status: ${response.statusCode}');
-      print('SignUp Response Data: ${response.data}');
-      
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        // Save JWT tokens
-        _accessToken = response.data['access'] as String;
-        _refreshToken = response.data['refresh'] as String;
-        
-        // Set authorization header
-        dio.options.headers['Authorization'] = 'Bearer $_accessToken';
-        
-        // Get user data
-        final user = response.data['user'] as Map<String, dynamic>;
-        _username = user['username'];
-        _totalPoints = user['point'] ?? 0;
-        _avatar = user['avatar'];
-        
-        // Save tokens
-        await _saveTokens();
-        
-        return true;
-      } else if (response.statusCode == 400) {
-        // Validation error
-        final error = response.data['error'] ?? 'Đăng ký thất bại';
-        throw Exception(error);
-      }
-      
-      return false;
-    } catch (e) {
-      print('SignUp Error: $e');
-      rethrow;
+    final data = <String, dynamic>{
+      'first_name': firstName,
+      'last_name': lastName,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'password_confirm': confirmPassword,
+      'role': 'investor',
+    };
+    if (referralCode != null && referralCode.trim().isNotEmpty) {
+      data['referral_code'] = referralCode.trim();
     }
+    final response = await dio.post(
+      ApiConfig.signup,
+      data: data,
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 &&
+        response.data is Map &&
+        response.data['otp_required'] == true) {
+      return true;
+    }
+
+    final error = (response.data is Map ? response.data['error'] : null) ??
+        'Đăng ký thất bại';
+    throw Exception(error);
+  }
+
+  /// Bước 2 đăng ký: xác thực OTP → backend tạo tài khoản → lưu JWT.
+  /// Trả về user map (giống googleSignIn / authenticate).
+  Future<Map<String, dynamic>> verifySignupOtp({
+    required String email,
+    required String otp,
+  }) async {
+    final response = await dio.post(
+      ApiConfig.signupVerifyOtp,
+      data: {'email': email, 'otp': otp},
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      _accessToken = response.data['access'] as String;
+      _refreshToken = response.data['refresh'] as String;
+      dio.options.headers['Authorization'] = 'Bearer $_accessToken';
+
+      final user = response.data['user'] as Map<String, dynamic>;
+      _username = user['username'];
+      _totalPoints = user['point'] ?? 0;
+      _avatar = user['avatar'];
+      await _saveTokens();
+
+      return user;
+    }
+
+    final error = (response.data is Map ? response.data['error'] : null) ??
+        'Xác thực OTP thất bại';
+    throw Exception(error);
+  }
+
+  /// Gửi lại OTP cho phiên đăng ký. Trả về cooldown (giây) cho lần gửi kế tiếp.
+  Future<int> resendSignupOtp(String email) async {
+    final response = await dio.post(
+      ApiConfig.signupResendOtp,
+      data: {'email': email},
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      return (response.data['cooldown'] as int?) ?? 60;
+    }
+
+    final error = (response.data is Map ? response.data['error'] : null) ??
+        'Không thể gửi lại OTP';
+    throw Exception(error);
   }
 
   Future<String> forgotPassword(String emailOrUsername) async {

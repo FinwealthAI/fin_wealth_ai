@@ -57,6 +57,9 @@ class ApiConfig {
   static String get stockReports => '$api/stock-reports';
   static String get latestSignals => '$api/latest-signals/';
   static String get signup => '$api/signup/';
+  // Đăng ký mobile qua email OTP (2 bước) — đồng nhất với web
+  static String get signupVerifyOtp => '$api/signup/verify-otp/';
+  static String get signupResendOtp => '$api/signup/resend-otp/';
   static String get googleLogin => '$api/google-login/';
   static String get changePassword => '$api/change-password/';
   static String get forgotPassword => '$api/forgot-password/';

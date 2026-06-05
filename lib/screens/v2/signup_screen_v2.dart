@@ -7,6 +7,7 @@ import '../../respositories/auth_repository.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
 import '../investment_profile_screen.dart';
+import 'signup_otp_screen_v2.dart';
 
 class SignupScreenV2 extends StatefulWidget {
   const SignupScreenV2({super.key});
@@ -71,11 +72,11 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
       if (!mounted) return;
 
       if (success) {
-        Navigator.of(context).pushAndRemoveUntil(
+        // OTP đã gửi → sang màn hình nhập OTP để hoàn tất tạo tài khoản.
+        Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => const InvestmentProfileScreen(isOnboarding: true),
+            builder: (_) => SignupOtpScreenV2(email: _email.text.trim()),
           ),
-          (route) => false,
         );
       } else {
         _showError('Đăng ký thất bại. Vui lòng thử lại.');
