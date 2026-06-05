@@ -14,8 +14,10 @@ import 'margin_screen_v2.dart';
 import 'market_evaluation_screen_v2.dart';
 import 'profile_screen_v2.dart';
 // import 'reports_screen_v2.dart';
+import 'portfolio_list_screen_v2.dart';
 import 'screener_screen_v2.dart';
 import 'strategy_screen_v2.dart';
+import 'watchlist_screen_v2.dart';
 import '../../widgets/dashboard/profile_bar.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
@@ -75,38 +77,54 @@ class RootShellV2State extends State<RootShellV2> {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
       floatingActionButton: _MrWealthFab(onTap: _openChat),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        backgroundColor: AppColors.darkSurface,
-        indicatorColor: AppColors.brandPrimary.withValues(alpha: 0.18),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: AppColors.brandPrimaryDark),
-            label: 'Trang chủ',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.rocket_launch_outlined),
-            selectedIcon:
-                Icon(Icons.rocket_launch, color: AppColors.brandPrimaryDark),
-            label: 'Chiến lược',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.speed_outlined),
-            selectedIcon:
-                Icon(Icons.speed, color: AppColors.brandPrimaryDark),
-            label: 'Thị trường',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon:
-                Icon(Icons.grid_view, color: AppColors.brandPrimaryDark),
-            label: 'Khác',
-          ),
-        ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        color: AppColors.darkSurface,
+        elevation: 0,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        height: 64,
+        padding: EdgeInsets.zero,
+        child: Row(
+          children: [
+            _navItem(0, Icons.home_outlined, Icons.home, 'Trang chủ'),
+            _navItem(1, Icons.rocket_launch_outlined, Icons.rocket_launch,
+                'Chiến lược'),
+            // Khoảng trống cho nút Mr.Wealth nhô lên ở giữa.
+            const SizedBox(width: 56),
+            _navItem(2, Icons.speed_outlined, Icons.speed, 'Thị trường'),
+            _navItem(3, Icons.grid_view_outlined, Icons.grid_view, 'Khác'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(
+      int index, IconData icon, IconData activeIcon, String label) {
+    final selected = _index == index;
+    final color =
+        selected ? AppColors.brandPrimaryDark : AppColors.darkTextMuted;
+    return Expanded(
+      child: InkResponse(
+        onTap: () => setState(() => _index = index),
+        radius: 36,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(selected ? activeIcon : icon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -207,6 +225,17 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    _MenuItem(
+                      'Quản lý danh mục',
+                      Icons.account_balance_wallet_outlined,
+                      onTap: () =>
+                          _push(context, const PortfolioListScreenV2()),
+                    ),
+                    _MenuItem(
+                      'Danh sách theo dõi',
+                      Icons.bookmark_outline,
+                      onTap: () => _push(context, const WatchlistScreenV2()),
+                    ),
                     _MenuItem(
                       'Blog',
                       Icons.menu_book_outlined,
@@ -337,9 +366,9 @@ class _MrWealthFab extends StatelessWidget {
       child: Container(
         width: 64,
         height: 64,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: SweepGradient(
+          gradient: const SweepGradient(
             colors: [
               Color(0xFFFF6B35),
               Color(0xFFE91E8C),
@@ -350,6 +379,13 @@ class _MrWealthFab extends StatelessWidget {
               Color(0xFFFF6B35),
             ],
           ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9C27B0).withValues(alpha: 0.45),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(3),
         child: Container(

@@ -148,8 +148,11 @@ class ChatHistoryService {
     }
   }
 
-  /// Tải lịch sử tin nhắn (đã chuẩn hoá thành list role/content).
-  static Future<List<Map<String, dynamic>>> loadChatHistory({
+  /// Tải lịch sử tin nhắn + trạng thái giới hạn hội thoại.
+  ///
+  /// `limitStatus`: 'locked' (đã khóa) | 'warning' (sắp đầy) | null/khác.
+  static Future<({List<Map<String, dynamic>> messages, String? limitStatus})>
+      loadChatHistory({
     String? conversationId,
     String? token,
   }) async {
@@ -180,7 +183,10 @@ class ChatHistoryService {
         }
       }
     }
-    return messages;
+    return (
+      messages: messages,
+      limitStatus: response.data?['limit_status']?.toString(),
+    );
   }
 
   /// Đổi tên hội thoại.
@@ -205,6 +211,26 @@ class ChatHistoryService {
       '/api/chat/conversations/$conversationId/delete/',
       options: _opts(token: token),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hồ sơ đầu tư — cờ đã điền đủ chưa (để nhắc bổ sung trong chat)
+  // ---------------------------------------------------------------------------
+
+  /// Trả về `has_complete_profile` từ `/api/investment-profile/`.
+  /// `true`: đã có hồ sơ · `false`: chưa · `null`: chưa rõ (lỗi/khách).
+  static Future<bool?> hasCompleteProfile({String? token}) async {
+    if (token == null) return null;
+    try {
+      final resp = await _dio.get(
+        '/api/investment-profile/',
+        options: _opts(token: token),
+      );
+      final v = resp.data?['has_complete_profile'];
+      return v is bool ? v : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ---------------------------------------------------------------------------

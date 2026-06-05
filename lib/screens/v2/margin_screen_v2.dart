@@ -459,7 +459,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
       appBar: AppBar(
         backgroundColor: AppColors.darkSurface,
         elevation: 0,
-        title: const Text('Tính Margin',
+        title: const Text('Chi tiết danh mục',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
         iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(

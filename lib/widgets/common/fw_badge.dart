@@ -38,15 +38,19 @@ class FwBadge extends StatelessWidget {
             Icon(icon, size: 12, color: soft ? fg : Colors.white),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: soft ? fg : Colors.white,
-              letterSpacing: 0.2,
+          // Flexible để nhãn dài co lại và ellipsize khi badge bị bó hẹp
+          // (vd trong Row có Flexible) — tránh tràn ngang gây vạch overflow.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: soft ? fg : Colors.white,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],

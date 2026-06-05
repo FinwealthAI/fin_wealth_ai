@@ -66,5 +66,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Google Sign-In (iOS) — iOS OAuth client (bundle id: com.example.finWealth) -->
+	<key>GIDClientID</key>
+	<string>280830107479-5btbl1panjn7ekc7ktee3kl2t2gjtjm4.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.280830107479-5btbl1panjn7ekc7ktee3kl2t2gjtjm4</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

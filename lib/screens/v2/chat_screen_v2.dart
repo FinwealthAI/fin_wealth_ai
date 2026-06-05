@@ -13,8 +13,11 @@ import '../../services/chat_history_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
+import '../../widgets/chat/chat_card_widget.dart';
 import '../../widgets/common/fw_app_bar.dart';
 import '../../widgets/common/fw_filter_pill.dart';
+import '../investment_profile_screen.dart';
+import 'stock_detail_screen_v2.dart';
 
 /// Bộ text-style dùng riêng cho màn chat (dark-first), tránh phụ thuộc
 /// vào BuildContext khi dựng các widget con.
@@ -71,6 +74,20 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   bool _loadingHistory = false;
   bool _showScrollToBottom = false;
 
+  /// Hội thoại đã chạm giới hạn (sự kiện `limit_reached`) → khóa khung nhập.
+  bool _chatLocked = false;
+
+  /// Sắp chạm giới hạn (sự kiện `soft_warning`) → hiện banner nhắc nhở.
+  bool _softWarning = false;
+
+  /// Hồ sơ đầu tư đã điền đủ chưa (null = chưa rõ). Dùng để nhắc bổ sung ở
+  /// màn welcome. `false` → hiện prompt "Điền hồ sơ".
+  bool? _profileComplete;
+
+  /// User bấm "Để sau" trong phiên/cuộc hiện tại → ẩn prompt. Reset khi mở
+  /// cuộc trò chuyện mới (nhắc lại).
+  bool _profilePromptDismissed = false;
+
   StreamSubscription<Map<String, dynamic>>? _sub;
 
   bool get isGuest => _authRepo.accessToken == null;
@@ -83,6 +100,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     _scroll.addListener(_onScroll);
     if (!isGuest) {
       _initConversation();
+      _checkProfile();
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
@@ -122,6 +140,23 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     }
   }
 
+  /// Lấy trạng thái hồ sơ để quyết định có nhắc bổ sung không.
+  Future<void> _checkProfile() async {
+    final complete =
+        await ChatHistoryService.hasCompleteProfile(token: _token);
+    if (mounted) setState(() => _profileComplete = complete);
+  }
+
+  /// Mở màn điền hồ sơ; điền xong (pop true) → kiểm tra lại để ẩn prompt.
+  Future<void> _openProfile() async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const InvestmentProfileScreen()),
+    );
+    if (result == true) {
+      await _checkProfile();
+    }
+  }
+
   Future<void> _loadHistory(String conversationId) async {
     final history = await ChatHistoryService.loadChatHistory(
       conversationId: conversationId,
@@ -131,7 +166,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     setState(() {
       _messages
         ..clear()
-        ..addAll(history.map(ChatMessage.history));
+        ..addAll(history.messages.map(ChatMessage.history));
+      _chatLocked = history.limitStatus == 'locked';
+      _softWarning = history.limitStatus == 'warning';
     });
   }
 
@@ -145,13 +182,16 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     return null;
   }
 
-  Future<void> _send([String? preset]) async {
+  /// Gửi câu hỏi. `extraInputs` dùng khi GỬI LẠI sau popup user_choice
+  /// (vd kèm `profile_id` của danh mục vừa chọn).
+  Future<void> _send([String? preset, Map<String, dynamic>? extraInputs]) async {
     final text = (preset ?? _input.text).trim();
     if (text.isEmpty || _isTyping) return;
     if (isGuest) {
       _showLoginPrompt();
       return;
     }
+    if (_chatLocked) return;
 
     final ticker = _detectTicker(text);
     final mode = _mode;
@@ -168,6 +208,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
     final inputs = <String, dynamic>{
       if (ticker != null) 'ticker': ticker,
+      ...?extraInputs,
     };
 
     try {
@@ -197,7 +238,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       );
       await completer.future;
 
-      if (assistant.text.isEmpty && !assistant.hasError) {
+      // Không báo "trống" nếu lượt này kết thúc bằng popup user_choice hoặc đã
+      // hiển thị thẻ dữ liệu (cards) — đó là phản hồi hợp lệ, chỉ không có prose.
+      if (assistant.text.isEmpty &&
+          !assistant.hasError &&
+          assistant.userChoice == null &&
+          assistant.cards.isEmpty) {
         assistant.text = 'Không nhận được phản hồi từ server.';
       }
     } catch (e) {
@@ -241,6 +287,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       case 'agent_start':
         setState(() => assistant.steps.add(AgentStep.fromStart(event)));
         return;
+      case 'skill_loaded':
+        final step = _findStep(assistant, event['agent_id']?.toString());
+        if (step != null) {
+          setState(() => step.skills.add(AgentSkill.fromJson(event)));
+        }
+        return;
       case 'agent_done':
       case 'agent_cached':
         final roleId = event['role_id']?.toString();
@@ -253,6 +305,28 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         if (step != null) {
           setState(() => step.applyError(event));
         }
+        return;
+      case 'card':
+        setState(() => assistant.cards.add(ChatCard.fromJson(event)));
+        _followStream();
+        return;
+      case 'user_choice':
+        // Popup tương tác ngược — backend kết thúc stream ngay sau sự kiện này.
+        setState(() => assistant.userChoice = UserChoice.fromJson(event));
+        return;
+      case 'limit_reached':
+        setState(() {
+          _chatLocked = true;
+          if (assistant.text.isEmpty) {
+            assistant
+              ..text =
+                  'Cuộc trò chuyện đã đạt giới hạn. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.'
+              ..hasError = true;
+          }
+        });
+        return;
+      case 'soft_warning':
+        setState(() => _softWarning = true);
         return;
     }
 
@@ -286,7 +360,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     setState(() {
       _messages.clear();
       _conversationId = null;
+      _chatLocked = false;
+      _softWarning = false;
+      // Mở cuộc mới → nhắc lại hồ sơ (nếu vẫn chưa điền).
+      _profilePromptDismissed = false;
     });
+    _checkProfile();
   }
 
   Future<void> _openConversation(ChatConversationSummary c) async {
@@ -294,6 +373,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     setState(() {
       _loadingHistory = true;
       _conversationId = c.id;
+      _chatLocked = false;
+      _softWarning = false;
     });
     await ChatHistoryService.saveConversationId(_username, c.id);
     try {
@@ -467,6 +548,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
             style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
             textAlign: TextAlign.center,
           ),
+          if (!isGuest &&
+              _profileComplete == false &&
+              !_profilePromptDismissed) ...[
+            const SizedBox(height: AppSpacing.xl),
+            _buildProfilePrompt(),
+          ],
           if (!isGuest) ...[
             const SizedBox(height: AppSpacing.xl),
             Wrap(
@@ -483,6 +570,70 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                   .toList(),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Card nhắc bổ sung hồ sơ (giống banner "Tùy chỉnh trợ lý AI" của web).
+  /// Hiện ở welcome khi user chưa có hồ sơ; nhắc lại mỗi lần mở cuộc mới.
+  Widget _buildProfilePrompt() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.brandPrimary.withValues(alpha: 0.18),
+            AppColors.brandSecondary.withValues(alpha: 0.10),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border:
+            Border.all(color: AppColors.brandPrimary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.person_outline,
+                  color: AppColors.brandPrimaryDark, size: 20),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text('Tùy chỉnh trợ lý AI',
+                    style: TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Hãy cho Mr.Wealth biết thêm về khẩu vị đầu tư của bạn để được tư vấn phù hợp hơn.',
+            style: _Ts.bodySmall.copyWith(color: AppColors.darkTextSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brandPrimary,
+                    visualDensity: VisualDensity.compact),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Điền hồ sơ'),
+                onPressed: _openProfile,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              TextButton(
+                onPressed: () =>
+                    setState(() => _profilePromptDismissed = true),
+                child: const Text('Để sau'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -541,21 +692,31 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                 // Khối tiến trình agent chỉ hiện khi đang stream; ẩn khi xong.
                 if (m.isStreaming && (m.classify != null || m.steps.isNotEmpty))
                   _buildStepsPanel(m),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+                // Bong bóng prose — ẩn nếu chỉ có popup user_choice (không prose).
+                if (m.text.isNotEmpty ||
+                    (m.isStreaming && m.userChoice == null))
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.darkSurfaceElevated,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: AppColors.darkBorder),
+                    ),
+                    child: (m.text.isEmpty && m.isStreaming)
+                        ? const _TypingDots()
+                        : _buildRichText(m.text.isEmpty ? '...' : m.text),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.darkSurfaceElevated,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: AppColors.darkBorder),
-                  ),
-                  child: (m.text.isEmpty && m.isStreaming)
-                      ? const _TypingDots()
-                      : _buildRichText(m.text.isEmpty ? '...' : m.text),
-                ),
+                // Thẻ dữ liệu inline (stock/action/market/...).
+                if (m.cards.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  ...m.cards.map((c) => ChatCardWidget(card: c)),
+                ],
+                // Popup tương tác ngược (chọn danh mục / nhập vị thế).
+                if (m.userChoice != null) _buildChoice(m),
                 if (!m.isStreaming && m.text.isNotEmpty && !m.hasError)
                   _buildMessageActions(m),
               ],
@@ -637,19 +798,42 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          leading,
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              s.label,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  _Ts.bodySmall.copyWith(color: AppColors.darkTextSecondary),
-            ),
+          Row(
+            children: [
+              leading,
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  s.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: _Ts.bodySmall
+                      .copyWith(color: AppColors.darkTextSecondary),
+                ),
+              ),
+              Text(trailing, style: _Ts.caption),
+            ],
           ),
-          Text(trailing, style: _Ts.caption),
+          // Skill đã nạp trong bước này (sự kiện skill_loaded).
+          ...s.skills.map((sk) => Padding(
+                padding: const EdgeInsets.only(left: 22, top: 2),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt,
+                        size: 11, color: AppColors.brandPrimaryDark),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        sk.displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: _Ts.caption,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
         ],
       ),
     );
@@ -674,6 +858,111 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         ),
       ),
     );
+  }
+
+  // --- user_choice popup -----------------------------------------------------
+
+  /// Khối nút inline cho sự kiện `user_choice` (chọn danh mục / nhập vị thế).
+  Widget _buildChoice(ChatMessage m) {
+    final uc = m.userChoice!;
+    final isPosition = uc.choiceKey == 'input_position';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildRichText(uc.prompt),
+          const SizedBox(height: AppSpacing.sm),
+          if (isPosition)
+            // Mobile chưa quản lý vị thế margin → điều hướng sang chi tiết mã.
+            OutlinedButton.icon(
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: Text('Mở chi tiết ${uc.ticker ?? ''}'.trim()),
+              onPressed: () => _openTickerDetail(uc.ticker),
+            )
+          else
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brandPrimary),
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: const Text('Chọn danh mục'),
+              onPressed: () => _openChoicePopup(m, uc),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _openTickerDetail(String? ticker) {
+    final t = (ticker ?? '').toUpperCase();
+    if (t.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => StockDetailScreenV2(ticker: t)),
+    );
+  }
+
+  Future<void> _openChoicePopup(ChatMessage m, UserChoice uc) async {
+    final selected = await showModalBottomSheet<dynamic>(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(uc.prompt, style: _Ts.h3),
+            ),
+            const Divider(color: AppColors.darkBorder, height: 1),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: uc.options
+                    .map((o) => ListTile(
+                          leading: const Icon(Icons.account_balance_wallet,
+                              size: 20, color: AppColors.brandPrimaryDark),
+                          title: Text(o.label, style: _Ts.bodyMedium),
+                          subtitle: o.sublabel != null
+                              ? Text(o.sublabel!, style: _Ts.bodySmall)
+                              : null,
+                          onTap: () => Navigator.pop(context, o.value),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    _resendAfterChoice(m, uc, {'profile_id': selected});
+  }
+
+  /// Sau khi chọn: gỡ cặp tin nhắn (user + assistant) của lượt hỏi này rồi gửi
+  /// lại câu hỏi gốc kèm `extraInputs` (giống web).
+  void _resendAfterChoice(
+      ChatMessage m, UserChoice uc, Map<String, dynamic> extraInputs) {
+    final idx = _messages.indexOf(m);
+    setState(() {
+      if (idx >= 0) {
+        _messages.removeAt(idx);
+        if (idx - 1 >= 0 && _messages[idx - 1].fromUser) {
+          _messages.removeAt(idx - 1);
+        }
+      }
+    });
+    _send(uc.resendQuery, extraInputs);
   }
 
   Widget _buildMessageActions(ChatMessage m) {
@@ -772,9 +1061,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ),
       child: SafeArea(
         top: false,
-        child: Column(
+        child: _chatLocked
+            ? _buildLockedPanel()
+            : Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_softWarning) _buildSoftWarning(),
             if (!isGuest)
               Align(
                 alignment: Alignment.centerLeft,
@@ -819,6 +1111,55 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Banner nhắc nhở khi hội thoại sắp chạm giới hạn (`soft_warning`).
+  Widget _buildSoftWarning() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.warningDark.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.warningDark.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline,
+              size: 16, color: AppColors.warningDark),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Cuộc trò chuyện đang dài. Cân nhắc bắt đầu cuộc mới để giữ chất lượng trả lời.',
+              style: _Ts.bodySmall.copyWith(color: AppColors.warningDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Khung thay thế ô nhập khi hội thoại đã bị khóa (`limit_reached`).
+  Widget _buildLockedPanel() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Cuộc trò chuyện đã đạt giới hạn.',
+          style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        FilledButton.icon(
+          style:
+              FilledButton.styleFrom(backgroundColor: AppColors.brandPrimary),
+          icon: const Icon(Icons.add_comment_outlined, size: 18),
+          label: const Text('Bắt đầu cuộc trò chuyện mới'),
+          onPressed: _newConversation,
+        ),
+      ],
     );
   }
 

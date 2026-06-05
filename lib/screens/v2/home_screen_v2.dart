@@ -20,6 +20,7 @@ import 'blog_detail_screen_v2.dart';
 import 'stock_detail_screen_v2.dart';
 import 'stock_search_screen_v2.dart';
 import 'strategy_detail_screen_v2.dart';
+import 'watchlist_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
 import 'upgrade_screen_v2.dart';
 
@@ -194,8 +195,6 @@ class HomeScreenV2State extends State<HomeScreenV2>
                   _buildOpportunitiesSection(),
                   const SizedBox(height: AppSpacing.lg),
                   _buildOpenPositionsSection(),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildReportHighlightsSection(),
                   const SizedBox(height: AppSpacing.lg),
                   _buildStrategyCardsSection(),
                   const SizedBox(height: AppSpacing.lg),
@@ -570,47 +569,6 @@ class HomeScreenV2State extends State<HomeScreenV2>
     );
   }
 
-  Widget _buildReportHighlightsSection() {
-    final reports = _summary?.reportHighlights ?? const [];
-    if (reports.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FwSectionHeader(
-          title: 'Báo cáo nổi bật',
-          icon: Icons.description_outlined,
-          actionLabel: 'Tất cả',
-          onAction: () {},
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: AppColors.darkSurface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.darkBorder),
-          ),
-          child: Column(
-            children: [
-              for (final r in reports.take(4))
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.article_outlined,
-                      color: AppColors.brandSecondaryDark),
-                  title: Text(r.title,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  subtitle: Text('${r.source} · ${r.date}',
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.darkTextMuted),
-                  onTap: () {},
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   static Color _colorFromClass(String? c) {
     switch (c) {
       case 'emerald':
@@ -754,7 +712,9 @@ class HomeScreenV2State extends State<HomeScreenV2>
           title: 'Theo dõi',
           icon: Icons.favorite_border,
           actionLabel: 'Quản lý',
-          onAction: () {},
+          onAction: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const WatchlistScreenV2()),
+          ),
         ),
         if (_watchlist.isEmpty)
           const Padding(
@@ -807,11 +767,9 @@ class HomeScreenV2State extends State<HomeScreenV2>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FwSectionHeader(
+        const FwSectionHeader(
           title: 'Theo dõi định lượng',
           icon: Icons.flag_outlined,
-          actionLabel: '${_dash?.openCount ?? 0} mở',
-          onAction: () {},
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -841,7 +799,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
           ),
           child: Column(
             children: [
-              for (int i = 0; i < sorted.take(8).length; i++) ...[
+              for (int i = 0; i < sorted.take(5).length; i++) ...[
                 if (i > 0)
                   Divider(height: 1, color: AppColors.darkBorder.withValues(alpha: 0.5)),
                 _buildPositionRow(sorted[i], text),
