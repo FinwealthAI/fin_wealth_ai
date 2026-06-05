@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/chat_models.dart';
 import '../../respositories/auth_repository.dart';
@@ -737,6 +739,25 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ),
       blockquote:
           _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
+    );
+  }
+
+  Widget _buildRichText(String text) {
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: _markdownStyle(),
+      builders: {
+        'table': _ScrollableTableBuilder(),
+      },
+      onTapLink: (text, href, title) {
+        if (href != null) {
+          final uri = Uri.tryParse(href);
+          if (uri != null) {
+            launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        }
+      },
     );
   }
 

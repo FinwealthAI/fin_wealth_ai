@@ -14,9 +14,7 @@ class ApiConfig {
   // Set to false for local development
   static const bool useRelativePaths = bool.fromEnvironment('USE_RELATIVE_PATHS', defaultValue: false);
 
-  // Toggle this to use local backend instead of production
-  // Default to true for development, but will be false in production builds
-  static const bool useLocalBackend = bool.fromEnvironment('USE_LOCAL_BACKEND', defaultValue: !kReleaseMode);
+  static const bool useLocalBackend = false;
 
   // Google OAuth Client ID
   static const String googleServerClientId = String.fromEnvironment(

@@ -42,6 +42,7 @@ class ChatHistoryService {
         'conversation_id': conversationId,
         'mode': mode.wire,
         'inputs': inputs ?? const {},
+        'source': 'mobile',
       },
       options: _opts(token: token, responseType: ResponseType.stream),
     );

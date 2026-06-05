@@ -22,7 +22,6 @@ import 'stock_search_screen_v2.dart';
 import 'strategy_detail_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
 import 'upgrade_screen_v2.dart';
-import '../../config/api_config.dart' show kLowPointsThreshold;
 
 class HomeScreenV2 extends StatefulWidget {
   final VoidCallback? onOpenChat;
@@ -159,9 +158,6 @@ class HomeScreenV2State extends State<HomeScreenV2>
     return u;
   }
 
-  List<AiOpportunitySignal> get _signals =>
-      _summary?.aiOpportunities ?? const [];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -252,14 +248,14 @@ class HomeScreenV2State extends State<HomeScreenV2>
               const SizedBox(height: AppSpacing.md),
               // Opportunity cards row
               SizedBox(
-                height: 120,
+                height: 240,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: px,
                   itemCount: 3,
                   separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-                  itemBuilder: (_, __) => block(120, width: 200),
+                  itemBuilder: (_, __) => block(240, width: 200),
                 ),
               ),
               const SizedBox(height: h),
@@ -633,7 +629,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildOpportunitiesSection() {
-    final signals = _signals;
+    final list = _dash?.wsHasSignal ?? const [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,7 +640,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
           actionLabel: 'Xem tất cả',
           onAction: () => RootShellNav.goStrategy(),
         ),
-        if (signals.isEmpty)
+        if (list.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Text('Chưa có vị thế theo dõi mới hôm nay',
@@ -652,47 +648,34 @@ class HomeScreenV2State extends State<HomeScreenV2>
           )
         else
           SizedBox(
-            height: 220,
+            height: 240,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:
                   const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              itemCount: signals.length.clamp(0, 8),
+              itemCount: list.length,
               separatorBuilder: (_, __) =>
                   const SizedBox(width: AppSpacing.md),
               itemBuilder: (ctx, i) {
-                final sig = signals[i];
-                final upside = (sig.takeProfit != null &&
-                        sig.entryPrice != null &&
-                        sig.entryPrice! > 0)
-                    ? ((sig.takeProfit! - sig.entryPrice!) /
-                            sig.entryPrice!) *
-                        100
-                    : 0.0;
-                final kind = _kindFromUpside(upside);
-                final score =
-                    (5 + (upside.abs().clamp(0, 30) / 6)).clamp(0, 10);
+                final w = list[i];
+                final preset = w.matchedPresetNames.isNotEmpty
+                    ? w.matchedPresetNames.first
+                    : null;
                 return SizedBox(
                   width: MediaQuery.of(context).size.width * 0.74,
                   child: OpportunityCard(
-                    ticker: sig.ticker,
-                    kind: kind,
-                    score: score.toDouble(),
-                    changePct: upside,
-                    strategyName: sig.presetName,
-                    strategyIcon: strategyIconFromName(sig.presetIcon),
-                    strategyAccent: strategyAccentFromColor(sig.presetColor),
-                    faTier: sig.faTier,
-                    taTier: sig.taTier,
-                    faLabel: sig.faLabel,
-                    taLabel: sig.taLabel,
-                    stopLoss: sig.stopLoss,
-                    takeProfit: sig.takeProfit,
-                    winRate: sig.winRate,
-                    profitFactor: sig.profitFactor,
-                    maxDrawdown: sig.maxDrawdown,
-                    onTap: () => _openDetail(sig.ticker),
-                    onDetail: () => _openDetail(sig.ticker),
+                    ticker: w.ticker,
+                    kind: OpportunityKind.hasSignal,
+                    score: w.score,
+                    changePct: w.changePct ?? 0,
+                    close: w.close,
+                    faLabel: w.faLabel,
+                    taLabel: w.taLabel,
+                    strategyName: preset,
+                    faTier: w.faTier ?? _tier(w.fundamentalScore),
+                    taTier: w.taTier ?? _tier(w.technicalScore),
+                    onTap: () => _openDetail(w.ticker),
+                    onDetail: () => _openDetail(w.ticker),
                   ),
                 );
               },
@@ -700,6 +683,12 @@ class HomeScreenV2State extends State<HomeScreenV2>
           ),
       ],
     );
+  }
+
+  static String _tier(double score) {
+    if (score < 10) return 'unranked';
+    if (score < 50) return 'chu_y';
+    return 'manh';
   }
 
   Widget _buildStrategyCardsSection() {
@@ -862,13 +851,6 @@ class HomeScreenV2State extends State<HomeScreenV2>
         ),
       ],
     );
-  }
-
-  static OpportunityKind _kindFromUpside(double y) {
-    if (y > 15) return OpportunityKind.golden;
-    if (y > 5) return OpportunityKind.value;
-    if (y >= 0) return OpportunityKind.wave;
-    return OpportunityKind.waiting;
   }
 
   static MarketSentiment _moodFromString(String? mood) {

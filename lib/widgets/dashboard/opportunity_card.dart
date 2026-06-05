@@ -189,13 +189,12 @@ class OpportunityCard extends StatelessWidget {
 
               // Row 3: FA / TA labels
               if (faTier != null || taTier != null || faLabel != null || taLabel != null)
-                Row(
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
                   children: [
                     if (faLabel != null || faTier != null)
                       _labelChip('FA', faLabel ?? (_tierLabel[faTier] ?? faTier ?? ''), faTier),
-                    if ((faLabel != null || faTier != null) &&
-                        (taLabel != null || taTier != null))
-                      const SizedBox(width: 4),
                     if (taLabel != null || taTier != null)
                       _labelChip('TA', taLabel ?? (_tierLabel[taTier] ?? taTier ?? ''), taTier),
                   ],
