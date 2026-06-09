@@ -88,6 +88,15 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   /// cuộc trò chuyện mới (nhắc lại).
   bool _profilePromptDismissed = false;
 
+  /// User đủ điều kiện dùng "Lịch hỏi tự động" (đủ điểm) → hiện nút lịch.
+  bool _scheduleEligible = false;
+
+  /// Số bản tin định kỳ (proactive) chưa đọc → badge trên nút lịch sử + toast.
+  int _proactiveUnread = 0;
+
+  /// Toast nhắc bản tin định kỳ chỉ hiện 1 lần mỗi lần vào màn.
+  bool _proactiveToastShown = false;
+
   StreamSubscription<Map<String, dynamic>>? _sub;
 
   bool get isGuest => _authRepo.accessToken == null;
@@ -101,6 +110,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     if (!isGuest) {
       _initConversation();
       _checkProfile();
+      _loadScheduleEligibility();
+      _refreshProactive(showToast: true);
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
@@ -161,6 +172,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     final history = await ChatHistoryService.loadChatHistory(
       conversationId: conversationId,
       token: _token,
+      // Mở cuộc = đã xem → đánh dấu bản tin định kỳ trong cuộc là đã đọc.
+      markRead: true,
     );
     if (!mounted) return;
     setState(() {
@@ -170,6 +183,87 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       _chatLocked = history.limitStatus == 'locked';
       _softWarning = history.limitStatus == 'warning';
     });
+    // Vừa đánh dấu đã đọc → cập nhật lại badge.
+    _refreshProactive();
+  }
+
+  /// Kiểm tra user có đủ điểm dùng "Lịch hỏi tự động" không → hiện nút lịch.
+  Future<void> _loadScheduleEligibility() async {
+    final result = await ChatHistoryService.listSchedules(token: _token);
+    if (mounted) setState(() => _scheduleEligible = result.eligible);
+  }
+
+  /// Cập nhật số bản tin định kỳ chưa đọc; tùy chọn hiện toast nhắc nhở 1 lần.
+  Future<void> _refreshProactive({bool showToast = false}) async {
+    final data = await ChatHistoryService.fetchProactiveUnread(token: _token);
+    if (!mounted) return;
+    setState(() => _proactiveUnread = data.count);
+    if (showToast && data.count > 0 && !_proactiveToastShown) {
+      _proactiveToastShown = true;
+      _showProactiveToast(data);
+    }
+  }
+
+  /// Toast nhắc có bản tin định kỳ mới — bấm "Xem" mở hội thoại mới nhất.
+  void _showProactiveToast(ProactiveUnread data) {
+    final title = data.count > 1
+        ? 'Bạn có ${data.count} bản tin định kỳ mới từ Mr. Wealth'
+        : 'Mr. Wealth có bản tin định kỳ mới cho bạn';
+    final targetId = data.items.isNotEmpty ? data.items.first.id : null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.darkSurfaceElevated,
+        duration: const Duration(seconds: 8),
+        behavior: SnackBarBehavior.floating,
+        content: Row(
+          children: [
+            const Icon(Icons.event_available,
+                size: 20, color: AppColors.brandPrimaryDark),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: _Ts.bodySmall
+                          .copyWith(color: AppColors.darkTextPrimary)),
+                  if (data.latestTitle.isNotEmpty)
+                    Text(data.latestTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _Ts.caption),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: targetId != null
+            ? SnackBarAction(
+                label: 'Xem',
+                textColor: AppColors.brandPrimaryDark,
+                onPressed: () => _openConversationById(targetId),
+              )
+            : null,
+      ),
+    );
+  }
+
+  /// Mở một hội thoại theo id (dùng cho toast bản tin định kỳ).
+  Future<void> _openConversationById(String id) async {
+    setState(() {
+      _loadingHistory = true;
+      _conversationId = id;
+      _chatLocked = false;
+      _softWarning = false;
+    });
+    await ChatHistoryService.saveConversationId(_username, id);
+    try {
+      await _loadHistory(id);
+    } finally {
+      if (mounted) setState(() => _loadingHistory = false);
+      _scrollToBottom();
+    }
   }
 
   String? _detectTicker(String query) {
@@ -452,6 +546,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         title: 'Mr.Wealth',
         subtitle: 'AI Cố vấn đầu tư',
         actions: [
+          if (!isGuest && _scheduleEligible)
+            IconButton(
+              icon: const Icon(Icons.event_available_outlined),
+              tooltip: 'Lịch hỏi tự động',
+              color: AppColors.success,
+              onPressed: _openScheduleSheet,
+            ),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
             tooltip: 'Cuộc trò chuyện mới',
@@ -459,7 +560,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           ),
           Builder(
             builder: (ctx) => IconButton(
-              icon: const Icon(Icons.history),
+              icon: _withBadge(const Icon(Icons.history), _proactiveUnread),
               tooltip: 'Lịch sử trò chuyện',
               onPressed:
                   isGuest ? null : () => Scaffold.of(ctx).openEndDrawer(),
@@ -1284,11 +1385,32 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                         selectedTileColor: AppColors.darkSurfaceElevated,
                         leading: const Icon(Icons.chat_bubble_outline,
                             size: 18, color: AppColors.darkTextSecondary),
-                        title: Text(
-                          c.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _Ts.bodyMedium,
+                        title: Row(
+                          children: [
+                            if (c.hasUnread) ...[
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.success,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                            ],
+                            Expanded(
+                              child: Text(
+                                c.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _Ts.bodyMedium.copyWith(
+                                  fontWeight: c.hasUnread
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         onTap: () => _openConversation(c),
                         trailing: PopupMenuButton<String>(
@@ -1366,6 +1488,57 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     }
   }
 
+  // --- Badge & schedule ----------------------------------------------------
+
+  /// Bọc một icon kèm chấm đỏ + số đếm khi `count > 0`.
+  Widget _withBadge(Widget child, int count) {
+    if (count <= 0) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          right: -4,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            constraints: const BoxConstraints(minWidth: 16),
+            decoration: BoxDecoration(
+              color: AppColors.danger,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Text(
+              count > 9 ? '9+' : '$count',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Bottom sheet quản lý "Lịch hỏi tự động": liệt kê, bật/tắt, xóa.
+  /// Lịch mới được tạo bằng cách nhắn cho Mr. Wealth (vd "tổng hợp thị trường
+  /// mỗi sáng 8h"), nên sheet này chỉ quản lý lịch đã có.
+  Future<void> _openScheduleSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _ScheduleSheet(token: _token),
+    );
+    // Sheet có thể đã bật/tắt lịch → làm mới điều kiện hiển thị nút.
+    _loadScheduleEligibility();
+  }
+
   // --- Misc ----------------------------------------------------------------
 
   void _showLoginPrompt() {
@@ -1389,6 +1562,202 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
               Navigator.pushNamed(context, '/login-v2');
             },
             child: const Text('Đăng nhập'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet "Lịch hỏi tự động" — liệt kê, bật/tắt, xóa các lịch của user.
+class _ScheduleSheet extends StatefulWidget {
+  final String? token;
+  const _ScheduleSheet({required this.token});
+
+  @override
+  State<_ScheduleSheet> createState() => _ScheduleSheetState();
+}
+
+class _ScheduleSheetState extends State<_ScheduleSheet> {
+  bool _loading = true;
+  List<ScheduledChat> _schedules = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final result = await ChatHistoryService.listSchedules(token: widget.token);
+    if (!mounted) return;
+    setState(() {
+      _schedules = result.schedules;
+      _loading = false;
+    });
+  }
+
+  Future<void> _toggle(ScheduledChat s) async {
+    final ok = await ChatHistoryService.toggleSchedule(
+      scheduleId: s.id,
+      enabled: !s.enabled,
+      token: widget.token,
+    );
+    if (ok) _load();
+  }
+
+  Future<void> _delete(ScheduledChat s) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.darkSurface,
+        title: const Text('Xóa lịch', style: _Ts.h3),
+        content: Text(
+          'Xóa lịch "${s.title}"? Mr. Wealth sẽ không gửi bản tin này nữa.',
+          style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final ok =
+        await ChatHistoryService.deleteSchedule(scheduleId: s.id, token: widget.token);
+    if (ok) _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.event_available,
+                    size: 20, color: AppColors.success),
+                const SizedBox(width: AppSpacing.sm),
+                const Expanded(
+                  child: Text('Lịch hỏi tự động', style: _Ts.h3),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh,
+                      size: 20, color: AppColors.darkTextMuted),
+                  tooltip: 'Làm mới',
+                  onPressed: _loading ? null : _load,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Mr. Wealth tự gửi bản tin định kỳ theo các lịch dưới đây. '
+              'Để đặt lịch mới, nhắn cho Mr. Wealth — vd: "tổng hợp thị trường mỗi sáng 8h".',
+              style: _Ts.bodySmall.copyWith(color: AppColors.darkTextSecondary),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_schedules.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                child: Text(
+                  'Chưa có lịch nào.\nNhắn cho Mr. Wealth để đặt lịch.',
+                  textAlign: TextAlign.center,
+                  style: _Ts.bodySmall
+                      .copyWith(color: AppColors.darkTextMuted),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _schedules.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: AppSpacing.sm),
+                  itemBuilder: (_, i) => _scheduleTile(_schedules[i]),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scheduleTile(ScheduledChat s) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: _Ts.bodyMedium.copyWith(
+                    color: s.enabled
+                        ? AppColors.darkTextPrimary
+                        : AppColors.darkTextMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(Icons.schedule,
+                        size: 12, color: AppColors.success),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        s.enabled
+                            ? s.schedule
+                            : '${s.schedule} · đã tắt',
+                        overflow: TextOverflow.ellipsis,
+                        style: _Ts.caption.copyWith(
+                          color: s.enabled
+                              ? AppColors.success
+                              : AppColors.darkTextMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Bật/tắt nhanh.
+          Switch(
+            value: s.enabled,
+            activeThumbColor: AppColors.success,
+            onChanged: (_) => _toggle(s),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                size: 20, color: AppColors.danger),
+            tooltip: 'Xóa',
+            onPressed: () => _delete(s),
           ),
         ],
       ),

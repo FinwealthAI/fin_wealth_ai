@@ -155,13 +155,19 @@ class ChatHistoryService {
       loadChatHistory({
     String? conversationId,
     String? token,
+    bool markRead = false,
   }) async {
     String path = '/api/chat/conversations/messages/';
     if (conversationId != null && conversationId.isNotEmpty) {
       path = '/api/chat/conversations/$conversationId/messages/';
     }
 
-    final response = await _dio.get(path, options: _opts(token: token));
+    final response = await _dio.get(
+      path,
+      // mark_read=1 → backend đánh dấu các bản tin định kỳ trong cuộc là đã đọc.
+      queryParameters: markRead ? const {'mark_read': '1'} : null,
+      options: _opts(token: token),
+    );
 
     final List<Map<String, dynamic>> messages = [];
     final data = response.data?['data'] as List?;
@@ -211,6 +217,90 @@ class ChatHistoryService {
       '/api/chat/conversations/$conversationId/delete/',
       options: _opts(token: token),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bản tin định kỳ (proactive) chưa đọc — badge + toast nhắc nhở
+  // ---------------------------------------------------------------------------
+
+  /// Đếm bản tin định kỳ chưa đọc của user (số hội thoại có tin chủ động mới).
+  static Future<ProactiveUnread> fetchProactiveUnread({String? token}) async {
+    if (token == null) return ProactiveUnread.empty();
+    try {
+      final response = await _dio.get(
+        '/api/chat/proactive/unread/',
+        options: _opts(token: token),
+      );
+      final data = response.data;
+      if (data is Map) {
+        return ProactiveUnread.fromJson(Map<String, dynamic>.from(data));
+      }
+    } catch (_) {}
+    return ProactiveUnread.empty();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lịch hỏi tự động (scheduled chat) — quản lý từ nút lịch ở header
+  // ---------------------------------------------------------------------------
+
+  /// Danh sách lịch hỏi tự động + trạng thái đủ điều kiện dùng tính năng.
+  static Future<ScheduleListResult> listSchedules({String? token}) async {
+    if (token == null) {
+      return ScheduleListResult(eligible: false, minPoints: 0, schedules: const []);
+    }
+    try {
+      final response = await _dio.get(
+        '/api/super-broker/schedules/',
+        options: _opts(token: token),
+      );
+      final data = response.data as Map? ?? const {};
+      final raw = (data['schedules'] as List?) ?? const [];
+      return ScheduleListResult(
+        eligible: data['eligible'] == true,
+        minPoints: (data['min_points'] as num?)?.toInt() ?? 0,
+        schedules: raw
+            .whereType<Map>()
+            .map((e) => ScheduledChat.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
+    } catch (_) {
+      return ScheduleListResult(eligible: false, minPoints: 0, schedules: const []);
+    }
+  }
+
+  /// Bật/tắt một lịch (không xóa).
+  static Future<bool> toggleSchedule({
+    required int scheduleId,
+    required bool enabled,
+    String? token,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/super-broker/schedules/toggle/',
+        data: {'schedule_id': scheduleId, 'enabled': enabled},
+        options: _opts(token: token),
+      );
+      return (response.data as Map?)?['ok'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Xóa một lịch hỏi tự động.
+  static Future<bool> deleteSchedule({
+    required int scheduleId,
+    String? token,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/super-broker/schedules/delete/',
+        data: {'schedule_id': scheduleId},
+        options: _opts(token: token),
+      );
+      return (response.data as Map?)?['ok'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------------------

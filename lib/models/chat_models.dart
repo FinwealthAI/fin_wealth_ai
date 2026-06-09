@@ -245,11 +245,15 @@ class ChatConversationSummary {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// Có bản tin định kỳ (proactive) chưa đọc trong hội thoại này không.
+  final bool hasUnread;
+
   ChatConversationSummary({
     required this.id,
     required this.name,
     this.createdAt,
     this.updatedAt,
+    this.hasUnread = false,
   });
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -266,6 +270,91 @@ class ChatConversationSummary {
       name: (json['name'] ?? json['title'] ?? 'Cuộc trò chuyện').toString(),
       createdAt: parseTs(json['created_at']),
       updatedAt: parseTs(json['updated_at']),
+      hasUnread: json['has_unread'] == true,
+    );
+  }
+}
+
+/// Một lịch hỏi tự động (scheduled chat). Mr. Wealth tự gửi định kỳ và tạo
+/// "bản tin định kỳ" trong một hội thoại mới mỗi lần chạy.
+///
+/// Khớp payload `/api/super-broker/schedules/`:
+/// `{id, title, query, schedule, enabled, last_status}`.
+class ScheduledChat {
+  final int id;
+  final String title;
+  final String query;
+
+  /// Mô tả lịch dễ đọc (vd "Mỗi ngày 08:00").
+  final String schedule;
+  final bool enabled;
+  final String? lastStatus;
+
+  ScheduledChat({
+    required this.id,
+    required this.title,
+    required this.query,
+    required this.schedule,
+    required this.enabled,
+    this.lastStatus,
+  });
+
+  factory ScheduledChat.fromJson(Map<String, dynamic> json) => ScheduledChat(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        title: (json['title'] ?? json['query'] ?? 'Lịch hỏi').toString(),
+        query: json['query']?.toString() ?? '',
+        schedule: json['schedule']?.toString() ?? '',
+        enabled: json['enabled'] != false,
+        lastStatus: json['last_status']?.toString(),
+      );
+}
+
+/// Kết quả truy vấn lịch hỏi tự động (kèm trạng thái đủ điều kiện dùng).
+class ScheduleListResult {
+  final bool eligible;
+  final int minPoints;
+  final List<ScheduledChat> schedules;
+
+  ScheduleListResult({
+    required this.eligible,
+    required this.minPoints,
+    required this.schedules,
+  });
+}
+
+/// Tóm tắt bản tin định kỳ (proactive) chưa đọc — cho badge + toast nhắc nhở.
+/// Khớp payload `/api/chat/proactive/unread/`:
+/// `{count, items: [{id, title}], latest_title}`.
+class ProactiveUnread {
+  final int count;
+
+  /// Danh sách hội thoại có tin chưa đọc (id + tiêu đề), mới nhất trước.
+  final List<({String id, String title})> items;
+  final String latestTitle;
+
+  ProactiveUnread({
+    required this.count,
+    required this.items,
+    required this.latestTitle,
+  });
+
+  static ProactiveUnread empty() =>
+      ProactiveUnread(count: 0, items: const [], latestTitle: '');
+
+  factory ProactiveUnread.fromJson(Map<String, dynamic> json) {
+    final raw = (json['items'] as List?) ?? const [];
+    final items = raw
+        .whereType<Map>()
+        .map((e) => (
+              id: e['id']?.toString() ?? '',
+              title: (e['title'] ?? 'Bản tin định kỳ').toString(),
+            ))
+        .where((e) => e.id.isNotEmpty)
+        .toList();
+    return ProactiveUnread(
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      items: items,
+      latestTitle: json['latest_title']?.toString() ?? '',
     );
   }
 }
