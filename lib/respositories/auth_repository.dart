@@ -27,9 +27,11 @@ class AuthRepository {
   int _totalPoints = 0;
   String? _avatar;
   String? _expirationDate;
+  String? _email;
+  String? _phone;
   bool _lowPointsWarning = false;
   String? _upgradeUrl;
-  
+
   final _logoutController = StreamController<void>.broadcast();
   Stream<void> get onLogout => _logoutController.stream;
 
@@ -37,6 +39,8 @@ class AuthRepository {
   int get totalPoints => _totalPoints;
   String? get avatar => _avatar;
   String? get expirationDate => _expirationDate;
+  String? get email => _email;
+  String? get phone => _phone;
   bool get lowPointsWarning => _lowPointsWarning;
   String? get upgradeUrl => _upgradeUrl;
 
@@ -151,6 +155,8 @@ class AuthRepository {
     _totalPoints = prefs.getInt('total_points') ?? 0;
     _avatar = prefs.getString('avatar');
     _expirationDate = prefs.getString('expiration_date');
+    _email = prefs.getString('email');
+    _phone = prefs.getString('phone');
     _upgradeUrl = prefs.getString('upgrade_url');
     
     // Set authorization header if token exists
@@ -191,6 +197,18 @@ class AuthRepository {
       await prefs.setString('expiration_date', _expirationDate!);
     } else {
       await prefs.remove('expiration_date');
+    }
+
+    if (_email != null) {
+      await prefs.setString('email', _email!);
+    } else {
+      await prefs.remove('email');
+    }
+
+    if (_phone != null) {
+      await prefs.setString('phone', _phone!);
+    } else {
+      await prefs.remove('phone');
     }
 
     if (_upgradeUrl != null) {
@@ -250,6 +268,8 @@ class AuthRepository {
         'avatar': response.data['avatar'],
         'total_points': response.data['point'] ?? 0,
         'expiration_date': response.data['expiration_date']?.toString(),
+        'email': response.data['email']?.toString(),
+        'phone': response.data['phone']?.toString(),
         'low_points_warning': _lowPointsWarning,
         'upgrade_url': _upgradeUrl,
       };
@@ -258,6 +278,8 @@ class AuthRepository {
       _avatar = user['avatar'];
       _totalPoints = user['total_points'] as int;
       _expirationDate = user['expiration_date'];
+      _email = user['email'];
+      _phone = user['phone'];
       await _saveTokens();
 
       return user;
@@ -379,6 +401,8 @@ class AuthRepository {
     _totalPoints = 0;
     _avatar = null;
     _expirationDate = null;
+    _email = null;
+    _phone = null;
     await _saveTokens(); // Clear from storage
     dio.options.headers.remove('Authorization');
     _logoutController.add(null);
@@ -519,6 +543,69 @@ class AuthRepository {
 
     final error = response.data['error'] ?? 'Đổi mật khẩu thất bại';
     throw Exception(error);
+  }
+
+  /// Cập nhật hồ sơ. Phone lưu ngay (không xác thực). Nếu [email] đổi → backend gửi
+  /// OTP tới email mới và trả về true (cần gọi [verifyProfileUpdate] tiếp).
+  /// Trả về true nếu CẦN nhập OTP, false nếu đã cập nhật xong.
+  Future<bool> requestProfileUpdate({String? email, String? phone}) async {
+    final response = await dio.post(
+      ApiConfig.profileRequestUpdate,
+      data: {
+        if (email != null) 'email': email,
+        if (phone != null) 'phone': phone,
+      },
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (s) => s != null && s < 500,
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      // Phone đã được backend lưu; cập nhật local + prefs ngay.
+      if (phone != null) {
+        _phone = phone;
+      }
+      final otpRequired = response.data['otp_required'] == true;
+      if (!otpRequired) {
+        await _saveTokens();
+      }
+      return otpRequired;
+    }
+
+    throw Exception(response.data['error'] ?? 'Cập nhật thất bại');
+  }
+
+  /// Xác thực OTP email mới → commit email. Cập nhật local + prefs khi thành công.
+  Future<void> verifyProfileUpdate(String otp) async {
+    final response = await dio.post(
+      ApiConfig.profileVerifyUpdate,
+      data: {'otp': otp},
+      options: Options(
+        contentType: Headers.jsonContentType,
+        validateStatus: (s) => s != null && s < 500,
+      ),
+    );
+
+    if (response.statusCode == 200 && response.data['updated'] == true) {
+      _email = response.data['email']?.toString() ?? _email;
+      // Tài khoản tạo theo convention username=email → username cũng đổi theo.
+      _username = _email;
+      await _saveTokens();
+      return;
+    }
+
+    throw Exception(response.data['error'] ?? 'Mã OTP không hợp lệ');
+  }
+
+  /// Gửi lại OTP cho phiên cập nhật email.
+  Future<void> resendProfileUpdateOtp() async {
+    final response = await dio.post(
+      ApiConfig.profileResendUpdateOtp,
+      options: Options(validateStatus: (s) => s != null && s < 500),
+    );
+    if (response.statusCode == 200) return;
+    throw Exception(response.data['error'] ?? 'Không gửi lại được mã');
   }
 
   /// Google Sign-In

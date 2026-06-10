@@ -61,6 +61,10 @@ class ApiConfig {
   static String get googleLogin => '$api/google-login/';
   static String get changePassword => '$api/change-password/';
   static String get forgotPassword => '$api/forgot-password/';
+  // Cập nhật hồ sơ (email + sđt). Email đổi → OTP gửi tới email mới.
+  static String get profileRequestUpdate => '$api/profile/request-update/';
+  static String get profileVerifyUpdate => '$api/profile/verify-update/';
+  static String get profileResendUpdateOtp => '$api/profile/resend-update-otp/';
   static String get token => '$mobileApi/token/';
   static String get tokenRefresh => '$mobileApi/token/refresh/';
   

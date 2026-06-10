@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_event.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
 import '../../config/api_config.dart';
@@ -9,6 +10,7 @@ import '../../widgets/common/common.dart';
 
 import 'change_password_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
+import 'edit_profile_screen_v2.dart';
 import 'margin_screen_v2.dart';
 import 'screener_screen_v2.dart';
 
@@ -28,6 +30,21 @@ class ProfileScreenV2 extends StatelessWidget {
     }
   }
 
+  Future<void> _editProfile(BuildContext context) async {
+    final changed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const EditProfileScreenV2()));
+    if (changed == true && context.mounted) {
+      // Ép rebuild để hiện email/sđt mới (BlocBuilder lắng nghe AuthSuccess).
+      final repo = context.read<AuthRepository>();
+      context.read<AuthBloc>().add(AuthUserUpdated({
+            'username': repo.username,
+            'email': repo.email,
+            'phone': repo.phone,
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          }));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -38,6 +55,8 @@ class ProfileScreenV2 extends StatelessWidget {
         final avatarUrl = authRepo.avatar;
         final isGuest = authRepo.accessToken == null;
         final totalPoints = authRepo.totalPoints;
+        final email = authRepo.email ?? '';
+        final phone = authRepo.phone ?? '';
         final initial =
             username.isNotEmpty ? username[0].toUpperCase() : '?';
 
@@ -75,6 +94,53 @@ class ProfileScreenV2 extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(username, style: text.titleLarge),
+                            if (!isGuest)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.email_outlined,
+                                        size: 13,
+                                        color: AppColors.darkTextMuted),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        email.isNotEmpty
+                                            ? email
+                                            : 'Chưa cập nhật',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: text.labelMedium?.copyWith(
+                                            color: AppColors.darkTextMuted,
+                                            fontStyle: email.isEmpty
+                                                ? FontStyle.italic
+                                                : FontStyle.normal),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (!isGuest)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.phone_outlined,
+                                        size: 13,
+                                        color: AppColors.darkTextMuted),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      phone.isNotEmpty
+                                          ? phone
+                                          : 'Chưa cập nhật',
+                                      style: text.labelMedium?.copyWith(
+                                          color: AppColors.darkTextMuted,
+                                          fontStyle: phone.isEmpty
+                                              ? FontStyle.italic
+                                              : FontStyle.normal),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             if (!isGuest)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -119,6 +185,10 @@ class ProfileScreenV2 extends StatelessWidget {
                       'Theo dõi hiệu quả', () {}),
                 ]),
                 _Section('Tài khoản', items: [
+                  (Icons.edit_outlined, 'Cập nhật thông tin',
+                      'Email, số điện thoại', () {
+                    _editProfile(context);
+                  }),
                   (Icons.notifications_outlined, 'Thông báo', null, () {}),
                   (Icons.lock_outline, 'Đổi mật khẩu', null,
                       () => _push(context, const ChangePasswordScreenV2())),
