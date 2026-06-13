@@ -10,12 +10,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/chat_models.dart';
 import '../../respositories/auth_repository.dart';
 import '../../services/chat_history_service.dart';
+import '../../services/onboarding_prefs.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/chat/chat_card_widget.dart';
 import '../../widgets/common/fw_app_bar.dart';
 import '../../widgets/common/fw_filter_pill.dart';
+import '../../widgets/onboarding/onboarding.dart';
 import '../investment_profile_screen.dart';
 import 'stock_detail_screen_v2.dart';
 
@@ -63,6 +65,17 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   late final AuthRepository _authRepo = context.read<AuthRepository>();
+
+  // GlobalKeys cho tour hướng dẫn lần đầu (coach-mark spotlight).
+  final GlobalKey _kSuggest = GlobalKey();
+  final GlobalKey _kInput = GlobalKey();
+  final GlobalKey _kMode = GlobalKey();
+  final GlobalKey _kNewChat = GlobalKey();
+  final GlobalKey _kSchedule = GlobalKey();
+  final GlobalKey _kHistory = GlobalKey();
+
+  /// Đang chạy onboarding rồi → tránh kích hoạt lần hai.
+  bool _onboardingStarted = false;
 
   final List<ChatMessage> _messages = [];
   List<String> _validTickers = const [];
@@ -115,6 +128,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
+      // Hướng dẫn lần đầu — kích hoạt độc lập với việc tải hội thoại để chắc
+      // chắn chạy dù init lỗi/chậm. Tự bỏ qua nếu đã xem (cờ local theo user).
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowOnboarding());
     }
     if (widget.initialTicker != null) {
       _input.text = 'Phân tích ${widget.initialTicker}';
@@ -149,6 +165,48 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       if (mounted) setState(() => _loadingHistory = false);
       _scrollToBottom();
     }
+  }
+
+  /// Hướng dẫn lần đầu: welcome dialog + tour spotlight các nút chính.
+  /// Chạy cho user đã đăng nhập chưa từng xem hướng dẫn TRÊN THIẾT BỊ NÀY
+  /// (cờ local theo username, độc lập với web). Hiển thị bất kể đã có lịch sử
+  /// chat hay chưa — bước "gợi ý" tự bỏ qua nếu màn welcome không hiển thị.
+  Future<void> _maybeShowOnboarding() async {
+    if (_onboardingStarted || isGuest) return;
+    if (await OnboardingPrefs.hasSeenChat(_username)) return;
+    if (!mounted) return;
+    _onboardingStarted = true;
+
+    final start = await showChatWelcomeDialog(context);
+    if (!mounted) return;
+    if (!start) {
+      await OnboardingPrefs.markChatSeen(_username);
+      return;
+    }
+    // Đợi hết frame để chắc chắn các widget mục tiêu đã layout xong.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    final steps = <CoachStep>[
+      CoachStep(_kSuggest, '✨ Bắt đầu chỉ với 1 chạm',
+          'Chưa biết hỏi gì? Chạm một gợi ý để xem ngay Mr.Wealth làm được gì cho bạn.'),
+      CoachStep(_kInput, '💬 Hỏi bất cứ điều gì về đầu tư',
+          'Gõ câu hỏi như đang nhắn tin: "FPT có nên mua?", "Vĩ mô tuần này ra sao?". Mr.Wealth phân tích kèm số liệu — chờ vài chục giây để có câu trả lời chắc tay.'),
+      CoachStep(_kMode, '⚡ Chọn độ sâu phân tích',
+          'Flash trả lời nhanh cho câu hỏi thường ngày; Pro phân tích sâu hơn cho quyết định quan trọng.'),
+      CoachStep(_kNewChat, '🆕 Cuộc trò chuyện mới',
+          'Bắt đầu chủ đề mới để câu trả lời luôn tập trung và chất lượng.',
+          circle: true),
+      CoachStep(_kSchedule, '⏰ Để Mr.Wealth làm việc khi bạn bận',
+          'Đặt lịch hỏi định kỳ — ví dụ mỗi sáng tự gửi tóm tắt thị trường hay rà soát danh mục. Cơ hội & rủi ro tự tìm đến bạn.',
+          circle: true),
+      CoachStep(_kHistory, '🕑 Xem lại mọi hội thoại',
+          'Tất cả phân tích đều được lưu lại để bạn mở lại và đối chiếu bất cứ lúc nào.',
+          circle: true),
+    ];
+
+    runCoachMarks(context, steps,
+        onDone: () => OnboardingPrefs.markChatSeen(_username));
   }
 
   /// Lấy trạng thái hồ sơ để quyết định có nhắc bổ sung không.
@@ -548,18 +606,21 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         actions: [
           if (!isGuest && _scheduleEligible)
             IconButton(
+              key: _kSchedule,
               icon: const Icon(Icons.event_available_outlined),
               tooltip: 'Lịch hỏi tự động',
               color: AppColors.success,
               onPressed: _openScheduleSheet,
             ),
           IconButton(
+            key: _kNewChat,
             icon: const Icon(Icons.add_comment_outlined),
             tooltip: 'Cuộc trò chuyện mới',
             onPressed: isGuest ? null : _newConversation,
           ),
           Builder(
             builder: (ctx) => IconButton(
+              key: _kHistory,
               icon: _withBadge(const Icon(Icons.history), _proactiveUnread),
               tooltip: 'Lịch sử trò chuyện',
               onPressed:
@@ -658,6 +719,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           if (!isGuest) ...[
             const SizedBox(height: AppSpacing.xl),
             Wrap(
+              key: _kSuggest,
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               alignment: WrapAlignment.center,
@@ -1171,7 +1233,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
             if (!isGuest)
               Align(
                 alignment: Alignment.centerLeft,
-                child: _modeToggle(),
+                child: KeyedSubtree(key: _kMode, child: _modeToggle()),
               ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -1179,6 +1241,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
               children: [
                 Expanded(
                   child: TextField(
+                    key: _kInput,
                     controller: _input,
                     minLines: 1,
                     maxLines: 4,

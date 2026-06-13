@@ -20,6 +20,8 @@ import 'strategy_screen_v2.dart';
 import 'watchlist_screen_v2.dart';
 import '../../widgets/dashboard/profile_bar.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
+import '../../widgets/onboarding/onboarding.dart';
+import '../../services/onboarding_prefs.dart';
 import 'notifications_screen_v2.dart';
 import '../investment_profile_screen.dart';
 
@@ -54,12 +56,65 @@ class RootShellV2 extends StatefulWidget {
 class RootShellV2State extends State<RootShellV2> {
   int _index = 0;
 
+  // GlobalKeys cho tour hướng dẫn cấp app (bottom nav + FAB).
+  final GlobalKey _kHome = GlobalKey();
+  final GlobalKey _kStrategy = GlobalKey();
+  final GlobalKey _kMarket = GlobalKey();
+  final GlobalKey _kMore = GlobalKey();
+  final GlobalKey _kFab = GlobalKey();
+  bool _appTourStarted = false;
+
   late final _tabs = <Widget>[
     HomeScreenV2(onOpenChat: _openChat),
     const StrategyScreenV2(),
     const MarketEvaluationScreenV2(),
     const _MoreMenuScreenV2(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowAppTour());
+  }
+
+  /// Tour giới thiệu các khu vực chính của app (bottom nav + Mr.Wealth FAB),
+  /// chạy 1 lần đầu cho user đã đăng nhập (cờ local `app`). Tour chat chi tiết
+  /// nằm riêng trong ChatScreenV2.
+  Future<void> _maybeShowAppTour() async {
+    if (_appTourStarted || !mounted) return;
+    final authRepo = context.read<AuthRepository>();
+    if (authRepo.accessToken == null) return; // khách → bỏ qua
+    final username = authRepo.username ?? '';
+    if (await OnboardingPrefs.hasSeenApp(username)) return;
+    if (!mounted) return;
+    _appTourStarted = true;
+
+    final start = await showAppWelcomeDialog(context);
+    if (!mounted) return;
+    if (!start) {
+      await OnboardingPrefs.markAppSeen(username);
+      return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    final steps = <CoachStep>[
+      CoachStep(_kHome, '🏠 Trang chủ',
+          'Tổng quan thị trường, cổ phiếu nổi bật & cơ hội đáng chú ý trong ngày — nơi bạn bắt đầu mỗi phiên.'),
+      CoachStep(_kStrategy, '🚀 Chiến lược',
+          'Bộ lọc cổ phiếu theo phương pháp (CANSLIM, VCP…) và sàn chiến lược mẫu để tìm mã phù hợp.'),
+      CoachStep(_kMarket, '📊 Thị trường',
+          'Đánh giá sức khỏe thị trường: điểm số ngắn/dài hạn, mức độ thận trọng — biết "nhiệt độ" trước khi vào lệnh.'),
+      CoachStep(_kMore, '🔲 Khác',
+          'Quản lý danh mục, danh sách theo dõi, lọc cổ phiếu, tính margin, blog, biểu đồ kinh tế & hồ sơ đầu tư.'),
+      CoachStep(_kFab, '🤖 Mr.Wealth — Trợ lý AI',
+          'Trái tim của Finwealth: chạm để hỏi phân tích cổ phiếu, đánh giá danh mục, tìm cơ hội. Mở được từ mọi nơi trong app.',
+          circle: true),
+    ];
+
+    runCoachMarks(context, steps,
+        onDone: () => OnboardingPrefs.markAppSeen(username));
+  }
 
   void setIndex(int i) {
     if (!mounted) return;
@@ -76,7 +131,10 @@ class RootShellV2State extends State<RootShellV2> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
-      floatingActionButton: _MrWealthFab(onTap: _openChat),
+      floatingActionButton: KeyedSubtree(
+        key: _kFab,
+        child: _MrWealthFab(onTap: _openChat),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         color: AppColors.darkSurface,
@@ -87,13 +145,16 @@ class RootShellV2State extends State<RootShellV2> {
         padding: EdgeInsets.zero,
         child: Row(
           children: [
-            _navItem(0, Icons.home_outlined, Icons.home, 'Trang chủ'),
+            _navItem(0, Icons.home_outlined, Icons.home, 'Trang chủ',
+                itemKey: _kHome),
             _navItem(1, Icons.rocket_launch_outlined, Icons.rocket_launch,
-                'Chiến lược'),
+                'Chiến lược', itemKey: _kStrategy),
             // Khoảng trống cho nút Mr.Wealth nhô lên ở giữa.
             const SizedBox(width: 56),
-            _navItem(2, Icons.speed_outlined, Icons.speed, 'Thị trường'),
-            _navItem(3, Icons.grid_view_outlined, Icons.grid_view, 'Khác'),
+            _navItem(2, Icons.speed_outlined, Icons.speed, 'Thị trường',
+                itemKey: _kMarket),
+            _navItem(3, Icons.grid_view_outlined, Icons.grid_view, 'Khác',
+                itemKey: _kMore),
           ],
         ),
       ),
@@ -101,12 +162,14 @@ class RootShellV2State extends State<RootShellV2> {
   }
 
   Widget _navItem(
-      int index, IconData icon, IconData activeIcon, String label) {
+      int index, IconData icon, IconData activeIcon, String label,
+      {Key? itemKey}) {
     final selected = _index == index;
     final color =
         selected ? AppColors.brandPrimaryDark : AppColors.darkTextMuted;
     return Expanded(
       child: InkResponse(
+        key: itemKey,
         onTap: () => setState(() => _index = index),
         radius: 36,
         child: Column(
