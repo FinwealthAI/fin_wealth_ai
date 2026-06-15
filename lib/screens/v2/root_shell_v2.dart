@@ -74,25 +74,25 @@ class RootShellV2State extends State<RootShellV2> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowAppTour());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowOnboarding());
   }
 
-  /// Tour giới thiệu các khu vực chính của app (bottom nav + Mr.Wealth FAB),
-  /// chạy 1 lần đầu cho user đã đăng nhập (cờ local `app`). Tour chat chi tiết
-  /// nằm riêng trong ChatScreenV2.
-  Future<void> _maybeShowAppTour() async {
+  /// Luồng hướng dẫn HỢP NHẤT (1 lần đầu, 1 cờ): welcome → giới thiệu các khu
+  /// vực chính (bottom nav) → tới Mr.Wealth thì mở thẳng màn chat và chạy tiếp
+  /// tour bên trong chat. Bỏ qua giữa chừng → kết thúc & đánh dấu đã xem.
+  Future<void> _maybeShowOnboarding() async {
     if (_appTourStarted || !mounted) return;
     final authRepo = context.read<AuthRepository>();
     if (authRepo.accessToken == null) return; // khách → bỏ qua
     final username = authRepo.username ?? '';
-    if (await OnboardingPrefs.hasSeenApp(username)) return;
+    if (await OnboardingPrefs.hasSeen(username)) return;
     if (!mounted) return;
     _appTourStarted = true;
 
     final start = await showAppWelcomeDialog(context);
     if (!mounted) return;
     if (!start) {
-      await OnboardingPrefs.markAppSeen(username);
+      await OnboardingPrefs.markSeen(username);
       return;
     }
     await WidgetsBinding.instance.endOfFrame;
@@ -108,12 +108,29 @@ class RootShellV2State extends State<RootShellV2> {
       CoachStep(_kMore, '🔲 Khác',
           'Quản lý danh mục, danh sách theo dõi, lọc cổ phiếu, tính margin, blog, biểu đồ kinh tế & hồ sơ đầu tư.'),
       CoachStep(_kFab, '🤖 Mr.Wealth — Trợ lý AI',
-          'Trái tim của Finwealth: chạm để hỏi phân tích cổ phiếu, đánh giá danh mục, tìm cơ hội. Mở được từ mọi nơi trong app.',
+          'Trái tim của Finwealth: hỏi phân tích cổ phiếu, đánh giá danh mục, tìm cơ hội. Cùng mở lên và xem cách dùng nhé!',
           circle: true),
     ];
 
-    runCoachMarks(context, steps,
-        onDone: () => OnboardingPrefs.markAppSeen(username));
+    runCoachMarks(
+      context,
+      steps,
+      doneLabel: 'Vào Mr.Wealth',
+      onDone: (completed) {
+        if (!completed) {
+          OnboardingPrefs.markSeen(username); // bỏ qua → kết thúc luồng
+          return;
+        }
+        if (!mounted) return;
+        // Đi hết phần app → vào thẳng màn chat, chạy tiếp tour bên trong.
+        // ChatScreenV2 sẽ tự đánh dấu đã xem khi tour chat kết thúc.
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const ChatScreenV2(runTourOnOpen: true),
+          ),
+        );
+      },
+    );
   }
 
   void setIndex(int i) {

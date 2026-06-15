@@ -196,6 +196,10 @@ class ChatMessage {
   bool isStreaming;
   bool hasError;
 
+  /// Tin do lịch hỏi tự động / digest sinh ra (web: `kind == "proactive"`).
+  /// Hiển thị dạng "bản tin định kỳ" (card gộp query + answer) thay vì bong bóng.
+  final bool isProactive;
+
   ChatMessage({
     this.id,
     required this.fromUser,
@@ -210,6 +214,7 @@ class ChatMessage {
     this.rating,
     this.isStreaming = false,
     this.hasError = false,
+    this.isProactive = false,
   })  : steps = steps ?? [],
         cards = cards ?? [];
 
@@ -219,6 +224,7 @@ class ChatMessage {
       id: m['id']?.toString(),
       fromUser: m['role'] == 'user',
       text: m['content']?.toString() ?? '',
+      isProactive: m['kind'] == 'proactive',
     );
   }
 }

@@ -173,11 +173,14 @@ class ChatHistoryService {
     final data = response.data?['data'] as List?;
     if (data != null) {
       for (final item in data) {
+        // kind: 'user_reply' | 'proactive' — phân biệt bản tin định kỳ (web).
+        final kind = item['kind'];
         if (item['query'] != null && item['query'].toString().isNotEmpty) {
           messages.add({
             'role': 'user',
             'content': item['query'],
             'id': item['id'],
+            'kind': kind,
           });
         }
         if (item['answer'] != null && item['answer'].toString().isNotEmpty) {
@@ -185,6 +188,7 @@ class ChatHistoryService {
             'role': 'assistant',
             'content': item['answer'],
             'id': item['id'],
+            'kind': kind,
           });
         }
       }

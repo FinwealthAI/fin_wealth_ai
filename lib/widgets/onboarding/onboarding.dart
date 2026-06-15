@@ -22,9 +22,9 @@ class OnboardBenefit {
   const OnboardBenefit(this.icon, this.title, this.body);
 }
 
-const List<OnboardBenefit> kChatBenefits = [
+const List<OnboardBenefit> kCoreBenefits = [
   OnboardBenefit(Icons.travel_explore, 'Săn cơ hội khắp thị trường',
-      'Hỏi mã nào đang có tín hiệu mua, ngành nào đang mạnh — Mr.Wealth quét & gợi ý cho bạn.'),
+      'Tìm mã đang có tín hiệu mua, ngành đang mạnh — bộ lọc chiến lược & Mr.Wealth gợi ý cho bạn.'),
   OnboardBenefit(Icons.insights, 'Thẩm định trước khi xuống tiền',
       'Định giá, điểm mạnh – yếu & rủi ro của từng mã, tổng hợp từ dữ liệu & báo cáo.'),
   OnboardBenefit(Icons.account_balance_wallet_outlined, 'Đánh giá & bảo vệ danh mục',
@@ -56,21 +56,13 @@ Future<bool> showOnboardingWelcome(
   return result ?? false;
 }
 
-/// Welcome dialog cho màn Chat (chi tiết, có 3 lợi ích).
-Future<bool> showChatWelcomeDialog(BuildContext context) => showOnboardingWelcome(
-      context,
-      title: 'Chào mừng đến Finwealth 👋',
-      subtitle:
-          'Nơi bạn đặt câu hỏi để tìm cơ hội, thẩm định cổ phiếu và ra quyết định đầu tư có cơ sở — thay vì phỏng đoán. Dành 30 giây để mình chỉ bạn cách dùng nhé!',
-      benefits: kChatBenefits,
-    );
-
-/// Welcome dialog cấp ứng dụng (ngắn gọn, giới thiệu tổng quan).
+/// Welcome dialog mở màn cho luồng hướng dẫn hợp nhất (app → chat).
 Future<bool> showAppWelcomeDialog(BuildContext context) => showOnboardingWelcome(
       context,
       title: 'Chào mừng đến Finwealth 👋',
       subtitle:
-          'Nền tảng đầu tư AI toàn diện. Cùng dạo nhanh 30 giây để biết mỗi khu vực giúp gì cho hành trình đầu tư của bạn nhé!',
+          'Nền tảng đầu tư AI toàn diện. Dành 30 giây để mình dẫn bạn qua các khu vực chính và trợ lý Mr.Wealth nhé!',
+      benefits: kCoreBenefits,
       ctaLabel: 'Dạo một vòng (30 giây)',
     );
 
@@ -252,34 +244,45 @@ class _BenefitRow extends StatelessWidget {
 }
 
 /// Chạy tour spotlight qua [steps]. Tự bỏ bước có widget không tồn tại
-/// (key.currentContext == null). [onDone] gọi khi xong hoặc bị bỏ qua.
+/// (key.currentContext == null). [onDone] nhận `completed` = true nếu user đi
+/// hết tour, false nếu bấm "Bỏ qua". [doneLabel] = nhãn nút ở bước cuối.
 void runCoachMarks(
   BuildContext context,
   List<CoachStep> steps, {
-  required VoidCallback onDone,
+  required void Function(bool completed) onDone,
+  String doneLabel = 'Bắt đầu dùng',
 }) {
   final visible = steps.where((s) => s.key.currentContext != null).toList();
   if (visible.isEmpty) {
-    onDone();
+    onDone(true);
     return;
   }
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
-  void finish() {
+  void finish(bool completed) {
     entry.remove();
-    onDone();
+    onDone(completed);
   }
 
   entry = OverlayEntry(
-    builder: (_) => _CoachOverlay(steps: visible, onFinish: finish),
+    builder: (_) => _CoachOverlay(
+      steps: visible,
+      doneLabel: doneLabel,
+      onFinish: finish,
+    ),
   );
   overlay.insert(entry);
 }
 
 class _CoachOverlay extends StatefulWidget {
   final List<CoachStep> steps;
-  final VoidCallback onFinish;
-  const _CoachOverlay({required this.steps, required this.onFinish});
+  final String doneLabel;
+  final void Function(bool completed) onFinish;
+  const _CoachOverlay({
+    required this.steps,
+    required this.doneLabel,
+    required this.onFinish,
+  });
 
   @override
   State<_CoachOverlay> createState() => _CoachOverlayState();
@@ -313,7 +316,7 @@ class _CoachOverlayState extends State<_CoachOverlay> {
 
   void _advance() {
     if (_i >= widget.steps.length - 1) {
-      widget.onFinish();
+      widget.onFinish(true);
       return;
     }
     setState(() {
@@ -372,8 +375,9 @@ class _CoachOverlayState extends State<_CoachOverlay> {
               index: _i,
               total: widget.steps.length,
               last: last,
+              doneLabel: widget.doneLabel,
               onNext: _advance,
-              onSkip: widget.onFinish,
+              onSkip: () => widget.onFinish(false),
             ),
           ),
         ],
@@ -388,6 +392,7 @@ class _TipCard extends StatelessWidget {
   final int index;
   final int total;
   final bool last;
+  final String doneLabel;
   final VoidCallback onNext;
   final VoidCallback onSkip;
 
@@ -397,6 +402,7 @@ class _TipCard extends StatelessWidget {
     required this.index,
     required this.total,
     required this.last,
+    required this.doneLabel,
     required this.onNext,
     required this.onSkip,
   });
@@ -455,7 +461,7 @@ class _TipCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: onNext,
-                child: Text(last ? 'Bắt đầu dùng' : 'Tiếp',
+                child: Text(last ? doneLabel : 'Tiếp',
                     style: const TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,

@@ -55,7 +55,16 @@ const List<String> _suggestions = [
 /// Màn hình Chat V3 — bám pipeline Agent V2 của web finwealth.
 class ChatScreenV2 extends StatefulWidget {
   final String? initialTicker;
-  const ChatScreenV2({super.key, this.initialTicker});
+
+  /// Khi mở từ luồng onboarding hợp nhất (sau tour app) → chạy thẳng tour chat
+  /// (không hiện welcome dialog), kết thúc thì đánh dấu đã xem hướng dẫn.
+  final bool runTourOnOpen;
+
+  const ChatScreenV2({
+    super.key,
+    this.initialTicker,
+    this.runTourOnOpen = false,
+  });
 
   @override
   State<ChatScreenV2> createState() => _ChatScreenV2State();
@@ -128,9 +137,10 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
-      // Hướng dẫn lần đầu — kích hoạt độc lập với việc tải hội thoại để chắc
-      // chắn chạy dù init lỗi/chậm. Tự bỏ qua nếu đã xem (cờ local theo user).
-      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowOnboarding());
+      // Tour chat CHỈ chạy khi đến từ luồng onboarding hợp nhất (sau tour app).
+      if (widget.runTourOnOpen) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _startChatTour());
+      }
     }
     if (widget.initialTicker != null) {
       _input.text = 'Phân tích ${widget.initialTicker}';
@@ -167,22 +177,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     }
   }
 
-  /// Hướng dẫn lần đầu: welcome dialog + tour spotlight các nút chính.
-  /// Chạy cho user đã đăng nhập chưa từng xem hướng dẫn TRÊN THIẾT BỊ NÀY
-  /// (cờ local theo username, độc lập với web). Hiển thị bất kể đã có lịch sử
-  /// chat hay chưa — bước "gợi ý" tự bỏ qua nếu màn welcome không hiển thị.
-  Future<void> _maybeShowOnboarding() async {
-    if (_onboardingStarted || isGuest) return;
-    if (await OnboardingPrefs.hasSeenChat(_username)) return;
-    if (!mounted) return;
+  /// Phần CHAT của luồng hướng dẫn hợp nhất: tour spotlight các nút chính của
+  /// màn Mr.Wealth. Vào thẳng (không welcome dialog) vì luồng app đã chào ở
+  /// bước trước. Kết thúc/bỏ qua → đánh dấu đã xem (cờ chung 1 lần/đời).
+  Future<void> _startChatTour() async {
+    if (_onboardingStarted || isGuest || !mounted) return;
     _onboardingStarted = true;
 
-    final start = await showChatWelcomeDialog(context);
-    if (!mounted) return;
-    if (!start) {
-      await OnboardingPrefs.markChatSeen(_username);
-      return;
-    }
     // Đợi hết frame để chắc chắn các widget mục tiêu đã layout xong.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
@@ -206,7 +207,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     ];
 
     runCoachMarks(context, steps,
-        onDone: () => OnboardingPrefs.markChatSeen(_username));
+        onDone: (_) => OnboardingPrefs.markSeen(_username));
   }
 
   /// Lấy trạng thái hồ sơ để quyết định có nhắc bổ sung không.
@@ -809,8 +810,136 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       controller: _scroll,
       padding: const EdgeInsets.all(AppSpacing.lg),
       itemCount: _messages.length,
-      itemBuilder: (context, i) => _buildBubble(_messages[i]),
+      itemBuilder: (context, i) {
+        final m = _messages[i];
+        // Bản tin định kỳ (proactive): gộp câu hỏi (tin user) + câu trả lời
+        // thành 1 card duy nhất — KHỚP web (addNewsletterCard).
+        if (m.isProactive) {
+          if (m.fromUser) return const SizedBox.shrink(); // gộp vào card dưới
+          final query = (i - 1 >= 0 &&
+                  _messages[i - 1].fromUser &&
+                  _messages[i - 1].isProactive)
+              ? _messages[i - 1].text
+              : '';
+          return _buildNewsletterCard(m, query);
+        }
+        return _buildBubble(m);
+      },
     );
+  }
+
+  /// Card "bản tin định kỳ" — Mr. Wealth tự gửi theo lịch / digest. Gộp câu hỏi
+  /// + câu trả lời, viền nhấn xanh, badge "Tự động" (khớp web newsletter card).
+  Widget _buildNewsletterCard(ChatMessage m, String query) {
+    final (label, icon) = _newsletterMeta(query);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.success.withValues(alpha: 0.14),
+              AppColors.darkSurfaceElevated,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.successDark.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: icon + nhãn loại bản tin + badge "Tự động".
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                      color: AppColors.successDark.withValues(alpha: 0.18)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, size: 16, color: AppColors.successDark),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$label · Mr. Wealth',
+                            style: _Ts.bodySmall.copyWith(
+                                color: AppColors.successDark,
+                                fontWeight: FontWeight.w700)),
+                        if (query.isNotEmpty)
+                          Text('"$query"',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _Ts.caption),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt,
+                            size: 11, color: AppColors.successDark),
+                        const SizedBox(width: 3),
+                        Text('Tự động',
+                            style: _Ts.caption
+                                .copyWith(color: AppColors.successDark)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Body: nội dung bản tin.
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: _buildRichText(m.text.isEmpty ? '...' : m.text),
+            ),
+            // Feedback actions (giống tin thường).
+            if (!m.hasError && m.text.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(
+                    left: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    bottom: AppSpacing.xs),
+                child: _buildMessageActions(m),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Suy ra nhãn + icon loại bản tin từ nội dung câu hỏi (khớp web getNewsletterMeta).
+  (String, IconData) _newsletterMeta(String query) {
+    final q = query.toLowerCase();
+    if (q.contains('danh mục')) {
+      return ('Tác động danh mục', Icons.show_chart);
+    }
+    if (q.contains('chuỗi') || q.contains('tác động')) {
+      return ('Phân tích chuỗi giá trị', Icons.account_tree_outlined);
+    }
+    return ('Bản tin định kỳ', Icons.event_available);
   }
 
   Widget _buildBubble(ChatMessage m) {
