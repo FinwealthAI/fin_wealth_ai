@@ -87,67 +87,11 @@ class SimLog {
   });
 }
 
-// ─── Calculator logic (ported from web JS) ────────────────────────────────────
+// ─── State transform (thuần Dart, KHÔNG tính công thức margin) ───────────────
+// Công thức margin nằm ở Python, gọi qua ApiConfig.computeMargin.
 
-MarginResult computeMargin(
-  double C,
-  double mmRatio, // 0..1
-  double xRatio,  // 0..1
-  List<MarginStock> stocks,
-) {
-  double a = 0, cv = 0, cvPending = 0, im = 0, alTotal = 0;
-  for (final stk in stocks) {
-    final val = stk.q * stk.price;
-    final valPending = stk.qPending * stk.price;
-    a += val + valPending;
-    if (stk.al != null) alTotal += stk.al!;
-
-    final c_ = stk.cPercent / 100;
-    final im_ = stk.imPercent / 100;
-
-    final cvStk = c_ > 0 ? val * c_ : 0.0;
-    final cvPend = valPending * c_;
-    cvPending += cvPend;
-    cv += cvStk + cvPend;
-
-    if (c_ > 0 || cvPend > 0) {
-      double imStk = cvStk * im_;
-      final imPend = cvPend * 1.0; // 100% for pending
-      final loan = cvStk - imStk;
-      if (stk.al != null && loan > stk.al!) {
-        imStk = cvStk - stk.al!;
-      }
-      im += imStk + imPend;
-    }
-  }
-
-  final e = C + cv;
-  final mm = im * mmRatio;
-  final ee = e - im;
-  final surplus = e - mm;
-  final mr = im > 0 ? e / im : (e > 0 ? 9999.0 : 0.0);
-  final mc = surplus < 0 ? (mm * xRatio) - e : 0.0;
-
-  return MarginResult(
-    c: C,
-    a: a,
-    cv: cv,
-    cvPending: cvPending,
-    e: e,
-    im: im,
-    mm: mm,
-    ee: ee,
-    surplus: surplus,
-    mr: mr,
-    mc: mc,
-    alTotal: alTotal,
-  );
-}
-
-({double simC, List<MarginStock> simStocks, MarginResult res}) applySimulation(
+({double simC, List<MarginStock> simStocks}) applySimulationState(
   double baseC,
-  double mmRatio,
-  double xRatio,
   List<MarginStock> baseStocks,
   List<SimLog> logs,
 ) {
@@ -161,10 +105,12 @@ MarginResult computeMargin(
       case SimType.withdraw:
         simC -= log.amount!;
       case SimType.sell:
-        simC += log.q! * log.price!;
         final idx = simStocks.indexWhere((s) => s.ticker == log.ticker);
+        // Cap tại số đang nắm thực — không cho bán khống
+        final sellQty = idx >= 0 ? min(log.q!, simStocks[idx].q) : 0.0;
+        simC += sellQty * log.price!;
         if (idx >= 0) {
-          simStocks[idx].q -= log.q!;
+          simStocks[idx].q -= sellQty;
           if (simStocks[idx].q <= 0) simStocks.removeAt(idx);
         }
       case SimType.buy:
@@ -189,11 +135,27 @@ MarginResult computeMargin(
         }
     }
   }
+  return (simC: simC, simStocks: simStocks);
+}
 
-  return (
-    simC: simC,
-    simStocks: simStocks,
-    res: computeMargin(simC, mmRatio, xRatio, simStocks),
+// ─── Parse response từ /margin-model/compute-margin/ ─────────────────────────
+MarginResult _parseMarginResult(Map<String, dynamic> data, double cashOverride) {
+  final mrRaw = (data['MR'] as num).toDouble();
+  // API trả MR dạng % (vd 139.3), convert về decimal (1.393) để khớp MarginResult
+  final mr = mrRaw == 9999 ? 9999.0 : mrRaw / 100.0;
+  return MarginResult(
+    c: cashOverride,
+    a: (data['A'] as num).toDouble(),
+    cv: (data['CV'] as num).toDouble(),
+    cvPending: (data['CV_pending'] as num).toDouble(),
+    e: (data['E'] as num).toDouble(),
+    im: (data['IM'] as num).toDouble(),
+    mm: (data['MM'] as num).toDouble(),
+    ee: (data['EE'] as num).toDouble(),
+    surplus: (data['Surplus'] as num).toDouble(),
+    mr: mr,
+    mc: (data['MC'] as num).toDouble(),
+    alTotal: (data['AL_total'] as num).toDouble(),
   );
 }
 
@@ -225,6 +187,13 @@ class _MarginScreenV2State extends State<MarginScreenV2>
   final List<SimLog> _logs = [];
   int _logIdCounter = 0;
 
+  // Kết quả tính margin từ API (async) — null = chưa có kết quả
+  MarginResult? _t0Cache;
+  MarginResult? _t1Cache;
+  double _t1SimC = 0;
+  bool _computing = false;
+  Timer? _computeDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -234,8 +203,62 @@ class _MarginScreenV2State extends State<MarginScreenV2>
 
   @override
   void dispose() {
+    _computeDebounce?.cancel();
     _tab.dispose();
     super.dispose();
+  }
+
+  // Gọi sau mỗi thay đổi dữ liệu — debounce 300ms rồi gọi API Python
+  void _scheduleCompute() {
+    _computeDebounce?.cancel();
+    _computeDebounce = Timer(const Duration(milliseconds: 300), _doCompute);
+  }
+
+  Future<void> _doCompute() async {
+    if (!mounted) return;
+    setState(() => _computing = true);
+    try {
+      final dio = context.read<InvestmentOpportunitiesRepository>().dio;
+      final t0Payload = _buildMarginPayload(_cash, _stocks);
+      final simState = applySimulationState(_cash, _stocks, _logs);
+      final t1Payload = _buildMarginPayload(simState.simC, simState.simStocks);
+      final results = await Future.wait([
+        dio.post(ApiConfig.computeMargin, data: t0Payload),
+        dio.post(ApiConfig.computeMargin, data: t1Payload),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _t0Cache = _parseMarginResult(results[0].data as Map<String, dynamic>, _cash);
+        _t1Cache = _parseMarginResult(results[1].data as Map<String, dynamic>, simState.simC);
+        _t1SimC = simState.simC;
+        _computing = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _computing = false);
+    }
+  }
+
+  Map<String, dynamic> _buildMarginPayload(double cash, List<MarginStock> stocks) {
+    return {
+      'cash_balance': cash,
+      'mm_ratio': _mmRatio,
+      'x_ratio': _xRatio,
+      'credit_limit': _creditLimit,
+      'holdings': stocks.map((s) => {
+        'q': s.q,
+        'q_pending': s.qPending,
+        'price': s.price,
+        'c_ratio': s.cPercent,
+        'im_ratio': s.imPercent,
+        'al': s.al ?? 0,
+      }).toList(),
+    };
+  }
+
+  // Wrapper: setState + trigger recompute từ API
+  void _setStateAndCompute(VoidCallback fn) {
+    setState(fn);
+    _scheduleCompute();
   }
 
   Future<void> _loadMarginParams() async {
@@ -405,6 +428,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
             duration: const Duration(seconds: 2),
           ),
         );
+        _scheduleCompute(); // Trigger tính lại sau khi load profile xong
       }
     } catch (e) {
       if (mounted) {
@@ -413,6 +437,12 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         );
       }
     }
+  }
+
+  String _fmtNum(double v) {
+    if (v >= 1e9) return '${(v / 1e9).toStringAsFixed(1)}B';
+    if (v >= 1e6) return '${(v / 1e6).toStringAsFixed(0)}M';
+    return v.toStringAsFixed(0);
   }
 
   Future<void> _fetchTickerInfo(MarginStock stk) async {
@@ -436,31 +466,34 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         stk.al = (resp.data['al'] as num?)?.toDouble() ?? stk.al;
       }
     } catch (_) {}
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _scheduleCompute();
+    }
   }
-
-  // ── Computed ──────────────────────────────────────────────────────────────
-
-  MarginResult get _t0 => computeMargin(
-        _cash, _mmRatio / 100, _xRatio / 100, _stocks);
-
-  ({double simC, List<MarginStock> simStocks, MarginResult res}) get _t1 =>
-      applySimulation(_cash, _mmRatio / 100, _xRatio / 100, _stocks, _logs);
 
   // ── UI ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final t0 = _t0;
-    final t1r = _t1;
+    final t0 = _t0Cache;
+    final t1 = _t1Cache;
+    final t1SimC = _t1SimC;
 
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       appBar: AppBar(
         backgroundColor: AppColors.darkSurface,
         elevation: 0,
-        title: const Text('Chi tiết danh mục',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Row(children: [
+          const Text('Chi tiết danh mục',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+          if (_computing) ...[
+            const SizedBox(width: 8),
+            const SizedBox(width: 14, height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54)),
+          ],
+        ]),
         iconTheme: const IconThemeData(color: Colors.white),
         bottom: TabBar(
           controller: _tab,
@@ -476,8 +509,8 @@ class _MarginScreenV2State extends State<MarginScreenV2>
       body: TabBarView(
         controller: _tab,
         children: [
-          _buildT0Tab(t0),
-          _buildT1Tab(t1r.res, t1r.simC),
+          t0 == null ? const Center(child: CircularProgressIndicator()) : _buildT0Tab(t0),
+          t1 == null ? const Center(child: CircularProgressIndicator()) : _buildT1Tab(t1, t1SimC),
         ],
       ),
     );
@@ -551,7 +584,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
             const Spacer(),
             GestureDetector(
-              onTap: () => setState(() => _stocks.add(MarginStock())),
+              onTap: () => _setStateAndCompute(() => _stocks.add(MarginStock())),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -574,9 +607,9 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         ..._stocks.asMap().entries.map((e) => _StockCard(
               stock: e.value,
               index: e.key,
-              onRemove: () => setState(() => _stocks.removeAt(e.key)),
+              onRemove: () => _setStateAndCompute(() => _stocks.removeAt(e.key)),
               onFetchInfo: () async => _fetchTickerInfo(e.value),
-              onChanged: () => setState(() {}),
+              onChanged: () => _scheduleCompute(),
             )),
       ],
     );
@@ -595,7 +628,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
             const Spacer(),
             if (_logs.isNotEmpty)
               GestureDetector(
-                onTap: () => setState(() => _logs.clear()),
+                onTap: () => _setStateAndCompute(() => _logs.clear()),
                 child: const Text('Xóa tất cả',
                     style: TextStyle(color: Colors.redAccent, fontSize: 13)),
               ),
@@ -618,7 +651,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
           ..._logs.asMap().entries.map((e) => _SimLogItem(
                 log: e.value,
                 index: e.key,
-                onRemove: () => setState(() => _logs.removeWhere((l) => l.id == e.value.id)),
+                onRemove: () => _setStateAndCompute(() => _logs.removeWhere((l) => l.id == e.value.id)),
               )),
       ],
     );
@@ -638,7 +671,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         creditLimit: cl,
         mmRatio: _mmRatio,
         xRatio: _xRatio,
-        onConfirm: (c, cl2, mm, x) => setState(() {
+        onConfirm: (c, cl2, mm, x) => _setStateAndCompute(() {
           _cash = c;
           _creditLimit = cl2;
           _mmRatio = mm;
@@ -650,7 +683,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
 
   void _showDepositDialog() {
     _showAmountDialog('Nạp tiền', Colors.green, (amt) {
-      setState(() => _logs.add(SimLog(
+      _setStateAndCompute(() => _logs.add(SimLog(
             id: _logIdCounter++,
             type: SimType.deposit,
             amount: amt,
@@ -659,8 +692,27 @@ class _MarginScreenV2State extends State<MarginScreenV2>
   }
 
   void _showWithdrawDialog() {
-    _showAmountDialog('Rút tiền', Colors.redAccent, (amt) {
-      setState(() => _logs.add(SimLog(
+    _showAmountDialog('Rút tiền', Colors.redAccent, (amt) async {
+      // Gate Sức rút = max(0, E - MM) — HSC PDF
+      final simState = applySimulationState(_cash, _stocks,
+          [..._logs, SimLog(id: -1, type: SimType.withdraw, amount: amt)]);
+      try {
+        final dio = context.read<InvestmentOpportunitiesRepository>().dio;
+        final resp = await dio.post(ApiConfig.computeMargin,
+            data: _buildMarginPayload(simState.simC, simState.simStocks));
+        final surplus = (resp.data['Surplus'] as num).toDouble();
+        if (surplus < 0) {
+          final sucRut = _t0Cache != null ? _t0Cache!.surplus.clamp(0, double.infinity) : 0.0;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              backgroundColor: Colors.red.shade800,
+              content: Text('Rút bị từ chối: Sẽ gây thâm hụt ký quỹ. Sức rút tối đa: ${_fmtNum(sucRut)} đ (= E − MM)'),
+            ));
+          }
+          return;
+        }
+      } catch (_) { /* Nếu API lỗi, vẫn cho rút */ }
+      _setStateAndCompute(() => _logs.add(SimLog(
             id: _logIdCounter++,
             type: SimType.withdraw,
             amount: amt,
@@ -687,7 +739,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         isBuy: true,
         paramMap: _paramMap,
         onConfirm: (ticker, q, p, c, im) {
-          setState(() => _logs.add(SimLog(
+          _setStateAndCompute(() => _logs.add(SimLog(
                 id: _logIdCounter++,
                 type: SimType.buy,
                 ticker: ticker,
@@ -711,7 +763,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
         isBuy: false,
         paramMap: _paramMap,
         onConfirm: (ticker, q, p, c, im) {
-          setState(() => _logs.add(SimLog(
+          _setStateAndCompute(() => _logs.add(SimLog(
                 id: _logIdCounter++,
                 type: SimType.sell,
                 ticker: ticker,
