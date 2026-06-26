@@ -706,7 +706,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               backgroundColor: Colors.red.shade800,
-              content: Text('Rút bị từ chối: Sẽ gây thâm hụt ký quỹ. Sức rút tối đa: ${_fmtNum(sucRut)} đ (= E − MM)'),
+              content: Text('Rút bị từ chối: Sẽ gây thâm hụt ký quỹ. Sức rút tối đa: ${_fmtNum(sucRut.toDouble())} đ (= E − MM)'),
             ));
           }
           return;
