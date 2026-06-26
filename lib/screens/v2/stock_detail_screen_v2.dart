@@ -3306,14 +3306,15 @@ class _OpportunityRiskCard extends StatelessWidget {
               ),
             ),
           ),
-          if (insight != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1, color: AppColors.darkBorder),
-            const SizedBox(height: AppSpacing.sm),
-            _buildInsightList(
-                insight!['opportunities'] as List<dynamic>?, true),
-            _buildInsightList(insight!['risks'] as List<dynamic>?, false),
-          ],
+          // Tạm ẩn danh sách Cơ hội & Rủi ro (tuân thủ luật bản quyền 1/7)
+          // if (insight != null) ...[
+          //   const SizedBox(height: AppSpacing.md),
+          //   const Divider(height: 1, color: AppColors.darkBorder),
+          //   const SizedBox(height: AppSpacing.sm),
+          //   _buildInsightList(
+          //       insight!['opportunities'] as List<dynamic>?, true),
+          //   _buildInsightList(insight!['risks'] as List<dynamic>?, false),
+          // ],
         ],
       ),
     );
