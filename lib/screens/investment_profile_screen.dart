@@ -42,6 +42,11 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
+  /// Summary-first (khớp UX web mới): mở màn Hồ sơ → hiện TÓM TẮT read-only trước;
+  /// nút "Chỉnh sửa" mới vào form khai phá. Onboarding thì vào thẳng form.
+  bool _showSummary = false;
+  Map<String, dynamic>? _summary;
+
   /// Đáp án: single → String, multi (methods) → List<String>.
   final Map<String, dynamic> _answers = {};
 
@@ -134,7 +139,34 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPrefill();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await _loadPrefill();
+    // Non-onboarding: tải tóm tắt; có nội dung → hiện màn TÓM TẮT trước.
+    final hasSummary = widget.isOnboarding ? false : await _loadSummary();
+    if (mounted) {
+      setState(() {
+        _showSummary = hasSummary;
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Tải tóm tắt hồ sơ (API mới của web). Trả true nếu có nội dung để hiển thị.
+  Future<bool> _loadSummary() async {
+    try {
+      final resp = await _dio().get('/api/super-broker/profile-summary/');
+      final data = resp.data;
+      if (data is Map) {
+        _summary = Map<String, dynamic>.from(data);
+        final sections = (data['sections'] as List?) ?? const [];
+        final traits = (data['traits'] as List?) ?? const [];
+        return sections.isNotEmpty || traits.isNotEmpty;
+      }
+    } catch (_) {}
+    return false;
   }
 
   Dio _dio() {
@@ -155,26 +187,20 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
       final resp = await _dio().get('/api/super-broker/discovery-prefill/');
       final data = resp.data;
       if (data is Map) {
-        setState(() {
-          for (final entry in data.entries) {
-            final k = entry.key.toString();
-            if (k == 'methods') {
-              _answers[k] = (entry.value as List?)
-                      ?.map((e) => e.toString())
-                      .toList() ??
-                  <String>[];
-            } else {
-              _answers[k] = entry.value?.toString();
-            }
+        for (final entry in data.entries) {
+          final k = entry.key.toString();
+          if (k == 'methods') {
+            _answers[k] = (entry.value as List?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                <String>[];
+          } else {
+            _answers[k] = entry.value?.toString();
           }
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
+        }
       }
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
+    } catch (_) {}
+    // _isLoading do _init quản lý sau khi tải xong cả prefill + summary.
   }
 
   Future<void> _save() async {
@@ -216,7 +242,9 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
       if (widget.isOnboarding) {
         Navigator.of(context).pushNamedAndRemoveUntil('/v2', (route) => false);
       } else {
-        Navigator.of(context).pop(true);
+        // Quay lại màn TÓM TẮT với dữ liệu vừa cập nhật (khớp UX web: sửa xong → xem lại).
+        await _loadSummary();
+        if (mounted) setState(() => _showSummary = true);
       }
     } catch (e) {
       if (mounted) {
@@ -292,6 +320,8 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Summary-first: đã có hồ sơ + không onboarding → hiện màn TÓM TẮT read-only.
+    if (!_isLoading && _showSummary) return _buildSummaryScaffold(context);
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       appBar: FwAppBar(
@@ -343,6 +373,191 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
             onPressed: _isSaving ? null : _save,
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Màn TÓM TẮT hồ sơ (read-only) — khớp popup profile_summary.html của web ──
+  Widget _buildSummaryScaffold(BuildContext context) {
+    final s = _summary ?? const {};
+    final sections = (s['sections'] as List?) ?? const [];
+    final traits = (s['traits'] as List?) ?? const [];
+    final confidence = (s['confidence'] as num?)?.round();
+    final isStale = s['is_stale'] == true;
+
+    return Scaffold(
+      backgroundColor: AppColors.darkBg,
+      appBar: FwAppBar(
+        title: 'Hồ Sơ Đầu Tư',
+        subtitle: confidence != null
+            ? 'Độ hoàn thiện: $confidence%'
+            : 'Khẩu vị & đặc tính đầu tư',
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isStale) ...[
+              _staleBanner(),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            for (final sec in sections) ...[
+              _summarySection(sec as Map),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (traits.isNotEmpty) _traitsCard(traits),
+            const SizedBox(height: AppSpacing.xxl),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: AppColors.darkBg,
+            border: Border(
+                top: BorderSide(
+                    color: AppColors.darkBorder.withValues(alpha: 0.5))),
+          ),
+          child: FwButton(
+            label: 'Chỉnh sửa hồ sơ',
+            icon: Icons.edit_outlined,
+            fullWidth: true,
+            onPressed: () => setState(() => _showSummary = false),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _staleBanner() {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.schedule, color: Color(0xFFF59E0B), size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Hồ sơ đã lâu chưa cập nhật — khẩu vị có thể đã thay đổi, nên khai phá lại.',
+              style: TextStyle(color: Color(0xFFFBBF24), fontSize: 13, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summarySection(Map sec) {
+    final items = (sec['items'] as List?) ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            sec['title']?.toString() ?? '',
+            style: const TextStyle(
+                color: AppColors.brandPrimaryDark,
+                fontWeight: FontWeight.w700,
+                fontSize: 14),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final it in items) _summaryRow(it as Map),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(Map it) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(it['label']?.toString() ?? '',
+                style: const TextStyle(
+                    color: AppColors.darkTextSecondary, fontSize: 13.5)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(it['value']?.toString() ?? '',
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                    color: AppColors.darkTextPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _traitsCard(List traits) {
+    // Gộp theo nhóm: mỗi category chỉ 1 tiêu đề, liệt kê bullet; bỏ tiền tố "Khai phá:".
+    final groups = <String, List<String>>{};
+    final order = <String>[];
+    for (final t in traits) {
+      final m = t as Map;
+      final label = (m['category_label']?.toString() ?? '')
+          .replaceFirst(RegExp(r'^Khai phá:\s*'), '');
+      final content = m['content']?.toString() ?? '';
+      if (content.isEmpty) continue;
+      if (!groups.containsKey(label)) {
+        groups[label] = <String>[];
+        order.add(label);
+      }
+      groups[label]!.add(content);
+    }
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Đặc tính đã ghi nhận',
+              style: TextStyle(
+                  color: AppColors.brandPrimaryDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14)),
+          const SizedBox(height: AppSpacing.sm),
+          for (final label in order) ...[
+            if (label.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 2),
+                child: Text(label,
+                    style: const TextStyle(
+                        color: AppColors.brandPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+              ),
+            for (final c in groups[label]!)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 2, bottom: 2),
+                child: Text('• $c',
+                    style: const TextStyle(
+                        color: AppColors.darkTextSecondary,
+                        fontSize: 13,
+                        height: 1.4)),
+              ),
+          ],
+        ],
       ),
     );
   }
