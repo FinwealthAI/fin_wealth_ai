@@ -3,6 +3,7 @@
 /// Pipeline backend (agent_service.run_pipeline) stream qua SSE các sự kiện:
 ///   classify -> agent_start/agent_done (mỗi agent) -> answer(token...) -> [DONE]
 /// Các model dưới đây biểu diễn đầy đủ vòng đời đó để UI hiển thị tiến trình.
+library;
 
 /// Chế độ phân tích — khớp field `mode` của request `/api/chat/send/`.
 enum ChatMode { flash, pro }

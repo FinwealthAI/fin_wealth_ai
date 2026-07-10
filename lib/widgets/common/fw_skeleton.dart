@@ -22,6 +22,26 @@ class FwSkeleton extends StatefulWidget {
       : height = 14,
         radius = AppRadius.sm;
 
+  /// Nền và dải sáng của shimmer. Highlight phải đủ tương phản với nền —
+  /// nếu dùng cặp darkSurface/darkSurfaceElevated thì mắt thường không thấy
+  /// chuyển động (nhìn như khối tĩnh).
+  static const Color _base = AppColors.darkSurface;
+  static const Color _highlight = Color(0xFF2A3046);
+
+  /// Gradient shimmer dùng chung cho mọi skeleton (kể cả skeleton tự dựng
+  /// ngoài widget này): dải sáng hẹp quét chéo từ trái sang phải theo [t]
+  /// (0→1, lặp lại). Truyền `controller.value` của một AnimationController
+  /// đang `repeat()`.
+  static LinearGradient shimmerGradient(double t) {
+    final dx = -1.5 + 3.0 * t;
+    return LinearGradient(
+      begin: Alignment(dx - 1.0, -0.2),
+      end: Alignment(dx + 1.0, 0.2),
+      colors: const [_base, _highlight, _base],
+      stops: const [0.35, 0.5, 0.65],
+    );
+  }
+
   @override
   State<FwSkeleton> createState() => _FwSkeletonState();
 }
@@ -55,16 +75,7 @@ class _FwSkeletonState extends State<FwSkeleton>
           height: widget.height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),
-            gradient: LinearGradient(
-              colors: const [
-                AppColors.darkSurface,
-                AppColors.darkSurfaceElevated,
-                AppColors.darkSurface,
-              ],
-              stops: [0.0, _ctrl.value, 1.0],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
+            gradient: FwSkeleton.shimmerGradient(_ctrl.value),
           ),
         );
       },

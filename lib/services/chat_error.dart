@@ -59,6 +59,7 @@ class ChatError implements Exception {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.receiveTimeout:
         case DioExceptionType.sendTimeout:
+        case DioExceptionType.transformTimeout:
           return const ChatError(
             ChatErrorType.timeout,
             'Máy chủ phản hồi chậm. Câu trả lời có thể vẫn đang được xử lý — '

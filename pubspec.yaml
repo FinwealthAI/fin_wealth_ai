@@ -10,17 +10,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_bloc: ^8.0.1
-  dio: ^5.7.0
-  fl_chart: ^0.69.0
+  flutter_bloc: ^9.1.1
+  dio: ^5.10.0
+  fl_chart: ^1.2.0
   flutter_secure_storage: ^9.0.0
   equatable: ^2.0.0
   cupertino_icons: ^1.0.2
-  intl: ^0.18.0
+  intl: ^0.20.3
   shared_preferences: ^2.2.2
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
   flutter_html: ^3.0.0-beta.2
-  flutter_markdown: ^0.6.18+4
+  # flutter_markdown gốc đã discontinued → dùng fork drop-in được duy trì.
+  flutter_markdown_plus: ^1.0.3
   markdown: ^7.1.1
   url_launcher: ^6.3.1
   badges: ^3.1.2
@@ -42,7 +43,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^2.0.0
+  flutter_lints: ^6.0.0
 
 flutter_launcher_icons:
   image_path: "assets/images/logo.jpg"

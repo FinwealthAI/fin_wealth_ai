@@ -237,7 +237,7 @@ class _MainPriceChartState extends State<MainPriceChart> {
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
                       getTooltipColor: (_) => Colors.blueGrey,
-                      tooltipRoundedRadius: 8,
+                      tooltipBorderRadius: BorderRadius.circular(8),
                       getTooltipItems: (touchedSpots) {
                         return touchedSpots.map((spot) {
                           final i = spot.x.toInt();

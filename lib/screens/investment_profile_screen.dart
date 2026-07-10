@@ -47,7 +47,7 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
   bool _showSummary = false;
   Map<String, dynamic>? _summary;
 
-  /// Đáp án: single → String, multi (methods) → List<String>.
+  /// Đáp án: single → String, multi (methods) → `List<String>`.
   final Map<String, dynamic> _answers = {};
 
   // ── Định nghĩa bài khai phá (khớp discovery_quiz.html của web) ──

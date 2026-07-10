@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -126,6 +126,14 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   /// Gộp nhiều chunk `answer` đến sát nhau thành 1 lần rebuild (~20fps) để
   /// tránh re-parse markdown theo từng token khi stream câu trả lời dài.
   Timer? _streamFlushTimer;
+
+  /// Tab đang chọn trong drawer lịch sử (khớp web): 'user' = Trò chuyện,
+  /// 'proactive' = Bản tin định kỳ.
+  String _convTab = 'user';
+
+  /// Future danh sách hội thoại — memoize để drawer không refetch mỗi lần
+  /// màn hình rebuild (vd khi đang stream). Làm mới khi mở drawer/đổi tab.
+  Future<List<ChatConversationSummary>>? _convsFuture;
 
   bool get isGuest => _authRepo.accessToken == null;
   String get _username => _authRepo.username ?? '';
@@ -668,6 +676,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       endDrawer: isGuest ? null : _buildConversationsDrawer(),
+      onEndDrawerChanged: (open) {
+        // Làm mới danh sách mỗi lần mở drawer (badge/bản tin mới).
+        if (open) {
+          setState(() => _convsFuture =
+              ChatHistoryService.listConversations(kind: _convTab, token: _token));
+        }
+      },
       appBar: FwAppBar(
         title: 'Mr.Wealth',
         subtitle: 'AI Cố vấn đầu tư',
@@ -1713,18 +1728,48 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                 ],
               ),
             ),
+            // 2 tab lịch sử (khớp web): Trò chuyện (user) / Bản tin (proactive).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FwFilterPill(
+                      label: 'Trò chuyện',
+                      active: _convTab == 'user',
+                      onTap: () => _switchConvTab('user'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FwFilterPill(
+                      label: _proactiveUnread > 0
+                          ? 'Bản tin ($_proactiveUnread)'
+                          : 'Bản tin',
+                      active: _convTab == 'proactive',
+                      onTap: () => _switchConvTab('proactive'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const Divider(color: AppColors.darkBorder, height: 1),
             Expanded(
               child: FutureBuilder<List<ChatConversationSummary>>(
-                future: ChatHistoryService.listConversations(token: _token),
+                future: _convsFuture ??= ChatHistoryService.listConversations(
+                    kind: _convTab, token: _token),
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   final convs = snap.data ?? const [];
                   if (convs.isEmpty) {
-                    return const Center(
-                      child: Text('Chưa có cuộc trò chuyện nào',
+                    return Center(
+                      child: Text(
+                          _convTab == 'proactive'
+                              ? 'Chưa có bản tin định kỳ nào'
+                              : 'Chưa có cuộc trò chuyện nào',
                           style: _Ts.bodySmall),
                     );
                   }
@@ -1736,8 +1781,12 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                       return ListTile(
                         selected: selected,
                         selectedTileColor: AppColors.darkSurfaceElevated,
-                        leading: const Icon(Icons.chat_bubble_outline,
-                            size: 18, color: AppColors.darkTextSecondary),
+                        leading: Icon(
+                            _convTab == 'proactive'
+                                ? Icons.campaign_outlined
+                                : Icons.chat_bubble_outline,
+                            size: 18,
+                            color: AppColors.darkTextSecondary),
                         title: Row(
                           children: [
                             if (c.hasUnread) ...[
@@ -1790,6 +1839,15 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         ),
       ),
     );
+  }
+
+  void _switchConvTab(String kind) {
+    if (_convTab == kind) return;
+    setState(() {
+      _convTab = kind;
+      _convsFuture =
+          ChatHistoryService.listConversations(kind: kind, token: _token);
+    });
   }
 
   Future<void> _renameDialog(ChatConversationSummary c) async {

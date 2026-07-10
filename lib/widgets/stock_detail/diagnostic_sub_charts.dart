@@ -465,7 +465,7 @@ class _DualLineChart extends StatelessWidget {
                lineTouchData: LineTouchData(
                  touchTooltipData: LineTouchTooltipData(
                    getTooltipColor: (_) => Colors.blueGrey,
-                   tooltipRoundedRadius: 8,
+                   tooltipBorderRadius: BorderRadius.circular(8),
                    getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         final i = spot.x.toInt();
@@ -554,7 +554,7 @@ class _SimpleLineChart extends StatelessWidget {
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => Colors.blueGrey, // Fixed: use callback instead of tooltipBgColor
-                    tooltipRoundedRadius: 8,
+                    tooltipBorderRadius: BorderRadius.circular(8),
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         final i = spot.x.toInt();

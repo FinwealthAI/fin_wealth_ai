@@ -15,8 +15,6 @@ import '../../widgets/common/common.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
 import 'root_shell_v2.dart' show RootShellNav;
-import '../../models/blog_post.dart';
-import 'blog_detail_screen_v2.dart';
 import 'stock_detail_screen_v2.dart';
 import 'stock_search_screen_v2.dart';
 import 'strategy_detail_screen_v2.dart';
@@ -127,32 +125,6 @@ class HomeScreenV2State extends State<HomeScreenV2>
     );
   }
 
-  Future<void> _openDailyBlog() async {
-    final blog = _dash?.dailyBlogPost;
-    if (blog != null && blog.slug.isNotEmpty) {
-      final post = BlogPost(
-        id: blog.id,
-        title: blog.title,
-        slug: blog.slug,
-        summary: blog.excerpt,
-        thumbnailUrl: blog.coverImage,
-        publishedAt: blog.publishedAt,
-        viewsCount: blog.viewsCount,
-      );
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => BlogDetailScreenV2(post: post)),
-      );
-      return;
-    }
-    // Fallback: open in external browser
-    final raw = _dash?.dailyBlogUrl ?? blog?.url;
-    if (raw == null || raw.isEmpty) return;
-    final full = raw.startsWith('http') ? raw : '${ApiConfig.websiteUrl}$raw';
-    final uri = Uri.tryParse(full);
-    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   String get _userName {
     final u = _authRepo.username;
     if (u == null || u.isEmpty) return 'Khách';
@@ -209,16 +181,8 @@ class HomeScreenV2State extends State<HomeScreenV2>
     return AnimatedBuilder(
       animation: _shimmerCtrl,
       builder: (_, __) {
-        final shimmer = LinearGradient(
-          colors: const [
-            AppColors.darkSurface,
-            AppColors.darkSurfaceElevated,
-            AppColors.darkSurface,
-          ],
-          stops: [0.0, _shimmerCtrl.value, 1.0],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        );
+        // Dùng chung gradient với FwSkeleton để hiệu ứng đồng nhất toàn app.
+        final shimmer = FwSkeleton.shimmerGradient(_shimmerCtrl.value);
 
         Widget block(double height, {double? width, double radius = AppRadius.lg}) =>
             Container(
@@ -330,7 +294,8 @@ class HomeScreenV2State extends State<HomeScreenV2>
       vnIndexChangePct: s.vnIndexChange ?? 0,
       sentiment: sentiment,
       publishedAt: s.date,
-      onReadMore: _openDailyBlog,
+      // "Xem thêm" đi tới trang Thị trường (khớp luồng web), không mở blog.
+      onReadMore: RootShellNav.goMarket,
       onAskAI: widget.onOpenChat,
       onViewMarket: RootShellNav.goMarket,
     );
@@ -349,7 +314,8 @@ class HomeScreenV2State extends State<HomeScreenV2>
           icon: Icons.account_tree_outlined,
         ),
         SizedBox(
-          height: 170,
+          // 190 = 170 cũ + 1 dòng "Cập nhật dd/MM/yyyy" trên card.
+          height: 190,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -408,7 +374,23 @@ class HomeScreenV2State extends State<HomeScreenV2>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    // Ngày cập nhật (khớp web: story.date d/m/Y) — dòng riêng
+                    // để không bị các nút bên dưới che mất.
+                    if (_fmtStoryDate(m['date']).isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_outlined,
+                              size: 10, color: AppColors.darkTextMuted),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Cập nhật ${_fmtStoryDate(m['date'])}',
+                            style: text.labelSmall
+                                ?.copyWith(color: AppColors.darkTextMuted),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -446,6 +428,14 @@ class HomeScreenV2State extends State<HomeScreenV2>
         ),
       ],
     );
+  }
+
+  /// Ngày cập nhật của chain story (backend trả ISO `yyyy-MM-dd`) → `dd/MM/yyyy`
+  /// khớp định dạng web. Trả chuỗi rỗng nếu thiếu/không parse được.
+  static String _fmtStoryDate(dynamic v) {
+    final d = DateTime.tryParse(v?.toString() ?? '');
+    if (d == null) return '';
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 
   Future<void> _openExternal(String path) async {
@@ -505,6 +495,16 @@ class HomeScreenV2State extends State<HomeScreenV2>
               const SizedBox(height: AppSpacing.sm),
               Text(title,
                   style: Theme.of(context).textTheme.titleMedium),
+              if (_fmtStoryDate(m['date']).isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Mr. Wealth · Biến động Chuỗi giá trị · ${_fmtStoryDate(m['date'])}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: AppColors.darkTextMuted),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               if (narrative.isNotEmpty) ...[
                 Text(narrative,

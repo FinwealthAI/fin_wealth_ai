@@ -41,6 +41,9 @@ class FwFilterPill extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            // Khi pill bị kéo giãn (đặt trong Expanded), nội dung căn giữa và
+            // label tự cắt bớt thay vì tràn (RenderFlex overflow).
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
                 Icon(
@@ -50,12 +53,16 @@ class FwFilterPill extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
               ],
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: active ? Colors.white : AppColors.darkTextSecondary,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: active ? Colors.white : AppColors.darkTextSecondary,
+                  ),
                 ),
               ),
             ],

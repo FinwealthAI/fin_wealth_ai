@@ -168,14 +168,23 @@ class ChatHistoryService {
   // ---------------------------------------------------------------------------
 
   /// Danh sách hội thoại của user.
+  ///
+  /// [kind]: 'user' (chat do user tạo) | 'proactive' (bản tin định kỳ) |
+  /// 'all' (mặc định — giữ hành vi cũ). Khớp query param `kind` của backend
+  /// `list_conversations` — tách luồng để chat user không bị bản tin tự động
+  /// (2 lần/ngày) chôn vùi khỏi danh sách gần nhất.
   static Future<List<ChatConversationSummary>> listConversations({
     int limit = 30,
+    String kind = 'all',
     String? token,
   }) async {
     try {
       final response = await _dio.get(
         '/api/chat/conversations/',
-        queryParameters: {'limit': limit},
+        queryParameters: {
+          'limit': limit,
+          if (kind != 'all') 'kind': kind,
+        },
         options: _opts(token: token),
       );
       final data = response.data?['data'] as List? ?? const [];
@@ -414,7 +423,9 @@ class ChatHistoryService {
   }
 
   static Future<String?> getLatestConversationId({String? token}) async {
-    final convs = await listConversations(limit: 1, token: token);
+    // kind 'user': khi resume, mở lại chat user gần nhất thay vì bản tin
+    // tự động vừa được gửi (bản tin có thể "mới hơn" mọi chat thật).
+    final convs = await listConversations(limit: 1, kind: 'user', token: token);
     return convs.isNotEmpty ? convs.first.id : null;
   }
 
