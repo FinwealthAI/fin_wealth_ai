@@ -95,7 +95,7 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
 
   void _addTyping() {
     setState(() {
-      _messages.add(_ChatMsg(text: '', avatar: _Avatar.mrWealth, isTyping: true));
+      _messages.add(const _ChatMsg(text: '', avatar: _Avatar.mrWealth, isTyping: true));
     });
     _scrollToBottom();
   }
@@ -370,10 +370,6 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
       );
     }
 
-    final avatarAsset = msg.avatar == _Avatar.mrWealth
-        ? 'assets/images/mr_wealth_avatar.png'
-        : 'assets/images/mai_avatar.png';
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -424,17 +420,17 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
                             'body': Style(
                               color: AppColors.darkTextPrimary,
                               fontSize: FontSize(14),
-                              lineHeight: LineHeight(1.6),
+                              lineHeight: const LineHeight(1.6),
                               margin: Margins.zero,
                               padding: HtmlPaddings.zero,
                             ),
                             'h1': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(20), fontWeight: FontWeight.w700, margin: Margins.only(top: 16, bottom: 8)),
                             'h2': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(17), fontWeight: FontWeight.w700, margin: Margins.only(top: 14, bottom: 6)),
                             'h3': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(15), fontWeight: FontWeight.w600, margin: Margins.only(top: 12, bottom: 4)),
-                            'p': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.6), margin: Margins.only(bottom: 10)),
+                            'p': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: const LineHeight(1.6), margin: Margins.only(bottom: 10)),
                             'strong,b': Style(color: AppColors.darkTextPrimary, fontWeight: FontWeight.w700),
                             'ul,ol': Style(margin: Margins.only(bottom: 10, left: 4)),
-                            'li': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: LineHeight(1.6), margin: Margins.only(bottom: 4)),
+                            'li': Style(color: AppColors.darkTextPrimary, fontSize: FontSize(14), lineHeight: const LineHeight(1.6), margin: Margins.only(bottom: 4)),
                             'a': Style(color: AppColors.brandPrimaryDark, textDecoration: TextDecoration.underline),
                           },
                         )
@@ -497,9 +493,9 @@ class _AiReportScreenV2State extends State<AiReportScreenV2> {
             ),
             const SizedBox(width: AppSpacing.sm),
             Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(colors: [
+                gradient: LinearGradient(colors: [
                   AppColors.brandPrimary,
                   AppColors.brandSecondary,
                 ]),
@@ -576,7 +572,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
             return Transform.translate(
               offset: Offset(0, -4 * offset),
               child: Container(
-                margin: EdgeInsets.symmetric(horizontal: 2),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
                 width: 7,
                 height: 7,
                 decoration: BoxDecoration(

@@ -234,12 +234,12 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
                   const SizedBox(height: AppSpacing.xl),
                   Row(
                     children: [
-                      Expanded(child: Divider(color: Colors.white.withOpacity(0.1))),
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text('HOẶC', style: text.labelSmall?.copyWith(color: Colors.white38)),
                       ),
-                      Expanded(child: Divider(color: Colors.white.withOpacity(0.1))),
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -248,7 +248,7 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
                     height: 52,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
                     ),
                     child: InkWell(
                       onTap: _loading ? null : _handleGoogleSignUp,

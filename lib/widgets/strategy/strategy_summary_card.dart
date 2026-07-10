@@ -42,7 +42,7 @@ class StrategySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final maxChips = 8;
+    const maxChips = 8;
     final shown = tickers.take(maxChips).toList();
     final remaining = tickers.length - shown.length;
 

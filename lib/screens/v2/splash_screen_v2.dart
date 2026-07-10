@@ -63,7 +63,7 @@ class _SplashScreenV2State extends State<SplashScreenV2> {
                 Container(
                   width: 96,
                   height: 96,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(colors: [
                       AppColors.brandPrimary,

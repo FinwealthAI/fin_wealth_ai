@@ -37,7 +37,7 @@ class FollowingStrategyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final hasNew = signalsToday > 0;
-    final maxChips = 8;
+    const maxChips = 8;
     final shown = tickers.take(maxChips).toList();
     final remaining = tickers.length - shown.length;
 

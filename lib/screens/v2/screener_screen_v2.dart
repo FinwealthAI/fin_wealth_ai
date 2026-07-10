@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../respositories/investment_opportunities_repository.dart';
 import '../../theme/theme.dart';
-import '../../widgets/common/common.dart';
 import 'stock_detail_screen_v2.dart';
 
 // ─── Data model for a single filter rule ─────────────────────────────────────
@@ -21,10 +20,9 @@ class _FilterRule {
     required this.itemLabel,
     this.comparison = 'gt',
     this.threshold = '',
-    this.periods = 1,
     this.timeType = 'quy',
     this.options = const {},
-  });
+  }) : periods = 1;
 
   bool get isChoiceType => options['ui_type'] == 'choice';
   bool get hideUiPeriod => options['hide_ui_period'] == true;
@@ -190,13 +188,13 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.brandPrimaryDark.withOpacity(0.15),
+                    color: AppColors.brandPrimaryDark.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.brandPrimaryDark.withOpacity(0.5)),
+                    border: Border.all(color: AppColors.brandPrimaryDark.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${_resultTickers!.length} mã',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.brandPrimaryDark,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -274,20 +272,20 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: AppColors.darkSurface.withOpacity(0.5),
+          color: AppColors.darkSurface.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white10, style: BorderStyle.solid),
         ),
-        child: Column(
+        child: const Column(
           children: [
             Icon(Icons.filter_list_rounded, color: Colors.white30, size: 36),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Chưa có điều kiện nào',
               style: TextStyle(color: Colors.white38, fontSize: 14),
             ),
-            const SizedBox(height: 4),
-            const Text(
+            SizedBox(height: 4),
+            Text(
               'Nhấn "+ Thêm điều kiện" để bắt đầu',
               style: TextStyle(color: Colors.white24, fontSize: 12),
             ),
@@ -318,7 +316,7 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: Divider(color: Colors.white12, thickness: 1)),
+          const Expanded(child: Divider(color: Colors.white12, thickness: 1)),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -346,7 +344,7 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
               ),
             ),
           ),
-          Expanded(child: Divider(color: Colors.white12, thickness: 1)),
+          const Expanded(child: Divider(color: Colors.white12, thickness: 1)),
         ],
       ),
     );
@@ -361,13 +359,13 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
         decoration: BoxDecoration(
           color: AppColors.darkSurface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.brandPrimaryDark.withOpacity(0.4), width: 1),
+          border: Border.all(color: AppColors.brandPrimaryDark.withValues(alpha: 0.4), width: 1),
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.add_circle_outline, color: AppColors.brandPrimaryDark, size: 18),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(
               'Thêm điều kiện',
               style: TextStyle(
@@ -387,7 +385,7 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.darkBg,
           border: Border(top: BorderSide(color: Colors.white10)),
         ),
@@ -398,7 +396,7 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
             onPressed: canRun ? _run : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brandPrimaryDark,
-              disabledBackgroundColor: AppColors.brandPrimaryDark.withOpacity(0.3),
+              disabledBackgroundColor: AppColors.brandPrimaryDark.withValues(alpha: 0.3),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
@@ -429,9 +427,9 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
+        color: Colors.red.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -467,12 +465,12 @@ class _ScreenerScreenV2State extends State<ScreenerScreenV2> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.brandPrimaryDark.withOpacity(0.15),
+                color: AppColors.brandPrimaryDark.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '${tickers.length} mã',
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.brandPrimaryDark,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -625,9 +623,9 @@ class _RuleCardState extends State<_RuleCard> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.06),
+                      color: Colors.white.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.brandPrimaryDark.withOpacity(0.3)),
+                      border: Border.all(color: AppColors.brandPrimaryDark.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
@@ -643,7 +641,7 @@ class _RuleCardState extends State<_RuleCard> {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(Icons.arrow_drop_down, color: AppColors.brandPrimaryDark, size: 18),
+                        const Icon(Icons.arrow_drop_down, color: AppColors.brandPrimaryDark, size: 18),
                       ],
                     ),
                   ),
@@ -655,7 +653,7 @@ class _RuleCardState extends State<_RuleCard> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.close, color: Colors.redAccent, size: 18),
@@ -791,7 +789,7 @@ class _DropdownField<T> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white12),
       ),
@@ -831,14 +829,14 @@ class _NumberField extends StatelessWidget {
         hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.06),
+        fillColor: Colors.white.withValues(alpha: 0.06),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Colors.white12),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.brandPrimaryDark.withOpacity(0.5)),
+          borderSide: BorderSide(color: AppColors.brandPrimaryDark.withValues(alpha: 0.5)),
         ),
         isDense: true,
       ),
@@ -860,11 +858,11 @@ class _TickerChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.darkSurface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.brandPrimaryDark.withOpacity(0.3)),
+          border: Border.all(color: AppColors.brandPrimaryDark.withValues(alpha: 0.3)),
         ),
         child: Text(
           ticker,
-          style: TextStyle(
+          style: const TextStyle(
             color: AppColors.brandPrimaryDark,
             fontWeight: FontWeight.w700,
             fontSize: 14,
@@ -948,7 +946,7 @@ class _FieldPickerSheetState extends State<_FieldPickerSheet> {
                   hintStyle: const TextStyle(color: Colors.white38),
                   prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 20),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.07),
+                  fillColor: Colors.white.withValues(alpha: 0.07),
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -972,7 +970,7 @@ class _FieldPickerSheetState extends State<_FieldPickerSheet> {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                         child: Text(
                           g['title'] as String,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppColors.brandPrimaryDark,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,

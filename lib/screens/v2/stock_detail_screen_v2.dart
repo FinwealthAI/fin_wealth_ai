@@ -61,9 +61,8 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadingGrowth = true,
       _loadingSafety = true,
       _loadingSignals = true,
-      _loadingTechnical = true,
-      _loadingInsight = true;
-  Object? _errOverview, _errValuation, _errValuationHistory, _errRatio, _errGrowth, _errSafety, _errInsight;
+      _loadingTechnical = true;
+  Object? _errOverview, _errValuation, _errRatio, _errGrowth, _errSafety;
 
   List<dynamic> _signals = [];
 
@@ -84,7 +83,6 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadingSafety = false;
       _loadingSignals = false;
       _loadingTechnical = false;
-      _loadingInsight = false;
       _loadingChain = false;
       _loadingQuant = false;
     }
@@ -150,20 +148,12 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   }
 
   Future<void> _loadInsight() async {
-    setState(() => _loadingInsight = true);
     try {
       final d = await _repo.getInsight(widget.ticker);
       if (!mounted) return;
-      setState(() {
-        _insight = d;
-        _loadingInsight = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errInsight = e;
-        _loadingInsight = false;
-      });
+      setState(() => _insight = d);
+    } catch (_) {
+      // Insight chỉ dùng cho nhãn `updated_at`; lỗi thì bỏ qua.
     }
   }
 
@@ -247,10 +237,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   }
 
   Future<void> _loadValuationHistory() async {
-    setState(() {
-      _loadingValuationHistory = true;
-      _errValuationHistory = null;
-    });
+    setState(() => _loadingValuationHistory = true);
     try {
       final d = await _repo.getValuationHistory(widget.ticker);
       if (!mounted) return;
@@ -258,12 +245,9 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
         _valuationHistory = d;
         _loadingValuationHistory = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _errValuationHistory = e;
-        _loadingValuationHistory = false;
-      });
+      setState(() => _loadingValuationHistory = false);
     }
   }
 
@@ -661,7 +645,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
   // ---------- Tab 1: Tổng quan ----------
   Widget _buildOverview() {
-    final ranges = const ['1y', '3m', '6m', '3y', '5y'];
+    const ranges = ['1y', '3m', '6m', '3y', '5y'];
     final text = Theme.of(context).textTheme;
 
     return RefreshIndicator(
@@ -875,11 +859,11 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   style: text.bodySmall),
             )
           else ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(
+            const Padding(
+              padding: EdgeInsets.symmetric(
                   horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               child: Row(
-                children: const [
+                children: [
                   Expanded(flex: 4, child: _TableHead('Tổ chức')),
                   Expanded(
                       flex: 3,
@@ -1539,7 +1523,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
         titlesData: FlTitlesData(
           topTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(
+          leftTitles: const AxisTitles(
               sideTitles:
                   SideTitles(showTitles: false, reservedSize: leftReserved)),
           rightTitles: AxisTitles(
@@ -1559,7 +1543,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
               },
             ),
           ),
-          bottomTitles: AxisTitles(
+          bottomTitles: const AxisTitles(
               sideTitles: SideTitles(
                   showTitles: false, reservedSize: bottomReserved)),
         ),
@@ -1611,11 +1595,11 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     if (_loadingQuant) {
       return ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
+        children: const [
           FwSkeleton(height: 110, radius: AppRadius.lg),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: AppSpacing.lg),
           FwSkeleton(height: 160, radius: AppRadius.lg),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: AppSpacing.lg),
           FwSkeleton(height: 160, radius: AppRadius.lg),
         ],
       );
@@ -1678,9 +1662,9 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                 const SizedBox(height: AppSpacing.sm),
                 // Legend
                 Row(children: [
-                  _LegendDot(color: AppColors.brandSecondaryDark, label: 'DT'),
+                  const _LegendDot(color: AppColors.brandSecondaryDark, label: 'DT'),
                   const SizedBox(width: 8),
-                  _LegendDot(color: AppColors.successDark, label: 'LN'),
+                  const _LegendDot(color: AppColors.successDark, label: 'LN'),
                   const SizedBox(width: 16),
                   _LegendDot(color: AppColors.brandSecondaryDark.withValues(alpha: 0.6), label: '%DT', line: true),
                   const SizedBox(width: 8),
@@ -2020,7 +2004,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     }
 
     // Track barIndex → series kind for tooltip rendering
-    final priceBarIdx = 0;
+    const priceBarIdx = 0;
     final valBarIdx = valSpots.isNotEmpty ? 1 : -1;
     final signalBarIdx = signalSpots.isNotEmpty
         ? (valSpots.isNotEmpty ? 2 : 1)
@@ -2163,7 +2147,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
               dotData: FlDotData(
                 show: true,
                 getDotPainter: (spot, _, __, ___) =>
-                    _TriangleDotPainter(color: AppColors.successDark),
+                    const _TriangleDotPainter(color: AppColors.successDark),
               ),
             ),
         ],
@@ -2418,7 +2402,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
           ),
         ),
         // Ẩn right axis — nhường cho LineChart overlay
-        rightTitles: AxisTitles(
+        rightTitles: const AxisTitles(
           sideTitles: SideTitles(showTitles: false, reservedSize: rightReserved),
         ),
         bottomTitles: AxisTitles(
@@ -2478,7 +2462,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
             titlesData: FlTitlesData(
               topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               // Ẩn left — nhường cho BarChart
-              leftTitles: AxisTitles(
+              leftTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false, reservedSize: leftReserved),
               ),
               rightTitles: AxisTitles(
@@ -2493,7 +2477,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   },
                 ),
               ),
-              bottomTitles: AxisTitles(
+              bottomTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false, reservedSize: bottomReserved),
               ),
             ),
@@ -3320,6 +3304,8 @@ class _OpportunityRiskCard extends StatelessWidget {
     );
   }
 
+  // Giữ lại để mở lại danh sách Cơ hội & Rủi ro khi được phép (xem comment trên).
+  // ignore: unused_element
   Widget _buildInsightList(List<dynamic>? items, bool isOpp) {
     if (items == null || items.isEmpty) {
       return Padding(

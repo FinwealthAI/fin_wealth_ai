@@ -94,7 +94,7 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                         Container(
                           width: 88,
                           height: 88,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(colors: [
                               AppColors.brandPrimary,
@@ -169,14 +169,14 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         Row(children: [
-                          Expanded(
+                          const Expanded(
                               child: Divider(color: AppColors.darkBorder)),
                           Padding(
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 12),
                             child: Text('hoặc', style: text.labelSmall),
                           ),
-                          Expanded(
+                          const Expanded(
                               child: Divider(color: AppColors.darkBorder)),
                         ]),
                         const SizedBox(height: AppSpacing.lg),

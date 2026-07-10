@@ -34,12 +34,11 @@ class UpgradeScreenV2 extends StatelessWidget {
     final cardBg = isDark ? const Color(0xFF111827).withValues(alpha: 0.7) : Colors.white;
     final cardBorder = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
     final textMuted = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
-    final textMain = isDark ? const Color(0xFFF3F4F6) : const Color(0xFF374151);
     final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final featureText = isDark ? const Color(0xFFD1D5DB) : const Color(0xFF475569);
 
-    final checkIcon = const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16);
-    final starIcon = const Icon(Icons.star, color: Color(0xFF818CF8), size: 16);
+    const checkIcon = Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16);
+    const starIcon = Icon(Icons.star, color: Color(0xFF818CF8), size: 16);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -165,7 +164,7 @@ class UpgradeScreenV2 extends StatelessWidget {
                   'Trải nghiệm sớm mô hình AI mới',
                   'Tư vấn danh mục cá nhân hóa',
                 ],
-                iconList: [
+                iconList: const [
                   checkIcon,
                   starIcon,
                   starIcon,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:fin_wealth/models/dashboard_home.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
@@ -78,7 +79,7 @@ class InvestmentOpportunitiesRepository {
           
           // If no bubble/gap/rankings in new format, return null and handle gracefully
           if (innerData['bubble'] == null) {
-            print('unlock-wealth API: No bubble data in new format');
+            debugPrint('unlock-wealth API: No bubble data in new format');
             return null;
           }
           return InvestmentOpportunities.fromJson(innerData);
@@ -90,7 +91,7 @@ class InvestmentOpportunitiesRepository {
       }
       return null;
     } catch (e) {
-      print('Failed to load opportunities: $e');
+      debugPrint('Failed to load opportunities: $e');
       return null;
     }
   }
@@ -125,46 +126,46 @@ class InvestmentOpportunitiesRepository {
     return DailySummaryData.fromJson(flattened);
   }
   Future<List<dynamic>> fetchStrategyDetails(String name) async {
-    print('[DEBUG] fetchStrategyDetails called with name: "$name"');
+    debugPrint('[DEBUG] fetchStrategyDetails called with name: "$name"');
     
     // Try System Screener First
     try {
       // Correct path: filter-stock/api/v1/system-screener/results/
       final resp = await dio.get('/filter-stock/api/v1/system-screener/results/', queryParameters: {'name': name});
-      print('[DEBUG] System Screener Response status: ${resp.statusCode}');
-      print('[DEBUG] System Screener Response data: ${resp.data}');
+      debugPrint('[DEBUG] System Screener Response status: ${resp.statusCode}');
+      debugPrint('[DEBUG] System Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
            final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
-           print('[DEBUG] System Screener found ${tickers.length} tickers');
+           debugPrint('[DEBUG] System Screener found ${tickers.length} tickers');
            return tickers;
         }
       }
     } catch (e) {
-      print('[DEBUG] System Screener error: $e');
+      debugPrint('[DEBUG] System Screener error: $e');
     }
 
     // Fallback: User Screener
     try {
       final resp = await dio.get('/filter-stock/api/v1/user-screener/results/', queryParameters: {'name': name});
-      print('[DEBUG] User Screener Response status: ${resp.statusCode}');
-      print('[DEBUG] User Screener Response data: ${resp.data}');
+      debugPrint('[DEBUG] User Screener Response status: ${resp.statusCode}');
+      debugPrint('[DEBUG] User Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
            final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
-           print('[DEBUG] User Screener found ${tickers.length} tickers');
+           debugPrint('[DEBUG] User Screener found ${tickers.length} tickers');
            return tickers;
         }
       }
     } catch (e) {
-       print('[DEBUG] User Screener error: $e');
+       debugPrint('[DEBUG] User Screener error: $e');
     }
     
-    print('[DEBUG] No tickers found for strategy: "$name"');
+    debugPrint('[DEBUG] No tickers found for strategy: "$name"');
     return [];
   }
 
@@ -190,7 +191,7 @@ class InvestmentOpportunitiesRepository {
         }
       }
     } catch (e) {
-      print('Failed to load strategy details by ID $id: $e');
+      debugPrint('Failed to load strategy details by ID $id: $e');
     }
     return [];
   }

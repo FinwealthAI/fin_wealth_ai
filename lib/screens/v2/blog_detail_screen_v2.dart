@@ -123,7 +123,7 @@ class _BlogDetailScreenV2State extends State<BlogDetailScreenV2> {
                     ),
                     child: Text(
                       post.categoryName!,
-                      style: TextStyle(
+                      style: const TextStyle(
                           color: AppColors.brandPrimaryDark,
                           fontSize: 11,
                           fontWeight: FontWeight.w600),
@@ -146,7 +146,7 @@ class _BlogDetailScreenV2State extends State<BlogDetailScreenV2> {
                 // Meta row: author + date + views
                 _MetaRow(post: post),
                 const SizedBox(height: 8),
-                Divider(color: Colors.white12, height: 24),
+                const Divider(color: Colors.white12, height: 24),
               ],
             ),
           ),
@@ -162,7 +162,7 @@ class _BlogDetailScreenV2State extends State<BlogDetailScreenV2> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Divider(color: Colors.white12, height: 32),
+                  const Divider(color: Colors.white12, height: 32),
                   const Text(
                     'Bài viết liên quan',
                     style: TextStyle(
@@ -226,14 +226,14 @@ class _HtmlContent extends StatelessWidget {
           'body': Style(
             color: AppColors.darkTextSecondary,
             fontSize: FontSize(15),
-            lineHeight: LineHeight(1.7),
+            lineHeight: const LineHeight(1.7),
             margin: Margins.zero,
             padding: HtmlPaddings.symmetric(horizontal: 16),
           ),
           'p': Style(
             color: AppColors.darkTextSecondary,
             fontSize: FontSize(15),
-            lineHeight: LineHeight(1.7),
+            lineHeight: const LineHeight(1.7),
             margin: Margins.only(bottom: 14),
           ),
           'h1': Style(
@@ -274,7 +274,7 @@ class _HtmlContent extends StatelessWidget {
           'li': Style(
             color: AppColors.darkTextSecondary,
             fontSize: FontSize(15),
-            lineHeight: LineHeight(1.6),
+            lineHeight: const LineHeight(1.6),
             margin: Margins.only(bottom: 4),
           ),
           'blockquote': Style(

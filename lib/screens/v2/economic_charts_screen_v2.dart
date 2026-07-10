@@ -117,10 +117,12 @@ class _EconomicChartsScreenV2State extends State<EconomicChartsScreenV2> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = e;
         _loading = false;
       });
+      }
     }
   }
 
@@ -359,17 +361,21 @@ class _ChartDetailScreenState extends State<_ChartDetailScreen> {
               ))
           .where((t) => t.ticker.isNotEmpty)
           .toList();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _points = pts;
         _tickers = tickers;
         _unit = data['unit'] as String? ?? '';
         _loading = false;
       });
+      }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = e;
         _loading = false;
       });
+      }
     }
   }
 

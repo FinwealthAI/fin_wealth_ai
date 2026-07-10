@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/chat_models.dart';
 import '../../respositories/auth_repository.dart';
+import '../../services/chat_error.dart';
 import '../../services/chat_history_service.dart';
 import '../../services/onboarding_prefs.dart';
 import '../../theme/app_colors.dart';
@@ -122,6 +123,10 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
   StreamSubscription<Map<String, dynamic>>? _sub;
 
+  /// Gộp nhiều chunk `answer` đến sát nhau thành 1 lần rebuild (~20fps) để
+  /// tránh re-parse markdown theo từng token khi stream câu trả lời dài.
+  Timer? _streamFlushTimer;
+
   bool get isGuest => _authRepo.accessToken == null;
   String get _username => _authRepo.username ?? '';
   String? get _token => _authRepo.accessToken;
@@ -150,6 +155,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
   @override
   void dispose() {
+    _streamFlushTimer?.cancel();
     _sub?.cancel();
     _scroll.dispose();
     _input.dispose();
@@ -350,8 +356,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     final ticker = _detectTicker(text);
     final mode = _mode;
 
-    final assistant =
-        ChatMessage(fromUser: false, mode: mode, isStreaming: true);
+    final assistant = ChatMessage(
+        fromUser: false, mode: mode, isStreaming: true, retryQuery: text);
     setState(() {
       _messages.add(ChatMessage(fromUser: true, text: text, ticker: ticker));
       _messages.add(assistant);
@@ -375,14 +381,11 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       );
 
       final completer = Completer<void>();
+      Object? streamErr;
       _sub = stream.listen(
         (event) => _handleEvent(event, assistant),
         onError: (e) {
-          assistant
-            ..text = assistant.text.isEmpty
-                ? '❌ Lỗi khi gửi tin nhắn: $e'
-                : assistant.text
-            ..hasError = true;
+          streamErr = e;
           if (!completer.isCompleted) completer.complete();
         },
         onDone: () {
@@ -392,18 +395,18 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       );
       await completer.future;
 
-      // Không báo "trống" nếu lượt này kết thúc bằng popup user_choice hoặc đã
-      // hiển thị thẻ dữ liệu (cards) — đó là phản hồi hợp lệ, chỉ không có prose.
-      if (assistant.text.isEmpty &&
+      if (streamErr != null) {
+        await _applyChatError(assistant, streamErr!);
+      } else if (assistant.text.isEmpty &&
           !assistant.hasError &&
           assistant.userChoice == null &&
           assistant.cards.isEmpty) {
+        // Không báo "trống" nếu lượt này kết thúc bằng popup user_choice hoặc đã
+        // hiển thị thẻ dữ liệu (cards) — đó là phản hồi hợp lệ, chỉ không có prose.
         assistant.text = 'Không nhận được phản hồi từ server.';
       }
     } catch (e) {
-      assistant
-        ..text = '❌ Lỗi khi gửi tin nhắn: $e'
-        ..hasError = true;
+      await _applyChatError(assistant, e);
     } finally {
       await _sub?.cancel();
       _sub = null;
@@ -414,6 +417,59 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         });
       }
       _scrollToBottom();
+    }
+  }
+
+  /// Áp lỗi chat lên bubble: hiển thị thông điệp thân thiện + (nếu hợp lệ) thử
+  /// RESUME câu trả lời server đã persist ở background. Đây là cơ chế cứu lại
+  /// đúng sự cố mobile mất chat 08/07: pipeline server vẫn chạy tới cùng & lưu
+  /// answer dù kết nối đứt → ta fetch lại thay vì bỏ trắng.
+  Future<void> _applyChatError(ChatMessage assistant, Object rawError) async {
+    final err = ChatError.from(rawError);
+
+    // Người dùng chủ động dừng — không phải lỗi, giữ nguyên phần đã stream.
+    if (err.detail == 'cancelled') return;
+
+    // RESUME: với lỗi mà server vẫn xử lý tiếp (timeout/mất mạng/5xx), thử lấy
+    // câu trả lời đã lưu. Chỉ khi phần đã stream còn thiếu (rỗng hoặc cụt).
+    if (err.shouldResume && _conversationId != null) {
+      final recovered = await ChatHistoryService.fetchLatestAssistantAnswer(
+        conversationId: _conversationId!,
+        token: _token,
+      );
+      if (recovered != null && recovered.length > assistant.text.length) {
+        if (mounted) {
+          setState(() {
+            assistant
+              ..text = recovered
+              ..hasError = false
+              ..errorType = null;
+          });
+        } else {
+          assistant
+            ..text = recovered
+            ..hasError = false
+            ..errorType = null;
+        }
+        return;
+      }
+    }
+
+    // Không resume được → hiện lỗi. Giữ phần prose đã stream (nếu có) và chèn
+    // thông điệp lỗi bên dưới để không mất nội dung dang dở.
+    final msg = err.message;
+    if (mounted) {
+      setState(() {
+        assistant
+          ..text = assistant.text.isEmpty ? msg : '${assistant.text}\n\n_${msg}_'
+          ..hasError = true
+          ..errorType = err.type;
+      });
+    } else {
+      assistant
+        ..text = assistant.text.isEmpty ? msg : '${assistant.text}\n\n_${msg}_'
+        ..hasError = true
+        ..errorType = err.type;
     }
   }
 
@@ -485,9 +541,19 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     }
 
     if (event['answer'] != null) {
-      setState(() => assistant.text += event['answer'].toString());
-      _followStream();
+      assistant.text += event['answer'].toString();
+      _scheduleStreamFlush();
     }
+  }
+
+  /// Đẩy text đã gom vào UI tối đa mỗi 50ms thay vì setState theo từng token.
+  void _scheduleStreamFlush() {
+    _streamFlushTimer ??= Timer(const Duration(milliseconds: 50), () {
+      _streamFlushTimer = null;
+      if (!mounted) return;
+      setState(() {});
+      _followStream();
+    });
   }
 
   AgentStep? _findStep(ChatMessage m, String? roleId) {
@@ -1012,10 +1078,51 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                 if (m.userChoice != null) _buildChoice(m),
                 if (!m.isStreaming && m.text.isNotEmpty && !m.hasError)
                   _buildMessageActions(m),
+                if (!m.isStreaming && m.hasError) _buildErrorRetry(m),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Nút "Thử lại" dưới bubble lỗi — gửi lại đúng câu hỏi của lượt. Ẩn với lỗi
+  /// không retry được (vd 403 chưa đủ điểm).
+  Widget _buildErrorRetry(ChatMessage m) {
+    final canRetry = m.errorType != ChatErrorType.forbidden;
+    if (!canRetry || m.retryQuery == null || _isTyping) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: () {
+            // Xóa bubble lỗi + câu hỏi gốc rồi gửi lại (tránh nhân đôi tin).
+            final q = m.retryQuery!;
+            setState(() {
+              final idx = _messages.indexOf(m);
+              if (idx > 0 && _messages[idx - 1].fromUser) {
+                _messages.removeAt(idx); // assistant lỗi
+                _messages.removeAt(idx - 1); // user gốc
+              } else {
+                _messages.remove(m);
+              }
+            });
+            _send(q);
+          },
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Thử lại'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.brandPrimary,
+            side: const BorderSide(color: AppColors.brandPrimary),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
       ),
     );
   }

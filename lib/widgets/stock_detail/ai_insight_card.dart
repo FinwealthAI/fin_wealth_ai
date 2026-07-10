@@ -20,9 +20,7 @@ class AiInsightCard extends StatelessWidget {
     // Extract Trend
     // Extract Trend
     var expertView = technicalData['data']?['expert_view'];
-    if (expertView == null) {
-       expertView = technicalData['expert_view'];
-    }
+    expertView ??= technicalData['expert_view'];
     String trend = expertView?['trend']?['direction'] ?? '---';
     
     // Check for auth error or missing data
@@ -34,9 +32,13 @@ class AiInsightCard extends StatelessWidget {
     final divergence = expertView?['momentum']?['divergence'];
     if (divergence != null && divergence != 'NONE') {
         String divText = '';
-        if (divergence == 'BULLISH') divText = 'Phân kỳ Dương';
-        else if (divergence == 'BEARISH') divText = 'Phân kỳ Âm';
-        else divText = divergence;
+        if (divergence == 'BULLISH') {
+          divText = 'Phân kỳ Dương';
+        } else if (divergence == 'BEARISH') {
+          divText = 'Phân kỳ Âm';
+        } else {
+          divText = divergence;
+        }
 
         trend = '$trend\n($divText)';
     }
@@ -50,15 +52,23 @@ class AiInsightCard extends StatelessWidget {
 
     // Determine colors
     Color trendColor = Colors.grey;
-    if (trend == 'UPTREND' || trend == 'BULLISH') trendColor = Colors.green;
-    else if (trend == 'DOWNTREND' || trend == 'BEARISH') trendColor = Colors.red;
-    else if (trend == 'SIDEWAY') trendColor = Colors.orange;
+    if (trend == 'UPTREND' || trend == 'BULLISH') {
+      trendColor = Colors.green;
+    } else if (trend == 'DOWNTREND' || trend == 'BEARISH') {
+      trendColor = Colors.red;
+    } else if (trend == 'SIDEWAY') {
+      trendColor = Colors.orange;
+    }
 
     Color upsideColor = Colors.grey;
     if (overviewData['up_size'] != null) {
-      if (upSizeVal > 15) upsideColor = Colors.green;
-      else if (upSizeVal > 0) upsideColor = Colors.blue;
-      else upsideColor = Colors.red;
+      if (upSizeVal > 15) {
+        upsideColor = Colors.green;
+      } else if (upSizeVal > 0) {
+        upsideColor = Colors.blue;
+      } else {
+        upsideColor = Colors.red;
+      }
     }
 
     return Card(
@@ -76,7 +86,7 @@ class AiInsightCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundImage: const AssetImage('assets/images/mr_wealth_avatar.png'),
-                  backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                  backgroundColor: Colors.blueAccent.withValues(alpha: 0.1),
                   onBackgroundImageError: (_, __) {},
                   child: const Text(''),
                 ),
@@ -144,9 +154,9 @@ class AiInsightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -149,9 +149,7 @@ class StockTechnicalData {
 
   factory StockTechnicalData.fromJson(Map<String, dynamic> json) {
     var expertData = json['data']?['expert_view'];
-    if (expertData == null) {
-        expertData = json['expert_view'];
-    }
+    expertData ??= json['expert_view'];
     
     return StockTechnicalData(
       expertView: expertData != null

@@ -174,10 +174,10 @@ class _SubChartGrowthState extends State<SubChartGrowth> {
               height: 200,
               child: LineChart(
                 LineChartData(
-                  gridData: FlGridData(show: true, drawVerticalLine: false),
+                  gridData: const FlGridData(show: true, drawVerticalLine: false),
                   titlesData: FlTitlesData(
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) {
                       final i = v.toInt();
                       if (i >= 0 && i < labels.length && i % 3 == 0) { // Giảm mật độ: 3 điểm hiện 1
@@ -222,16 +222,16 @@ class _SubChartGrowthState extends State<SubChartGrowth> {
                     ),
                   ),
                   lineBarsData: [
-                    LineChartBarData(spots: _makeSpots(revenue), color: Colors.green, barWidth: 2, isCurved: true, dotData: FlDotData(show: true)),
-                    LineChartBarData(spots: _makeSpots(profit), color: Colors.redAccent, barWidth: 2, isCurved: true, dotData: FlDotData(show: true)),
+                    LineChartBarData(spots: _makeSpots(revenue), color: Colors.green, barWidth: 2, isCurved: true, dotData: const FlDotData(show: true)),
+                    LineChartBarData(spots: _makeSpots(profit), color: Colors.redAccent, barWidth: 2, isCurved: true, dotData: const FlDotData(show: true)),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
+              children: [
                 Icon(Icons.circle, color: Colors.green, size: 10), SizedBox(width: 4), Text('Doanh thu', style: TextStyle(fontSize: 12)),
                 SizedBox(width: 16),
                 Icon(Icons.circle, color: Colors.redAccent, size: 10), SizedBox(width: 4), Text('Lợi nhuận', style: TextStyle(fontSize: 12)),
@@ -340,7 +340,6 @@ class _DualLineChart extends StatelessWidget {
   final Color color2;
 
   const _DualLineChart({
-    super.key,
     required this.labels,
     required this.data1,
     required this.data2,
@@ -412,9 +411,9 @@ class _DualLineChart extends StatelessWidget {
         Expanded(
           child: LineChart(
              LineChartData(
-               gridData: FlGridData(show: true, drawVerticalLine: false),
+               gridData: const FlGridData(show: true, drawVerticalLine: false),
                titlesData: FlTitlesData(
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true, 
@@ -475,7 +474,7 @@ class _DualLineChart extends StatelessWidget {
                              final rawDate = labels[i];
                              try {
                                final d = DateTime.parse(rawDate);
-                               dateStr = DateFormat('dd/MM/yyyy').format(d) + '\n';
+                               dateStr = '${DateFormat('dd/MM/yyyy').format(d)}\n';
                              } catch (_) {
                                dateStr = '$rawDate\n';
                              }
@@ -488,7 +487,7 @@ class _DualLineChart extends StatelessWidget {
                              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                              children: [
                                TextSpan(
-                                 text: '${title1}: ${NumberFormat("#,##0.##").format(spot.y)}',
+                                 text: '$title1: ${NumberFormat("#,##0.##").format(spot.y)}',
                                  style: TextStyle(color: color1, fontWeight: FontWeight.w800, fontSize: 12),
                                ),
                              ],
@@ -501,7 +500,7 @@ class _DualLineChart extends StatelessWidget {
                              const TextStyle(color: Colors.white, fontSize: 0),
                              children: [
                                TextSpan(
-                                 text: '${title2}: ${NumberFormat("#,##0.##").format(denorm)}',
+                                 text: '$title2: ${NumberFormat("#,##0.##").format(denorm)}',
                                  style: TextStyle(color: color2, fontWeight: FontWeight.w800, fontSize: 12),
                                ),
                              ],
@@ -512,8 +511,8 @@ class _DualLineChart extends StatelessWidget {
                  )
                ),
                lineBarsData: [
-                 LineChartBarData(spots: spots1, color: color1, isCurved: true, barWidth: 2, dotData: FlDotData(show: false)),
-                 LineChartBarData(spots: spots2, color: color2, isCurved: true, barWidth: 2, dotData: FlDotData(show: false)),
+                 LineChartBarData(spots: spots1, color: color1, isCurved: true, barWidth: 2, dotData: const FlDotData(show: false)),
+                 LineChartBarData(spots: spots2, color: color2, isCurved: true, barWidth: 2, dotData: const FlDotData(show: false)),
                ],
              )
           ),
@@ -526,25 +525,17 @@ class _DualLineChart extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // SHARED CHART WIDGET
 // ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
-// SHARED CHART WIDGET
-// ─────────────────────────────────────────────────────────────
 class _SimpleLineChart extends StatelessWidget {
   final List<String> labels;
   final List<num?> data;
   final Color color;
   final double? avgLine;
-  final String? title;
-  final bool showDateTooltip; // New parameter
 
   const _SimpleLineChart({
-    super.key, // Added super.key for linting
     required this.labels,
     required this.data,
     this.color = Colors.blue,
     this.avgLine,
-    this.title,
-    this.showDateTooltip = true, // Default to true
   });
 
   @override
@@ -557,7 +548,6 @@ class _SimpleLineChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (title != null) Text(title!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
         Expanded(
           child: LineChart(
               LineChartData(
@@ -569,7 +559,7 @@ class _SimpleLineChart extends StatelessWidget {
                       return touchedSpots.map((spot) {
                         final i = spot.x.toInt();
                         String label = '';
-                        if (showDateTooltip && i >= 0 && i < labels.length) {
+                        if (i >= 0 && i < labels.length) {
                           final originalLabel = labels[i];
                            // Try format if needed
                            if (originalLabel.contains('-')) {
@@ -608,10 +598,10 @@ class _SimpleLineChart extends StatelessWidget {
                     },
                   ),
                 ),
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
                 titlesData: FlTitlesData(
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true, 
@@ -647,7 +637,7 @@ class _SimpleLineChart extends StatelessWidget {
                 ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
-                  LineChartBarData(spots: spots, color: color, isCurved: true, barWidth: 2, dotData: FlDotData(show: false)),
+                  LineChartBarData(spots: spots, color: color, isCurved: true, barWidth: 2, dotData: const FlDotData(show: false)),
                   if (avgLine != null)
                      LineChartBarData(
                         spots: [FlSpot(0, avgLine!), FlSpot(labels.length.toDouble(), avgLine!)],
@@ -655,7 +645,7 @@ class _SimpleLineChart extends StatelessWidget {
                         dashArray: [5, 5],
                         barWidth: 1,
                         isCurved: false,
-                        dotData: FlDotData(show: false)
+                        dotData: const FlDotData(show: false)
                      )
                 ],
               ),

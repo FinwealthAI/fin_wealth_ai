@@ -42,7 +42,7 @@ class StockRepository {
       } else {
         throw Exception('Unexpected response format: ${response.headers.value('content-type')}');
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       if (e.response != null) {
         throw Exception('Failed to load stocks: ${e.response!.data}');
       } else {

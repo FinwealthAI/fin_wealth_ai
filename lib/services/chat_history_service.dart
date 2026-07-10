@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import '../models/chat_models.dart';
+import 'chat_error.dart';
 
 /// Service cho phần Chat V3 — nói chuyện với Agent V2 backend (`/api/chat/...`).
 ///
@@ -13,7 +14,14 @@ import '../models/chat_models.dart';
 /// SSE (`{type: classify}`, `{type: agent_start}`, `{answer: ...}`, ...), kèm
 /// sự kiện kết thúc `{'type': '__done__'}`.
 class ChatHistoryService {
-  static final Dio _dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
+  // receiveTimeout PHẢI lớn hơn nhịp heartbeat của server (SSE comment ": ping"
+  // ~12s, xem agent/views.py) để không cắt nhầm khi pipeline đang tính toán lâu;
+  // 30s = 2.5 chu kỳ heartbeat → chỉ đứt khi thực sự mất byte kéo dài.
+  static final Dio _dio = Dio(BaseOptions(
+    baseUrl: ApiConfig.baseUrl,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 30),
+  ));
 
   static Options _opts({String? token, ResponseType? responseType}) => Options(
         responseType: responseType,
@@ -35,24 +43,8 @@ class ChatHistoryService {
     Map<String, dynamic>? inputs,
     String? token,
   }) async* {
-    final response = await _dio.post(
-      '/api/chat/send/',
-      data: {
-        'query': message,
-        'conversation_id': conversationId,
-        'mode': mode.wire,
-        'inputs': inputs ?? const {},
-        'source': 'mobile',
-      },
-      options: _opts(token: token, responseType: ResponseType.stream),
-    );
-
-    final stream = (response.data.stream as Stream)
-        .cast<List<int>>()
-        .transform(utf8.decoder);
-
-    final partial = StringBuffer();
-
+    // Chú ý: SSE comment (dòng bắt đầu bằng ':' như heartbeat ": ping") KHÔNG có
+    // prefix "data:" nên `decode` trả null → tự bỏ qua, chỉ giữ kết nối sống.
     Map<String, dynamic>? decode(String raw) {
       final clean = raw.trim();
       if (!clean.startsWith('data:')) return null;
@@ -66,27 +58,75 @@ class ChatHistoryService {
       return null;
     }
 
-    await for (final chunk in stream) {
-      partial.write(chunk);
-      final lines = partial.toString().split('\n');
-      // Giữ lại đoạn cuối (có thể là dòng JSON chưa hoàn chỉnh).
-      partial
-        ..clear()
-        ..write(lines.removeLast());
-      for (final line in lines) {
-        final event = decode(line);
-        if (event == null) continue;
-        yield event;
-        if (event['type'] == '__done__') return;
-      }
-    }
+    // Mọi lỗi mạng/HTTP → ChatError có kiểu (xem chat_error.dart) để UI hiển thị
+    // thông điệp thân thiện + quyết định resume/retry. `rethrow` giữ nguyên nếu
+    // đã là ChatError (không bọc chồng).
+    try {
+      final response = await _dio.post(
+        '/api/chat/send/',
+        data: {
+          'query': message,
+          'conversation_id': conversationId,
+          'mode': mode.wire,
+          'inputs': inputs ?? const {},
+          'source': 'mobile',
+        },
+        options: _opts(token: token, responseType: ResponseType.stream),
+      );
 
-    // Flush phần còn lại sau khi stream đóng.
-    final leftover = decode(partial.toString());
-    if (leftover != null && leftover['type'] != '__done__') {
-      yield leftover;
+      final stream = (response.data.stream as Stream)
+          .cast<List<int>>()
+          .transform(utf8.decoder);
+
+      final partial = StringBuffer();
+
+      await for (final chunk in stream) {
+        partial.write(chunk);
+        final lines = partial.toString().split('\n');
+        // Giữ lại đoạn cuối (có thể là dòng JSON chưa hoàn chỉnh).
+        partial
+          ..clear()
+          ..write(lines.removeLast());
+        for (final line in lines) {
+          final event = decode(line);
+          if (event == null) continue;
+          yield event;
+          if (event['type'] == '__done__') return;
+        }
+      }
+
+      // Flush phần còn lại sau khi stream đóng.
+      final leftover = decode(partial.toString());
+      if (leftover != null && leftover['type'] != '__done__') {
+        yield leftover;
+      }
+      yield {'type': '__done__'};
+    } on ChatError {
+      rethrow;
+    } catch (e) {
+      throw ChatError.from(e);
     }
-    yield {'type': '__done__'};
+  }
+
+  /// Lấy lại câu trả lời assistant MỚI NHẤT mà server đã persist ở background
+  /// (dùng để RESUME khi stream đứt giữa chừng — server vẫn chạy pipeline tới
+  /// cùng và lưu answer, xem agent/agent_service.py `_persist_turn`). Trả null
+  /// nếu chưa có/lỗi. Best-effort — KHÔNG ném lỗi ra ngoài.
+  static Future<String?> fetchLatestAssistantAnswer({
+    required String conversationId,
+    String? token,
+  }) async {
+    try {
+      final result =
+          await loadChatHistory(conversationId: conversationId, token: token);
+      for (final m in result.messages.reversed) {
+        if (m['role'] == 'assistant') {
+          final content = m['content']?.toString() ?? '';
+          if (content.trim().isNotEmpty) return content;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   // ---------------------------------------------------------------------------

@@ -196,6 +196,14 @@ class ChatMessage {
   bool isStreaming;
   bool hasError;
 
+  /// Loại lỗi (khi hasError) — quyết định có hiện nút "Thử lại" không.
+  /// Dùng `ChatErrorType` (chat_error.dart) nhưng khai báo `Object?` ở đây để
+  /// model không phụ thuộc ngược vào tầng service.
+  Object? errorType;
+
+  /// Câu hỏi gốc của lượt này — để nút "Thử lại" gửi lại đúng nội dung khi lỗi.
+  String? retryQuery;
+
   /// Tin do lịch hỏi tự động / digest sinh ra (web: `kind == "proactive"`).
   /// Hiển thị dạng "bản tin định kỳ" (card gộp query + answer) thay vì bong bóng.
   final bool isProactive;
@@ -214,6 +222,8 @@ class ChatMessage {
     this.rating,
     this.isStreaming = false,
     this.hasError = false,
+    this.errorType,
+    this.retryQuery,
     this.isProactive = false,
   })  : steps = steps ?? [],
         cards = cards ?? [];

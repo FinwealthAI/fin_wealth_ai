@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fin_wealth/config/api_config.dart';
@@ -76,7 +77,7 @@ class AuthRepository {
             }
 
             try {
-              print('AuthRepository: token invalid (${response.statusCode}), refreshing...');
+              debugPrint('AuthRepository: token invalid (${response.statusCode}), refreshing...');
               final r = await _tokenDio.post('/mobile/api/token/refresh/',
                   data: {'refresh': _refreshToken});
 
@@ -91,11 +92,11 @@ class AuthRepository {
                 final cloned = await dio.fetch(options);
                 return handler.resolve(cloned);
               } else {
-                print('AuthRepository: Refresh failed, logging out.');
+                debugPrint('AuthRepository: Refresh failed, logging out.');
                 await logout();
               }
             } catch (e) {
-              print('AuthRepository: Refresh error: $e');
+              debugPrint('AuthRepository: Refresh error: $e');
               await logout();
             }
           }

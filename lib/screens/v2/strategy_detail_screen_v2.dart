@@ -293,7 +293,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
           const SizedBox(height: 10),
           Wrap(spacing: 4, runSpacing: 4, children: [
             if (_isAi)
-              _Badge(label: 'AI Advisor', color: const Color(0xFF9B59B6), filled: true),
+              const _Badge(label: 'AI Advisor', color: Color(0xFF9B59B6), filled: true),
             _Badge(
               icon: _isTechnical ? Icons.memory : Icons.bar_chart,
               label: _isTechnical ? 'Định lượng' : 'Cơ bản',
@@ -370,8 +370,8 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
         _sectionTitle('Tổng quan'),
         const SizedBox(height: 8),
         _statCard([
-          _StatRow(label: 'Tổng hiệu suất', value: '${_fmtPct(_toD(s['total_return']))}'),
-          _StatRow(label: 'Win rate TB', value: '${_fmtPct(_toD(s['win_rate']))}'),
+          _StatRow(label: 'Tổng hiệu suất', value: _fmtPct(_toD(s['total_return']))),
+          _StatRow(label: 'Win rate TB', value: _fmtPct(_toD(s['win_rate']))),
           _StatRow(label: 'Tổng vị thế', value: '${(s['total_trades'] ?? 0).toInt()}'),
           _StatRow(label: 'Đang theo dõi', value: '${(s['active_trades'] ?? 0).toInt()}'),
         ]),
@@ -388,8 +388,8 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
 
   Widget _buildBacktestMetrics(Map<String, dynamic> m) {
     return _statCard([
-      _StatRow(label: 'Win Rate', value: '${_fmtPct(_toD(m['win_rate']))}'),
-      _StatRow(label: 'Expectancy/vị thế', value: '${_fmtPct(_toD(m['expectancy_pct']))}'),
+      _StatRow(label: 'Win Rate', value: _fmtPct(_toD(m['win_rate']))),
+      _StatRow(label: 'Expectancy/vị thế', value: _fmtPct(_toD(m['expectancy_pct']))),
       _StatRow(label: 'Avg Hold Days', value: '${_toD(m['avg_hold_days'])?.toStringAsFixed(1) ?? "--"} ngày'),
       _StatRow(label: 'Tổng vị thế BT', value: '${m['total_trades'] ?? "--"}'),
       _StatRow(label: 'Sharpe Ratio', value: _toD(m['sharpe_ratio'])?.toStringAsFixed(2) ?? '--'),

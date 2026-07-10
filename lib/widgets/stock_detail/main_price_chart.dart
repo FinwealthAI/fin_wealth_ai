@@ -79,7 +79,7 @@ class _MainPriceChartState extends State<MainPriceChart> {
          _chartData = data;
        });
      } catch (e) {
-       print('Error fetching price history: $e');
+       debugPrint('Error fetching price history: $e');
      }
   }
 
@@ -216,11 +216,11 @@ class _MainPriceChartState extends State<MainPriceChart> {
                     show: true,
                     drawVerticalLine: false,
                     getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       strokeWidth: 1,
                     ),
                   ),
-                  titlesData: FlTitlesData(
+                  titlesData: const FlTitlesData(
                      show: true,
                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -329,10 +329,10 @@ class _MainPriceChartState extends State<MainPriceChart> {
                       color: Theme.of(context).primaryColor,
                       barWidth: 2,
                       isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
+                      dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                       ),
                     ),
                   ],
@@ -417,15 +417,6 @@ class _MainPriceChartState extends State<MainPriceChart> {
     );
   }
 
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateFormat('MM/yy').format(date);
-    } catch (_) {
-      return dateStr;
-    }
-  }
-  
   // Need to adjust buildSpots to accept nullable data to skip missing points if needed, 
   // but LineChart usually implies contiguous X. For now standard list.
   List<FlSpot> _buildSpots(List<String> labels, List<double?> data) {

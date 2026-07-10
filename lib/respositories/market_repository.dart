@@ -20,7 +20,7 @@ class MarketRepository {
       } else {
         throw Exception('Failed to load market reports: ${response.statusCode}');
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       if (e.response != null) {
         if (e.response!.statusCode == 401) {
           throw Exception('401: Chưa xác thực hoặc token đã hết hạn.');
