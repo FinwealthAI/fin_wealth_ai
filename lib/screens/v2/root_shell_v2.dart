@@ -145,6 +145,28 @@ class RootShellV2State extends State<RootShellV2> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        // Vào thẳng /v2 không qua splash (vd web mở lại URL cũ): chờ
+        // CheckAuthStatus resolve rồi mới dựng tab — nếu không, Home sẽ
+        // build khi token chưa nạp → chào "Khách" + fetch dashboard bản guest.
+        if (authState is AuthInitial || authState is AuthLoading) {
+          return const Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          );
+        }
+        return _buildShell();
+      },
+    );
+  }
+
+  Widget _buildShell() {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
       floatingActionButton: KeyedSubtree(

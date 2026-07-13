@@ -142,7 +142,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         RepositoryProvider(create: (_) => MarketRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => StockRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => StockReportsRepository(widget.dio)),
-        RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(widget.dio)),
+        RepositoryProvider(
+            create: (ctx) => InvestmentOpportunitiesRepository(widget.dio,
+                auth: ctx.read<AuthRepository>())),
         RepositoryProvider(create: (_) => SearchStockRepository(widget.dio)),
         RepositoryProvider(create: (_) => WatchlistRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => BlogRepository(widget.dio)),

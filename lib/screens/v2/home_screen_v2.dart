@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../blocs/auth/auth_event.dart';
+import '../../blocs/auth/auth_state.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../config/api_config.dart';
 import '../../models/dashboard_home.dart';
@@ -133,6 +134,20 @@ class HomeScreenV2State extends State<HomeScreenV2>
 
   @override
   Widget build(BuildContext context) {
+    // Phòng khi auth resolve SAU khi Home đã dựng (vd vào thẳng URL /v2 bỏ
+    // qua splash): rebuild để lời chào đổi từ "Khách" sang đúng username, và
+    // nếu vừa đăng nhập xong thì tải lại dashboard đúng user thay vì bản guest.
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (prev, curr) => prev.runtimeType != curr.runtimeType,
+      listener: (context, state) {
+        setState(() {});
+        if (state is AuthSuccess) _load(forceRefresh: true);
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       appBar: HomeAppBar(

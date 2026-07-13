@@ -4,33 +4,41 @@ import 'package:dio/dio.dart';
 import 'package:fin_wealth/models/dashboard_home.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class InvestmentOpportunitiesRepository {
   final Dio dio;
-  InvestmentOpportunitiesRepository(this.dio);
+  final AuthRepository? auth;
+  InvestmentOpportunitiesRepository(this.dio, {this.auth});
 
   static const _dashCacheKey = 'dashboard_home_cache_v1';
   static const _dashCacheTsKey = 'dashboard_home_cache_ts_v1';
   // Client cache TTL — phải < server TTL (5 phút) để không phục vụ stale quá lâu
   static const _clientCacheTtl = Duration(minutes: 4);
 
+  /// Cache dashboard phân biệt theo user — payload bản guest (fetch khi chưa
+  /// đăng nhập / thiếu token) không bao giờ được trả cho user đã đăng nhập
+  /// và ngược lại.
+  String get _cacheSuffix => auth?.username ?? 'anon';
+
   /// Lưu raw JSON string vào SharedPreferences.
   Future<void> _saveDashCache(String jsonStr) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_dashCacheKey, jsonStr);
-    await prefs.setInt(_dashCacheTsKey, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setString('${_dashCacheKey}_$_cacheSuffix', jsonStr);
+    await prefs.setInt(
+        '${_dashCacheTsKey}_$_cacheSuffix', DateTime.now().millisecondsSinceEpoch);
   }
 
   /// Đọc cache nếu còn trong TTL. Trả null nếu hết hạn hoặc không có.
   Future<DashboardHome?> _readDashCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final ts = prefs.getInt(_dashCacheTsKey);
+      final ts = prefs.getInt('${_dashCacheTsKey}_$_cacheSuffix');
       if (ts == null) return null;
       final age = DateTime.now().millisecondsSinceEpoch - ts;
       if (age > _clientCacheTtl.inMilliseconds) return null;
-      final str = prefs.getString(_dashCacheKey);
+      final str = prefs.getString('${_dashCacheKey}_$_cacheSuffix');
       if (str == null) return null;
       final raw = jsonDecode(str) as Map<String, dynamic>;
       return DashboardHome.fromJson(raw);
@@ -42,6 +50,9 @@ class InvestmentOpportunitiesRepository {
   /// Endpoint mới — full dashboard home payload (mirror trang chủ web).
   /// Chiến lược: trả cache ngay nếu còn hạn, song song fetch server để update.
   Future<DashboardHome> fetchDashboardHome({bool forceRefresh = false}) async {
+    // Chờ AuthRepository nạp token xong — nếu gọi sớm thiếu Bearer, backend
+    // (AllowAny) sẽ trả nhầm dashboard bản guest mà không hề báo lỗi.
+    await auth?.ready;
     if (!forceRefresh) {
       final cached = await _readDashCache();
       if (cached != null) return cached;

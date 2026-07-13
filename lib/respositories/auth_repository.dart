@@ -36,6 +36,10 @@ class AuthRepository {
   final _logoutController = StreamController<void>.broadcast();
   Stream<void> get onLogout => _logoutController.stream;
 
+  /// Hoàn thành khi token/username đã nạp xong từ SharedPreferences.
+  /// Await trước khi gọi API ngay lúc khởi động để chắc chắn có Bearer header.
+  late final Future<void> ready;
+
   String? get username => _username;
   int get totalPoints => _totalPoints;
   String? get avatar => _avatar;
@@ -59,8 +63,11 @@ class AuthRepository {
     // Khởi tạo _tokenDio với options tương tự nhưng KHÔNG ADD INTERCEPTOR
     _tokenDio = Dio(dio.options);
 
-    // Load tokens from persistence on initialization
-    _loadTokens();
+    // Load tokens from persistence on initialization.
+    // `ready` cho phép nơi khác CHỜ token nạp xong trước khi gọi API — tránh
+    // request đầu tiên thiếu Bearer khiến backend trả nhầm bản guest
+    // (dashboard-home là AllowAny nên lỗi này im lặng, không có 401).
+    ready = _loadTokens();
 
     dio.interceptors.add(
       QueuedInterceptorsWrapper(
