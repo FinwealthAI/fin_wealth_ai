@@ -412,6 +412,18 @@ class _StrategyScreenV2State extends State<StrategyScreenV2> {
             ));
           }
           final tags = <StrategyCategoryTag>[];
+          // Sức khỏe chiến lược (decay). Backend trả health_label = null khi
+          // ACTIVE → không hiện chip, tránh nhiễu; chỉ cảnh báo khi bất thường.
+          if ((s.healthLabel ?? '').isNotEmpty) {
+            tags.add(StrategyCategoryTag(
+              label: s.healthLabel!,
+              color: s.healthStatus == 'MONITORING'
+                  ? AppColors.warningDark
+                  : s.healthStatus == 'DECAYED'
+                      ? AppColors.dangerDark
+                      : AppColors.darkTextMuted,
+            ));
+          }
           if (s.riskLevel != null && s.riskLevel!.isNotEmpty) {
             tags.add(StrategyCategoryTag(
               label: StrategyCardData.riskLabel(s.riskLevel),

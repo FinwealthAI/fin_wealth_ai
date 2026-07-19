@@ -208,6 +208,10 @@ class StrategyCardData {
   final bool hasAutoExit;
   final Map<String, dynamic>? backtestMetrics;
   final String? screenerRunAt;
+  /// Trạng thái sức khỏe (decay): ACTIVE / MONITORING / DECAYED / DISABLED.
+  final String? healthStatus;
+  /// Nhãn tiếng Việt; backend trả null khi ACTIVE → KHÔNG hiện badge (tránh nhiễu).
+  final String? healthLabel;
 
   StrategyCardData({
     required this.cardId,
@@ -236,6 +240,8 @@ class StrategyCardData {
     this.hasAutoExit = false,
     this.backtestMetrics,
     this.screenerRunAt,
+    this.healthStatus,
+    this.healthLabel,
   });
 
   factory StrategyCardData.fromJson(Map<String, dynamic> json) {
@@ -295,6 +301,8 @@ class StrategyCardData {
           ? Map<String, dynamic>.from(json['backtest_metrics'] as Map)
           : null,
       screenerRunAt: json['screener_run_at'] as String?,
+      healthStatus: json['health_status'] as String?,
+      healthLabel: json['health_label'] as String?,
     );
   }
 

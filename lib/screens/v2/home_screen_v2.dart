@@ -1139,6 +1139,17 @@ class _StrategyCardState extends State<_StrategyCard> {
               spacing: 4,
               runSpacing: 4,
               children: [
+                // Sức khỏe chiến lược (decay) — backend trả null khi ACTIVE.
+                if ((card.healthLabel ?? '').isNotEmpty)
+                  _Badge(
+                    icon: Icons.monitor_heart,
+                    label: card.healthLabel!,
+                    color: card.healthStatus == 'MONITORING'
+                        ? AppColors.warningDark
+                        : card.healthStatus == 'DECAYED'
+                            ? AppColors.dangerDark
+                            : AppColors.darkTextMuted,
+                  ),
                 if (hasRisk)
                   _Badge(
                     icon: Icons.speed,

@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../config/api_config.dart';
@@ -351,6 +352,8 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
     final perf = stats['perf_cards'] as Map? ?? {};
     final s = stats['stats'] as Map? ?? {};
 
+    final navChart = _buildNavChart(stats);
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -366,6 +369,12 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
           const SizedBox(width: 8),
           _PerfCard(label: '3 Tháng', value: _toD(perf['three_month'])),
         ]),
+        if (navChart != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _sectionTitle('Tăng trưởng NAV'),
+          const SizedBox(height: 8),
+          navChart,
+        ],
         const SizedBox(height: AppSpacing.lg),
         _sectionTitle('Tổng quan'),
         const SizedBox(height: 8),
@@ -385,6 +394,181 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
       ],
     );
   }
+
+  // ─── Biểu đồ NAV + VNINDEX ─────────────────────────────────────────────────
+
+  /// Đường NAV danh mục kèm benchmark VNINDEX.
+  ///
+  /// `roi_series` và `benchmark_series` CÙNG đơn vị (% tích lũy từ phiên NAV đầu
+  /// tiên, cả hai bắt đầu tại 0%) nên vẽ chung MỘT trục Y — khoảng cách giữa hai
+  /// đường chính là ALPHA, thứ mà decay dùng để chấm sức khỏe chiến lược.
+  /// Trả null khi chưa đủ dữ liệu (caller tự bỏ qua khối này).
+  Widget? _buildNavChart(Map stats) {
+    final roi = (stats['roi_series'] as List?) ?? [];
+    if (roi.length < 2) return null;
+
+    final navSpots = <FlSpot>[];
+    for (var i = 0; i < roi.length; i++) {
+      final v = _toD((roi[i] as Map)['value']);
+      if (v != null) navSpots.add(FlSpot(i.toDouble(), v));
+    }
+    if (navSpots.length < 2) return null;
+
+    // Benchmark căn theo NGÀY của đường NAV (mảng có thể thưa hơn do thiếu phiên).
+    final benchByDate = <String, double>{};
+    for (final b in (stats['benchmark_series'] as List?) ?? []) {
+      final d = (b as Map)['date']?.toString();
+      final v = _toD(b['value']);
+      if (d != null && v != null) benchByDate[d] = v;
+    }
+    final benchSpots = <FlSpot>[];
+    for (var i = 0; i < roi.length; i++) {
+      final v = benchByDate[(roi[i] as Map)['date']?.toString()];
+      if (v != null) benchSpots.add(FlSpot(i.toDouble(), v));
+    }
+
+    // Thang Y CHUNG cho cả 2 đường (nếu tách thang thì khoảng cách mất ý nghĩa alpha).
+    var lo = navSpots.first.y, hi = navSpots.first.y;
+    for (final s in [...navSpots, ...benchSpots]) {
+      if (s.y < lo) lo = s.y;
+      if (s.y > hi) hi = s.y;
+    }
+    final pad = ((hi - lo).abs() * 0.15).clamp(1.0, 100.0);
+    lo -= pad;
+    hi += pad;
+
+    final labelStep = roi.length > 60
+        ? 20
+        : roi.length > 30
+            ? 10
+            : 5;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        _legendLine(AppColors.brandPrimaryDark, 'NAV danh mục'),
+        if (benchSpots.isNotEmpty) ...[
+          const SizedBox(width: 14),
+          _legendLine(AppColors.darkTextMuted, 'VNINDEX'),
+        ],
+      ]),
+      const SizedBox(height: 10),
+      SizedBox(
+        height: 200,
+        child: LineChart(LineChartData(
+          minY: lo,
+          maxY: hi,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (_) =>
+                const FlLine(color: AppColors.darkBorder, strokeWidth: 0.5),
+          ),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                getTitlesWidget: (v, _) => Text(
+                  '${v.toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      color: AppColors.darkTextMuted, fontSize: 9),
+                ),
+              ),
+            ),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: labelStep.toDouble(),
+                reservedSize: 20,
+                getTitlesWidget: (v, _) {
+                  final idx = v.toInt();
+                  if (idx < 0 || idx >= roi.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final parts =
+                      ((roi[idx] as Map)['date']?.toString() ?? '').split('-');
+                  return Text(
+                    parts.length >= 3 ? '${parts[2]}/${parts[1]}' : '',
+                    style: const TextStyle(
+                        color: AppColors.darkTextMuted, fontSize: 9),
+                  );
+                },
+              ),
+            ),
+          ),
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (_) => AppColors.darkSurfaceElevated,
+              getTooltipItems: (spots) => spots.map((s) {
+                final isNav = s.barIndex == 0;
+                return LineTooltipItem(
+                  '${isNav ? "NAV" : "VNINDEX"}: '
+                  '${s.y >= 0 ? "+" : ""}${s.y.toStringAsFixed(2)}%',
+                  TextStyle(
+                    color: isNav
+                        ? AppColors.brandPrimaryDark
+                        : AppColors.darkTextMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: navSpots,
+              isCurved: true,
+              color: AppColors.brandPrimaryDark,
+              barWidth: 2,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: AppColors.brandPrimaryDark.withValues(alpha: 0.10),
+              ),
+            ),
+            if (benchSpots.isNotEmpty)
+              LineChartBarData(
+                spots: benchSpots,
+                isCurved: true,
+                color: AppColors.darkTextMuted,
+                barWidth: 1.5,
+                dashArray: const [6, 4],
+                dotData: const FlDotData(show: false),
+              ),
+          ],
+        )),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Đo theo NAV danh mục đều tay, tái cân bằng hàng ngày, chưa trừ phí/thuế; '
+        'tín hiệu vào lệnh ở giá đóng cửa phiên kế tiếp.',
+        style: TextStyle(
+            color: AppColors.darkTextMuted, fontSize: 10, height: 1.4),
+      ),
+    ]);
+  }
+
+  Widget _legendLine(Color c, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 14,
+            height: 3,
+            decoration: BoxDecoration(
+                color: c, borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(width: 5),
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.darkTextMuted, fontSize: 10)),
+        ],
+      );
 
   Widget _buildBacktestMetrics(Map<String, dynamic> m) {
     return _statCard([
@@ -422,6 +606,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
           stopLoss: _toD(p['stop_loss']),
           takeProfit: _toD(p['take_profit']),
           isClosed: false,
+          pendingFill: p['pending_fill'] == true,
           onTap: () => _openStock(p['ticker']?.toString() ?? ''),
         );
       },
@@ -452,6 +637,7 @@ class _StrategyDetailScreenV2State extends State<StrategyDetailScreenV2>
           exitPrice: _toD(p['exit_price']),
           pnlPct: _toD(p['pnl_pct']),
           isClosed: true,
+          pendingFill: p['pending_fill'] == true,
           onTap: () => _openStock(p['ticker']?.toString() ?? ''),
         );
       },
@@ -685,6 +871,8 @@ class _PositionRow extends StatelessWidget {
   final double? stopLoss;
   final double? takeProfit;
   final bool isClosed;
+  /// skip=1: lệnh vừa mở, chưa lấp giá vào (khớp ở close phiên KẾ).
+  final bool pendingFill;
   final VoidCallback? onTap;
 
   const _PositionRow({
@@ -696,6 +884,7 @@ class _PositionRow extends StatelessWidget {
     this.stopLoss,
     this.takeProfit,
     required this.isClosed,
+    this.pendingFill = false,
     this.onTap,
   });
 
@@ -760,12 +949,22 @@ class _PositionRow extends StatelessWidget {
               ],
             ),
           ),
-          // PnL
-          Text(
-            '${pos ? "+" : ""}${pnl.toStringAsFixed(1)}%',
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: pnlColor),
-          ),
+          // PnL — lệnh chưa lấp giá vào thì pnl=0 vô nghĩa, hiện "Chờ khớp".
+          if (pendingFill)
+            const Text(
+              'Chờ khớp',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.darkTextMuted),
+            )
+          else
+            Text(
+              '${pos ? "+" : ""}${pnl.toStringAsFixed(1)}%',
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: pnlColor),
+            ),
         ]),
       ),
     );
