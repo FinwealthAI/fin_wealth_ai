@@ -3,6 +3,7 @@
 /// Pipeline backend (agent_service.run_pipeline) stream qua SSE các sự kiện:
 ///   classify -> agent_start/agent_done (mỗi agent) -> answer(token...) -> [DONE]
 /// Các model dưới đây biểu diễn đầy đủ vòng đời đó để UI hiển thị tiến trình.
+library;
 
 /// Chế độ phân tích — khớp field `mode` của request `/api/chat/send/`.
 enum ChatMode { flash, pro }
@@ -196,6 +197,14 @@ class ChatMessage {
   bool isStreaming;
   bool hasError;
 
+  /// Loại lỗi (khi hasError) — quyết định có hiện nút "Thử lại" không.
+  /// Dùng `ChatErrorType` (chat_error.dart) nhưng khai báo `Object?` ở đây để
+  /// model không phụ thuộc ngược vào tầng service.
+  Object? errorType;
+
+  /// Câu hỏi gốc của lượt này — để nút "Thử lại" gửi lại đúng nội dung khi lỗi.
+  String? retryQuery;
+
   /// Tin do lịch hỏi tự động / digest sinh ra (web: `kind == "proactive"`).
   /// Hiển thị dạng "bản tin định kỳ" (card gộp query + answer) thay vì bong bóng.
   final bool isProactive;
@@ -214,6 +223,8 @@ class ChatMessage {
     this.rating,
     this.isStreaming = false,
     this.hasError = false,
+    this.errorType,
+    this.retryQuery,
     this.isProactive = false,
   })  : steps = steps ?? [],
         cards = cards ?? [];

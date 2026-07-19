@@ -81,7 +81,7 @@ class StockReportsRepository {
   }
 
   /// 🔹 Tạo/Lấy tóm tắt cho 1 report (server sẽ cache; lần sau trả nhanh)
-  /// Backend: POST /api/analysis-reports/<id>/summary/
+  /// Backend: POST `/api/analysis-reports/<id>/summary/`
   /// Trả về cả HTML và Markdown (nếu server gửi), ưu tiên dùng HTML để render nhanh với flutter_html.
   Future<SummaryResult> getOrCreateSummary(int reportId) async {
     final resp = await dio.post('${ApiConfig.mobileApi}/analysis-reports/$reportId/summary/');

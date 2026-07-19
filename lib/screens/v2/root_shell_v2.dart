@@ -12,7 +12,6 @@ import 'home_screen_v2.dart';
 import 'economic_charts_screen_v2.dart';
 import 'margin_screen_v2.dart';
 import 'market_evaluation_screen_v2.dart';
-import 'profile_screen_v2.dart';
 // import 'reports_screen_v2.dart';
 import 'portfolio_list_screen_v2.dart';
 import 'screener_screen_v2.dart';
@@ -146,6 +145,28 @@ class RootShellV2State extends State<RootShellV2> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        // Vào thẳng /v2 không qua splash (vd web mở lại URL cũ): chờ
+        // CheckAuthStatus resolve rồi mới dựng tab — nếu không, Home sẽ
+        // build khi token chưa nạp → chào "Khách" + fetch dashboard bản guest.
+        if (authState is AuthInitial || authState is AuthLoading) {
+          return const Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            ),
+          );
+        }
+        return _buildShell();
+      },
+    );
+  }
+
+  Widget _buildShell() {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
       floatingActionButton: KeyedSubtree(
@@ -228,8 +249,6 @@ class _MoreMenuScreenV2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        final userData =
-            state is AuthSuccess ? state.userData : <String, dynamic>{};
         final authRepo = context.read<AuthRepository>();
         final username = authRepo.username ?? 'Khách';
         final avatarUrl = authRepo.avatar;
@@ -337,7 +356,7 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                       onTap: () =>
                           _push(context, const EconomicChartsScreenV2()),
                     ),
-                    _MenuItem('Về FinWealth', Icons.info_outline),
+                    const _MenuItem('Về FinWealth', Icons.info_outline),
                     const SizedBox(height: 16),
                     _ServerStatus(),
                     const SizedBox(height: 32),
@@ -392,7 +411,7 @@ class _QuickAction extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
             textAlign: TextAlign.center,
           ),
         ],
@@ -407,7 +426,7 @@ class _MenuItem extends StatelessWidget {
   final bool isDestructive;
   final VoidCallback? onTap;
 
-  const _MenuItem(this.title, this.icon, {this.isDestructive = false, this.onTap});
+  const _MenuItem(this.title, this.icon, {this.onTap}) : isDestructive = false;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +435,7 @@ class _MenuItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E2C),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: ListTile(
         leading: Icon(icon, color: const Color(0xFF6366F1)),

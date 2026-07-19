@@ -97,7 +97,7 @@ class _ReportsViewState extends State<_ReportsView> {
     );
     try {
       final html = await repo.getSummaryHtml(r.id);
-      if (!mounted) return;
+      if (!ctx.mounted) return;
       Navigator.of(ctx).pop();
       showModalBottomSheet(
         context: ctx,
@@ -130,7 +130,7 @@ class _ReportsViewState extends State<_ReportsView> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!ctx.mounted) return;
       Navigator.of(ctx).pop();
       ScaffoldMessenger.of(ctx).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),

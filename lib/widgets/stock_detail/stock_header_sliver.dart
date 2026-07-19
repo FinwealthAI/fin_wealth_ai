@@ -52,7 +52,7 @@ class _StockHeaderSliverState extends State<StockHeaderSliver> {
         }
       }
     } catch (e) {
-      print('Error checking watchlist: $e');
+      debugPrint('Error checking watchlist: $e');
     }
   }
 

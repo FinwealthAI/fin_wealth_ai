@@ -163,7 +163,7 @@ class _LabelChip extends StatelessWidget {
         children: [
           Text(
             prefix,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w600,
               color: AppColors.darkTextMuted,

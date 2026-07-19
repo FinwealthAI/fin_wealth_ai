@@ -49,7 +49,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: avatarUrl == null
-                    ? LinearGradient(colors: [
+                    ? const LinearGradient(colors: [
                         AppColors.brandPrimary,
                         AppColors.brandSecondary,
                       ])

@@ -1,35 +1,44 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:fin_wealth/models/dashboard_home.dart';
 import 'package:fin_wealth/models/investment_opportunities.dart';
 import 'package:fin_wealth/config/api_config.dart';
+import 'package:fin_wealth/respositories/auth_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class InvestmentOpportunitiesRepository {
   final Dio dio;
-  InvestmentOpportunitiesRepository(this.dio);
+  final AuthRepository? auth;
+  InvestmentOpportunitiesRepository(this.dio, {this.auth});
 
   static const _dashCacheKey = 'dashboard_home_cache_v1';
   static const _dashCacheTsKey = 'dashboard_home_cache_ts_v1';
   // Client cache TTL — phải < server TTL (5 phút) để không phục vụ stale quá lâu
   static const _clientCacheTtl = Duration(minutes: 4);
 
+  /// Cache dashboard phân biệt theo user — payload bản guest (fetch khi chưa
+  /// đăng nhập / thiếu token) không bao giờ được trả cho user đã đăng nhập
+  /// và ngược lại.
+  String get _cacheSuffix => auth?.username ?? 'anon';
+
   /// Lưu raw JSON string vào SharedPreferences.
   Future<void> _saveDashCache(String jsonStr) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_dashCacheKey, jsonStr);
-    await prefs.setInt(_dashCacheTsKey, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setString('${_dashCacheKey}_$_cacheSuffix', jsonStr);
+    await prefs.setInt(
+        '${_dashCacheTsKey}_$_cacheSuffix', DateTime.now().millisecondsSinceEpoch);
   }
 
   /// Đọc cache nếu còn trong TTL. Trả null nếu hết hạn hoặc không có.
   Future<DashboardHome?> _readDashCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final ts = prefs.getInt(_dashCacheTsKey);
+      final ts = prefs.getInt('${_dashCacheTsKey}_$_cacheSuffix');
       if (ts == null) return null;
       final age = DateTime.now().millisecondsSinceEpoch - ts;
       if (age > _clientCacheTtl.inMilliseconds) return null;
-      final str = prefs.getString(_dashCacheKey);
+      final str = prefs.getString('${_dashCacheKey}_$_cacheSuffix');
       if (str == null) return null;
       final raw = jsonDecode(str) as Map<String, dynamic>;
       return DashboardHome.fromJson(raw);
@@ -41,6 +50,9 @@ class InvestmentOpportunitiesRepository {
   /// Endpoint mới — full dashboard home payload (mirror trang chủ web).
   /// Chiến lược: trả cache ngay nếu còn hạn, song song fetch server để update.
   Future<DashboardHome> fetchDashboardHome({bool forceRefresh = false}) async {
+    // Chờ AuthRepository nạp token xong — nếu gọi sớm thiếu Bearer, backend
+    // (AllowAny) sẽ trả nhầm dashboard bản guest mà không hề báo lỗi.
+    await auth?.ready;
     if (!forceRefresh) {
       final cached = await _readDashCache();
       if (cached != null) return cached;
@@ -78,7 +90,7 @@ class InvestmentOpportunitiesRepository {
           
           // If no bubble/gap/rankings in new format, return null and handle gracefully
           if (innerData['bubble'] == null) {
-            print('unlock-wealth API: No bubble data in new format');
+            debugPrint('unlock-wealth API: No bubble data in new format');
             return null;
           }
           return InvestmentOpportunities.fromJson(innerData);
@@ -90,7 +102,7 @@ class InvestmentOpportunitiesRepository {
       }
       return null;
     } catch (e) {
-      print('Failed to load opportunities: $e');
+      debugPrint('Failed to load opportunities: $e');
       return null;
     }
   }
@@ -125,46 +137,46 @@ class InvestmentOpportunitiesRepository {
     return DailySummaryData.fromJson(flattened);
   }
   Future<List<dynamic>> fetchStrategyDetails(String name) async {
-    print('[DEBUG] fetchStrategyDetails called with name: "$name"');
+    debugPrint('[DEBUG] fetchStrategyDetails called with name: "$name"');
     
     // Try System Screener First
     try {
       // Correct path: filter-stock/api/v1/system-screener/results/
       final resp = await dio.get('/filter-stock/api/v1/system-screener/results/', queryParameters: {'name': name});
-      print('[DEBUG] System Screener Response status: ${resp.statusCode}');
-      print('[DEBUG] System Screener Response data: ${resp.data}');
+      debugPrint('[DEBUG] System Screener Response status: ${resp.statusCode}');
+      debugPrint('[DEBUG] System Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
            final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
-           print('[DEBUG] System Screener found ${tickers.length} tickers');
+           debugPrint('[DEBUG] System Screener found ${tickers.length} tickers');
            return tickers;
         }
       }
     } catch (e) {
-      print('[DEBUG] System Screener error: $e');
+      debugPrint('[DEBUG] System Screener error: $e');
     }
 
     // Fallback: User Screener
     try {
       final resp = await dio.get('/filter-stock/api/v1/user-screener/results/', queryParameters: {'name': name});
-      print('[DEBUG] User Screener Response status: ${resp.statusCode}');
-      print('[DEBUG] User Screener Response data: ${resp.data}');
+      debugPrint('[DEBUG] User Screener Response status: ${resp.statusCode}');
+      debugPrint('[DEBUG] User Screener Response data: ${resp.data}');
       if (resp.statusCode == 200) {
         final data = resp.data;
         if (data is Map && data['results'] is List && (data['results'] as List).isNotEmpty) {
            final firstSet = data['results'][0];
            final tickers = firstSet['tickers'] as List<dynamic>? ?? [];
-           print('[DEBUG] User Screener found ${tickers.length} tickers');
+           debugPrint('[DEBUG] User Screener found ${tickers.length} tickers');
            return tickers;
         }
       }
     } catch (e) {
-       print('[DEBUG] User Screener error: $e');
+       debugPrint('[DEBUG] User Screener error: $e');
     }
     
-    print('[DEBUG] No tickers found for strategy: "$name"');
+    debugPrint('[DEBUG] No tickers found for strategy: "$name"');
     return [];
   }
 
@@ -190,7 +202,7 @@ class InvestmentOpportunitiesRepository {
         }
       }
     } catch (e) {
-      print('Failed to load strategy details by ID $id: $e');
+      debugPrint('Failed to load strategy details by ID $id: $e');
     }
     return [];
   }

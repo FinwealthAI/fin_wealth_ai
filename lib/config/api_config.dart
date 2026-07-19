@@ -3,6 +3,7 @@
 /// Manages base URLs for different environments.
 /// Use relative paths when web app is deployed on same server as backend
 /// to avoid CORS issues.
+library;
 
 import 'package:flutter/foundation.dart';
 

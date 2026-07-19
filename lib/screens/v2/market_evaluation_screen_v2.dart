@@ -79,8 +79,8 @@ class _MarketEvaluationScreenV2State extends State<MarketEvaluationScreenV2> {
       padding: const EdgeInsets.all(16),
       children: List.generate(
           4,
-          (_) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+          (_) => const Padding(
+                padding: EdgeInsets.only(bottom: 16),
                 child: FwSkeleton(height: 100),
               )),
     );
@@ -172,10 +172,10 @@ class _ScoreCard extends StatelessWidget {
                     color: color, fontSize: 36, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 5),
                 child: Text('/100',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.darkTextMuted, fontSize: 13)),
               ),
               const SizedBox(width: 10),
@@ -266,7 +266,7 @@ class _ZoneGaugeBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(2),
-                        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4)],
+                        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4)],
                       ),
                     ),
                     // Mũi tên nhỏ bên dưới
@@ -819,9 +819,9 @@ class _HistorySection extends StatelessWidget {
           else
             SizedBox(height: 240, child: _CombinedChart(history: history)),
           const SizedBox(height: 8),
-          Row(children: [
+          const Row(children: [
             _LegendDot(AppColors.brandPrimaryDark, 'Điểm tổng hợp'),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             _LegendDot(AppColors.successDark, 'VNINDEX'),
           ]),
         ],

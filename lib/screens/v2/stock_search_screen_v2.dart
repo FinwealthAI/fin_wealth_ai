@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/stock_models.dart';
-import '../../respositories/stock_repository.dart';
 import '../../theme/theme.dart';
-import '../../widgets/common/common.dart';
 import 'stock_detail_screen_v2.dart';
 
 class StockSearchScreenV2 extends StatefulWidget {
@@ -14,41 +11,12 @@ class StockSearchScreenV2 extends StatefulWidget {
 }
 
 class _StockSearchScreenV2State extends State<StockSearchScreenV2> {
-  late final StockRepository _repo = context.read<StockRepository>();
   final TextEditingController _q = TextEditingController();
   String _query = '';
 
-  List<StockValuation> _all = const [];
-  bool _loading = false;
-  Object? _err;
-
-  @override
-  void initState() {
-    super.initState();
-    // Bỏ việc tải danh sách để tăng tốc độ mở màn hình search
-    // _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-    });
-    try {
-      final list = await _repo.fetchStockValuations();
-      if (!mounted) return;
-      setState(() {
-        _all = list;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _err = e;
-        _loading = false;
-      });
-    }
-  }
+  // Không tải trước danh sách để tăng tốc độ mở màn hình search;
+  // người dùng gõ mã và nhấn Enter để mở trực tiếp.
+  final List<StockValuation> _all = const [];
 
   @override
   void dispose() {
@@ -106,19 +74,6 @@ class _StockSearchScreenV2State extends State<StockSearchScreenV2> {
 
   Widget _buildBody(
       List<StockValuation> results, String q, TextTheme text) {
-    if (_loading) {
-      return ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: 10,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-        itemBuilder: (_, __) =>
-            const FwSkeleton(height: 56, radius: AppRadius.md),
-      );
-    }
-    if (_err != null && _all.isEmpty) {
-      // Đã bỏ logic tải tự động, nên khối lỗi này không còn cần thiết
-      return const SizedBox.shrink();
-    }
     if (results.isEmpty) {
       return Center(
         child: Padding(

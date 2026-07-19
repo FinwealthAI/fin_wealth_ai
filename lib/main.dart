@@ -31,7 +31,6 @@ import 'package:fin_wealth/screens/v2/upgrade_screen_v2.dart';
 import 'package:fin_wealth/config/api_config.dart';
 import 'package:fin_wealth/theme/theme.dart';
 
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'dart:io';
 
 void main() async {
@@ -41,7 +40,7 @@ void main() async {
     try {
       // WebView platform init — wrapped in try-catch to avoid crash on unsupported platforms
     } catch (e) {
-      print('WebView initialization error: $e');
+      debugPrint('WebView initialization error: $e');
     }
   }
 
@@ -101,7 +100,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Cooldown 5 phút để tránh spam khi user switch app liên tục
     final now = DateTime.now();
     if (_lastExpiredCheck != null &&
-        now.difference(_lastExpiredCheck!).inMinutes < 5) return;
+        now.difference(_lastExpiredCheck!).inMinutes < 5) {
+      return;
+    }
     _lastExpiredCheck = now;
 
     final ctx = widget.navigatorKey.currentContext;
@@ -141,7 +142,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         RepositoryProvider(create: (_) => MarketRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => StockRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => StockReportsRepository(widget.dio)),
-        RepositoryProvider(create: (_) => InvestmentOpportunitiesRepository(widget.dio)),
+        RepositoryProvider(
+            create: (ctx) => InvestmentOpportunitiesRepository(widget.dio,
+                auth: ctx.read<AuthRepository>())),
         RepositoryProvider(create: (_) => SearchStockRepository(widget.dio)),
         RepositoryProvider(create: (_) => WatchlistRepository(dio: widget.dio)),
         RepositoryProvider(create: (_) => BlogRepository(widget.dio)),

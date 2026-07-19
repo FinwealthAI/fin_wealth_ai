@@ -111,8 +111,8 @@ class AppTheme {
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.md,
         ),
-        hintStyle: TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
-        labelStyle: TextStyle(color: AppColors.darkTextSecondary, fontSize: 14),
+        hintStyle: const TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
+        labelStyle: const TextStyle(color: AppColors.darkTextSecondary, fontSize: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.darkBorder),

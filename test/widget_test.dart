@@ -1,30 +1,34 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-import 'package:fin_wealth/main.dart';
+import 'package:fin_wealth/utils/currency_formatter.dart';
+import 'package:fin_wealth/utils/date_formatter.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUpAll(() async {
+    await initializeDateFormatting('vi_VN');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  group('CurrencyFormatter', () {
+    test('format hiển thị số theo locale vi_VN kèm ký hiệu ₫', () {
+      final result = CurrencyFormatter.format(1234567);
+      expect(result, contains('₫'));
+      expect(result, contains('1.234.567'));
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('formatThousanDong nhân 1000 trước khi format', () {
+      final result = CurrencyFormatter.formatThousanDong(25.5);
+      expect(result, contains('25.500'));
+    });
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  group('DateFormatter', () {
+    test('format trả về dd/MM/yy', () {
+      expect(DateFormatter.format(DateTime(2026, 7, 10)), '10/07/26');
+    });
+
+    test('formatDateFromString chuyển yyyy-MM-dd sang dd/MM/yyyy', () {
+      expect(DateFormatter.formatDateFromString('2026-01-05'), '05/01/2026');
+    });
   });
 }

@@ -20,7 +20,7 @@ class StrategyRepository {
       } else {
         throw Exception('Failed to load stock strategies');
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       throw Exception('Failed to load stock strategies: ${e.message}');
     }
   }

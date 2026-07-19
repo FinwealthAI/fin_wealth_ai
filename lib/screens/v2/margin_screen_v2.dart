@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
 import '../../config/api_config.dart';
@@ -181,7 +180,6 @@ class _MarginScreenV2State extends State<MarginScreenV2>
   // Portfolio
   final List<MarginStock> _stocks = [];
   Map<String, Map<String, double>> _paramMap = {}; // ticker → {c, im, al}
-  bool _loadingParams = true;
 
   // Simulation
   final List<SimLog> _logs = [];
@@ -274,10 +272,10 @@ class _MarginScreenV2State extends State<MarginScreenV2>
             'al': (p['al'] as num).toDouble(),
           };
         }
-        if (mounted) setState(() { _paramMap = map; _loadingParams = false; });
+        if (mounted) setState(() => _paramMap = map);
       }
     } catch (_) {
-      if (mounted) setState(() => _loadingParams = false);
+      // Không có tham số margin thì giữ map rỗng, màn hình vẫn dùng được.
     }
   }
 
@@ -322,7 +320,7 @@ class _MarginScreenV2State extends State<MarginScreenV2>
               borderRadius: BorderRadius.circular(8),
             ),
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: AppColors.brandPrimaryDark),
+              borderSide: const BorderSide(color: AppColors.brandPrimaryDark),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -592,10 +590,10 @@ class _MarginScreenV2State extends State<MarginScreenV2>
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.brandPrimaryDark.withValues(alpha: 0.4)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
                     Icon(Icons.add, color: AppColors.brandPrimaryDark, size: 16),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text('Thêm mã', style: TextStyle(color: AppColors.brandPrimaryDark, fontSize: 13)),
                   ],
                 ),
@@ -854,9 +852,9 @@ class _MrGauge extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
+            children: [
               Text('0%', style: TextStyle(color: Colors.white38, fontSize: 10)),
               Text('100%', style: TextStyle(color: Colors.white38, fontSize: 10)),
               Text('150%', style: TextStyle(color: Colors.white38, fontSize: 10)),
@@ -969,7 +967,7 @@ class _SummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _divider() => Divider(color: Colors.white10, height: 12, thickness: 1);
+  Widget _divider() => const Divider(color: Colors.white10, height: 12, thickness: 1);
 }
 
 // ─── Account Card ─────────────────────────────────────────────────────────────
@@ -1008,7 +1006,7 @@ class _AccountCard extends StatelessWidget {
               children: [
                 if (profileName != null) ...[
                   Text(profileName!,
-                      style: TextStyle(
+                      style: const TextStyle(
                           color: AppColors.brandPrimaryDark,
                           fontSize: 12,
                           fontWeight: FontWeight.w600)),
@@ -1033,13 +1031,13 @@ class _AccountCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: Icon(Icons.folder_open_outlined,
+                icon: const Icon(Icons.folder_open_outlined,
                     color: AppColors.brandPrimaryDark, size: 22),
                 tooltip: 'Tải tài khoản đã lưu',
                 onPressed: onLoad,
               ),
               IconButton(
-                icon: Icon(Icons.save_outlined,
+                icon: const Icon(Icons.save_outlined,
                     color: AppColors.brandPrimaryDark, size: 22),
                 tooltip: 'Lưu tài khoản',
                 onPressed: onSave,
@@ -1613,8 +1611,8 @@ class _TradeDialogState extends State<_TradeDialog> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: Text('Xác nhận',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              child: const Text('Xác nhận',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -1844,7 +1842,7 @@ class _ProfileLoaderSheetState extends State<_ProfileLoaderSheet> {
                     final p = _profiles![i];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.account_balance_wallet_outlined,
+                      leading: const Icon(Icons.account_balance_wallet_outlined,
                           color: AppColors.brandPrimaryDark),
                       title: Text(p['account_name'] as String? ?? 'Không tên',
                           style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
