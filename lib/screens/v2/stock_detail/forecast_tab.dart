@@ -44,11 +44,17 @@ extension on _StockDetailScreenV2State {
       );
     }
 
-    final scenarios = (f['forecast'] is Map &&
-            (f['forecast'] as Map)['scenarios'] is List)
-        ? List<Map>.from(((f['forecast'] as Map)['scenarios'] as List)
-            .whereType<Map>())
+    final fd = f['forecast'] is Map ? f['forecast'] as Map : const {};
+    final scenarios = fd['scenarios'] is List
+        ? List<Map>.from((fd['scenarios'] as List).whereType<Map>())
         : const <Map>[];
+    final median = _numList(fd['median']);
+    final p10 = _numList(fd['p10']);
+    final p90 = _numList(fd['p90']);
+    final lastClose = _toOptD(fd['last_close']);
+    final predDates = fd['pred_dates'] is List
+        ? (fd['pred_dates'] as List).map((e) => e.toString()).toList()
+        : const <String>[];
 
     return RefreshIndicator(
       onRefresh: _loadForecast,
@@ -63,6 +69,16 @@ extension on _StockDetailScreenV2State {
             date: f['date'] as String?,
             modelTag: f['model_tag'] as String?,
           ),
+          if (median.isNotEmpty && lastClose != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _ForecastConeCard(
+              lastClose: lastClose,
+              median: median,
+              p10: p10,
+              p90: p90,
+              predDates: predDates,
+            ),
+          ],
           if (scenarios.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             _ForecastScenariosCard(scenarios: scenarios),
@@ -73,6 +89,245 @@ extension on _StockDetailScreenV2State {
         ],
       ),
     );
+  }
+}
+
+List<double> _numList(dynamic v) => v is List
+    ? v.map((e) => _toOptD(e)).whereType<double>().toList()
+    : const <double>[];
+
+/// Nón dự báo: đường median + dải p10–p90, nối liền từ giá đóng cửa gần nhất.
+/// Giá trong forecast ở đơn vị **nghìn** → ×1000 ra VND cho khớp phần còn lại của app.
+class _ForecastConeCard extends StatelessWidget {
+  final double lastClose; // nghìn
+  final List<double> median, p10, p90; // nghìn
+  final List<String> predDates;
+  const _ForecastConeCard({
+    required this.lastClose,
+    required this.median,
+    required this.p10,
+    required this.p90,
+    required this.predDates,
+  });
+
+  /// Nối spot gốc (x=0, giá đóng cửa cuối) rồi tới n phiên dự báo. Đơn vị VND.
+  List<FlSpot> _spots(List<double> series, int n) => [
+        FlSpot(0, lastClose * 1000),
+        for (int i = 0; i < n && i < series.length; i++)
+          FlSpot((i + 1).toDouble(), series[i] * 1000),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    final n = median.length;
+    final hasBand = p10.length >= n && p90.length >= n && n > 0;
+
+    final medianSpots = _spots(median, n);
+    final p10Spots = hasBand ? _spots(p10, n) : const <FlSpot>[];
+    final p90Spots = hasBand ? _spots(p90, n) : const <FlSpot>[];
+
+    final all = [...medianSpots, ...p10Spots, ...p90Spots].map((s) => s.y);
+    var minY = all.reduce((a, b) => a < b ? a : b);
+    var maxY = all.reduce((a, b) => a > b ? a : b);
+    final pad = ((maxY - minY) * 0.12).clamp(1.0, double.infinity);
+    minY -= pad;
+    maxY += pad;
+
+    final baseY = lastClose * 1000;
+    final endY = medianSpots.last.y;
+    final up = endY >= baseY;
+    final medianColor = up ? AppColors.successDark : AppColors.dangerDark;
+    final vnd = NumberFormat('#,##0', 'vi_VN');
+
+    // p10 phải đứng trước p90 trong lineBarsData để BetweenBarsData tô đúng dải.
+    final bars = <LineChartBarData>[
+      if (hasBand)
+        LineChartBarData(
+          spots: p10Spots,
+          isCurved: true,
+          barWidth: 0,
+          color: Colors.transparent,
+          dotData: const FlDotData(show: false),
+        ),
+      if (hasBand)
+        LineChartBarData(
+          spots: p90Spots,
+          isCurved: true,
+          barWidth: 0,
+          color: Colors.transparent,
+          dotData: const FlDotData(show: false),
+        ),
+      LineChartBarData(
+        spots: medianSpots,
+        isCurved: true,
+        barWidth: 2.5,
+        color: medianColor,
+        dotData: FlDotData(
+          show: true,
+          checkToShowDot: (spot, _) => spot.x == medianSpots.last.x,
+          getDotPainter: (s, p, bar, i) => FlDotCirclePainter(
+              radius: 3.5, color: medianColor, strokeWidth: 0),
+        ),
+      ),
+    ];
+
+    return FwCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.timeline, size: 15, color: AppColors.brandPrimaryDark),
+          const SizedBox(width: 6),
+          Text('Nón dự báo giá', style: Theme.of(context).textTheme.titleMedium),
+          const Spacer(),
+          Text('$n phiên',
+              style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+        ]),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 210,
+          child: LineChart(
+            LineChartData(
+              minY: minY,
+              maxY: maxY,
+              minX: 0,
+              maxX: n.toDouble(),
+              lineBarsData: bars,
+              betweenBarsData: hasBand
+                  ? [
+                      BetweenBarsData(
+                        fromIndex: 0,
+                        toIndex: 1,
+                        color: AppColors.brandPrimaryDark.withValues(alpha: 0.16),
+                      ),
+                    ]
+                  : const [],
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => const FlLine(
+                    color: AppColors.darkBorder, strokeWidth: 0.5),
+              ),
+              borderData: FlBorderData(show: false),
+              // Đường mốc = giá hiện tại, để thấy ngay phần trên/dưới tham chiếu.
+              extraLinesData: ExtraLinesData(horizontalLines: [
+                HorizontalLine(
+                  y: baseY,
+                  color: AppColors.darkTextMuted.withValues(alpha: 0.5),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                ),
+              ]),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    getTitlesWidget: (v, meta) {
+                      if (v == meta.max || v == meta.min) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text('${(v / 1000).toStringAsFixed(1)}k',
+                          style: const TextStyle(
+                              color: AppColors.darkTextMuted, fontSize: 9));
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    interval: n > 1 ? n.toDouble() : 1,
+                    getTitlesWidget: (v, _) {
+                      final i = v.toInt();
+                      String label;
+                      if (i == 0) {
+                        label = 'Nay';
+                      } else if (i == n && predDates.length >= n) {
+                        label = _shortDate(predDates[n - 1]);
+                      } else {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(label,
+                            style: const TextStyle(
+                                color: AppColors.darkTextMuted, fontSize: 9)),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => AppColors.darkSurfaceElevated,
+                  getTooltipItems: (spots) => spots.map((s) {
+                    // Chỉ chú thích đường median (bar cuối cùng).
+                    if (s.barIndex != bars.length - 1) return null;
+                    final d = (s.x.toInt() == 0)
+                        ? 'Hiện tại'
+                        : (predDates.length >= s.x.toInt()
+                            ? _shortDate(predDates[s.x.toInt() - 1])
+                            : 'Phiên ${s.x.toInt()}');
+                    return LineTooltipItem(
+                      '$d\n${vnd.format(s.y)}',
+                      TextStyle(
+                          color: medianColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 14, runSpacing: 6, children: [
+          _ForecastLegend(color: medianColor, label: 'Kịch bản trung vị'),
+          if (hasBand)
+            _ForecastLegend(
+                color: AppColors.brandPrimaryDark.withValues(alpha: 0.45),
+                label: 'Dải p10–p90'),
+          _ForecastLegend(
+              color: AppColors.darkTextMuted.withValues(alpha: 0.6),
+              label: 'Giá hiện tại',
+              dashed: true),
+        ]),
+      ]),
+    );
+  }
+
+  static String _shortDate(String iso) {
+    final p = iso.split('-'); // YYYY-MM-DD
+    return p.length == 3 ? '${p[2]}/${p[1]}' : iso;
+  }
+}
+
+class _ForecastLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool dashed;
+  const _ForecastLegend(
+      {required this.color, required this.label, this.dashed = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 12,
+        height: dashed ? 2 : 8,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(dashed ? 0 : 2),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(label,
+          style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 10)),
+    ]);
   }
 }
 

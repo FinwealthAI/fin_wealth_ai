@@ -470,7 +470,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 220,
+      expandedHeight: 252,
       backgroundColor: AppColors.darkBg,
       leading: const BackButton(),
       actions: [
@@ -572,8 +572,10 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                     child: Align(
                       alignment: Alignment.bottomLeft,
                       child: Padding(
+                        // Đáy chừa kTextTabBarHeight (46) vì flexibleSpace trải
+                        // hết cả vùng TabBar → không chừa sẽ đè lên hàng tab.
                         padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.lg, 56, AppSpacing.lg, 16),
+                            AppSpacing.lg, 56, AppSpacing.lg, 58),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
