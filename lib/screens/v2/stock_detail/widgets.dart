@@ -330,6 +330,87 @@ class _QuantTaCard extends StatelessWidget {
   }
 }
 
+/// Alpha rating (Alpha Zoo) — điểm tổng hợp + điểm theo nhóm chủ đề factor.
+/// Nguồn: `factors` trong `/api/quant/scores/<ticker>/`
+/// (xem `../finwealth/quant/views.py` → `_get_factor_block`).
+class _QuantAlphaCard extends StatelessWidget {
+  final Map factors;
+  const _QuantAlphaCard({required this.factors});
+
+  Color _ratingColor(double? r) {
+    if (r == null) return AppColors.darkTextMuted;
+    if (r >= 65) return AppColors.successDark;
+    if (r >= 50) return AppColors.goldenAccent;
+    if (r >= 35) return AppColors.warningDark;
+    return AppColors.dangerDark;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rating = _toOptD(factors['alpha_rating']);
+    final date = factors['date'] as String?;
+    final themes = (factors['themes'] is List)
+        ? List<Map>.from((factors['themes'] as List).whereType<Map>())
+        : const <Map>[];
+    final color = _ratingColor(rating);
+
+    return FwCard(
+      padding: EdgeInsets.zero,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(children: [
+            const Icon(Icons.hub_outlined, size: 14, color: AppColors.goldenAccent),
+            const SizedBox(width: 6),
+            Text('Alpha Rating', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (date != null)
+              Text(date, style: const TextStyle(color: AppColors.darkTextMuted, fontSize: 11)),
+          ]),
+        ),
+        const Divider(height: 1, color: AppColors.darkBorder),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(rating != null ? rating.toStringAsFixed(0) : '—',
+                  style: TextStyle(
+                      fontSize: 34, fontWeight: FontWeight.bold, color: color)),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6, left: 2),
+                child: Text('/100',
+                    style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12)),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Điểm tổng hợp từ rổ nhân tố định lượng (alpha).',
+                    style: TextStyle(color: AppColors.darkTextMuted, fontSize: 11, height: 1.3)),
+              ),
+            ]),
+            if (themes.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text('Theo nhóm nhân tố',
+                  style: TextStyle(
+                      color: AppColors.darkTextSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              for (final t in themes) ...[
+                _QuantPillarRow(
+                  label: (t['name'] as String?) ?? (t['key'] as String? ?? '—'),
+                  value: _toOptD(t['score']),
+                  color: _ratingColor(_toOptD(t['score'])),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
 class _QuantPillarRow extends StatelessWidget {
   final String label;
   final double? value;

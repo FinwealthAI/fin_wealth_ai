@@ -15,6 +15,7 @@ part 'stock_detail/overview_tab.dart';
 part 'stock_detail/valuation_tab.dart';
 part 'stock_detail/value_chain_tab.dart';
 part 'stock_detail/quant_tab.dart';
+part 'stock_detail/forecast_tab.dart';
 part 'stock_detail/health_tab.dart';
 part 'stock_detail/charts.dart';
 part 'stock_detail/widgets.dart';
@@ -59,6 +60,10 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   Map<String, dynamic>? _quant;
   bool _loadingQuant = true;
   Object? _errQuant;
+
+  Map<String, dynamic>? _forecast;
+  bool _loadingForecast = true;
+  Object? _errForecast;
   int _selectedChartIdx = 0;
   int _chartPeriodDays = 365; // 180 | 365 | 1095 | -1 (all)
 
@@ -79,7 +84,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
     if (_authRepo.accessToken != null) {
       _loadAll();
     } else {
@@ -93,6 +98,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadingTechnical = false;
       _loadingChain = false;
       _loadingQuant = false;
+      _loadingForecast = false;
     }
   }
 
@@ -116,6 +122,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       _loadInsight(),
       _loadChain(),
       _loadQuant(),
+      _loadForecast(),
     ]);
   }
 
@@ -136,6 +143,27 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
       setState(() {
         _errQuant = e;
         _loadingQuant = false;
+      });
+    }
+  }
+
+  Future<void> _loadForecast() async {
+    setState(() {
+      _loadingForecast = true;
+      _errForecast = null;
+    });
+    try {
+      final d = await _repo.getForecast(widget.ticker);
+      if (!mounted) return;
+      setState(() {
+        _forecast = d;
+        _loadingForecast = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errForecast = e;
+        _loadingForecast = false;
       });
     }
   }
@@ -406,6 +434,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
           children: [
             isGuest ? _guestTab() : _buildOverview(),
             isGuest ? _guestTab() : _buildValuation(),
+            isGuest ? _guestTab() : _buildForecast(),
             isGuest ? _guestTab() : _buildValueChain(),
             isGuest ? _guestTab() : _buildHealth(),
             isGuest ? _guestTab() : _buildQuant(),
@@ -441,7 +470,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
 
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 300,
+      expandedHeight: 220,
       backgroundColor: AppColors.darkBg,
       leading: const BackButton(),
       actions: [
@@ -540,14 +569,14 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
                   ignoring: contentOpacity < 0.05,
                   child: Opacity(
                     opacity: contentOpacity,
-                    child: SingleChildScrollView(
-                      physics: const NeverScrollableScrollPhysics(),
+                    child: Align(
+                      alignment: Alignment.bottomLeft,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.lg, 56, AppSpacing.lg, 40),
+                            AppSpacing.lg, 56, AppSpacing.lg, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
                         children: [
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
@@ -632,6 +661,7 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
         tabs: const [
           Tab(text: 'Tổng quan'),
           Tab(text: 'Định giá'),
+          Tab(text: 'Dự báo'),
           Tab(text: 'Chuỗi GT'),
           Tab(text: 'Sức khỏe'),
           Tab(text: 'Định lượng'),

@@ -139,4 +139,19 @@ Future<Map<String, dynamic>> markAllNotifications() async {
     return Map<String, dynamic>.from(resp.data);
   }
 
+  /// Dự báo xu hướng giá (mô hình Kronos) — GET `/api/forecast/<ticker>/`.
+  /// Mã ngoài universe/chưa có dự báo → backend trả {success:false} (200).
+  Future<Map<String, dynamic>> getForecast(String ticker) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+    final options = token != null
+        ? Options(headers: {'Authorization': 'Bearer $token'})
+        : null;
+    final resp = await dio.get(
+      '${ApiConfig.api}/forecast/$ticker/',
+      options: options,
+    );
+    return Map<String, dynamic>.from(resp.data);
+  }
+
 }

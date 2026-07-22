@@ -30,6 +30,8 @@ extension on _StockDetailScreenV2State {
     final wealth = q['wealth'] as Map? ?? {};
     final fa = q['fa'] as Map? ?? {};
     final ta = q['ta'] as Map? ?? {};
+    // Điểm alpha factor (Alpha Zoo) — null khi mã ngoài universe Top-200.
+    final factors = q['factors'] as Map?;
 
     return RefreshIndicator(
       onRefresh: _loadQuant,
@@ -42,6 +44,10 @@ extension on _StockDetailScreenV2State {
           _QuantFaCard(fa: fa),
           const SizedBox(height: AppSpacing.lg),
           _QuantTaCard(ta: ta),
+          if (factors != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _QuantAlphaCard(factors: factors),
+          ],
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
