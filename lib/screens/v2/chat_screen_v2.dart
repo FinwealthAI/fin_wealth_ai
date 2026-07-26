@@ -546,6 +546,15 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       case 'soft_warning':
         setState(() => _softWarning = true);
         return;
+      case 'answer_reset':
+        // Backend stream thẳng câu trả lời cuối để giảm độ trễ. Hiếm khi phần đã
+        // phát hoá ra là bản nháp sai (model quay ra gọi tool, hoặc vòng tự phản
+        // biện viết lại) → server báo XOÁ. Không xử lý thì bản nháp dính liền vào
+        // câu trả lời thật. Xem BoundedAgentExecutor._reset_streamed_answer (backend).
+        _streamFlushTimer?.cancel();
+        _streamFlushTimer = null;
+        setState(() => assistant.text = '');
+        return;
     }
 
     if (event['answer'] != null) {

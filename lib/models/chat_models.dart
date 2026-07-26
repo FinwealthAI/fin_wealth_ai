@@ -3,6 +3,12 @@
 /// Pipeline backend (agent_service.run_pipeline) stream qua SSE các sự kiện:
 ///   classify -> agent_start/agent_done (mỗi agent) -> answer(token...) -> [DONE]
 /// Các model dưới đây biểu diễn đầy đủ vòng đời đó để UI hiển thị tiến trình.
+///
+/// LƯU Ý `answer_reset`: từ khi backend stream THẲNG câu trả lời cuối (thay vì sinh
+/// xong mới phát lại), phần đã hiện đôi khi là bản nháp sai — model quay ra gọi tool,
+/// hoặc vòng tự phản biện viết lại (~7% lượt). Khi đó server phát `{"type":
+/// "answer_reset"}` và client PHẢI xoá text đã gom, nếu không bản nháp dính liền vào
+/// câu trả lời thật. Xử lý ở `chat_screen_v2._handleEvent`.
 library;
 
 /// Chế độ phân tích — khớp field `mode` của request `/api/chat/send/`.
