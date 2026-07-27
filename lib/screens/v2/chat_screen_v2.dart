@@ -390,8 +390,15 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
       final completer = Completer<void>();
       Object? streamErr;
+      // Stream đóng mà KHÔNG có [DONE] → bị cắt giữa chừng (xem streamMessage).
+      bool streamCut = false;
       _sub = stream.listen(
-        (event) => _handleEvent(event, assistant),
+        (event) {
+          if (event['type'] == '__done__' && event['clean'] == false) {
+            streamCut = true;
+          }
+          _handleEvent(event, assistant);
+        },
         onError: (e) {
           streamErr = e;
           if (!completer.isCompleted) completer.complete();
@@ -405,6 +412,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
       if (streamErr != null) {
         await _applyChatError(assistant, streamErr!);
+      } else if (streamCut) {
+        // Cắt IM LẶNG (không có exception): server vẫn chạy nốt lượt rồi persist.
+        final ok = await _resumeTurn(assistant);
+        if (!ok && assistant.text.isEmpty) {
+          assistant.text =
+              'Kết nối bị gián đoạn. Câu trả lời có thể vẫn đang được xử lý — mở lại cuộc trò chuyện sau giây lát.';
+        }
       } else if (assistant.text.isEmpty &&
           !assistant.hasError &&
           assistant.userChoice == null &&
@@ -428,6 +442,52 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     }
   }
 
+  /// Dòng báo tạm khi đang chờ lấy lại câu trả lời (không phải nội dung thật).
+  static const String _kResumeNotice = '_Mất kết nối — đang lấy lại câu trả lời…_';
+
+  void _apply(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
+    } else {
+      fn();
+    }
+  }
+
+  /// Stream đứt → chờ server persist rồi lấy lại câu trả lời của ĐÚNG lượt này.
+  ///
+  /// Neo theo `assistant.id` (= `message_id` ở SSE Event 2, id của message USER
+  /// lượt này). Không có neo thì KHÔNG resume — lấy "answer mới nhất của hội
+  /// thoại" sẽ trả về câu trả lời của LƯỢT TRƯỚC. Trả true nếu khôi phục được.
+  Future<bool> _resumeTurn(ChatMessage assistant) async {
+    final convId = _conversationId;
+    final anchor = assistant.id;
+    if (convId == null || anchor == null || anchor.isEmpty) return false;
+
+    final hadText = assistant.text.isNotEmpty;
+    final recovered = await ChatHistoryService.resumeTurnAnswer(
+      conversationId: convId,
+      afterMessageId: anchor,
+      token: _token,
+      onWait: () {
+        // Chỉ báo khi chưa có chữ nào — có rồi thì giữ nguyên phần đã stream.
+        if (hadText || assistant.text == _kResumeNotice) return;
+        _apply(() => assistant.text = _kResumeNotice);
+      },
+    );
+    if (recovered != null) {
+      _apply(() {
+        assistant
+          ..text = recovered
+          ..hasError = false
+          ..errorType = null;
+      });
+      return true;
+    }
+    // Hết hạn chờ → gỡ dòng báo tạm, trả lại nguyên trạng bubble.
+    if (assistant.text == _kResumeNotice) _apply(() => assistant.text = '');
+    return false;
+  }
+
   /// Áp lỗi chat lên bubble: hiển thị thông điệp thân thiện + (nếu hợp lệ) thử
   /// RESUME câu trả lời server đã persist ở background. Đây là cơ chế cứu lại
   /// đúng sự cố mobile mất chat 08/07: pipeline server vẫn chạy tới cùng & lưu
@@ -438,30 +498,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     // Người dùng chủ động dừng — không phải lỗi, giữ nguyên phần đã stream.
     if (err.detail == 'cancelled') return;
 
-    // RESUME: với lỗi mà server vẫn xử lý tiếp (timeout/mất mạng/5xx), thử lấy
-    // câu trả lời đã lưu. Chỉ khi phần đã stream còn thiếu (rỗng hoặc cụt).
-    if (err.shouldResume && _conversationId != null) {
-      final recovered = await ChatHistoryService.fetchLatestAssistantAnswer(
-        conversationId: _conversationId!,
-        token: _token,
-      );
-      if (recovered != null && recovered.length > assistant.text.length) {
-        if (mounted) {
-          setState(() {
-            assistant
-              ..text = recovered
-              ..hasError = false
-              ..errorType = null;
-          });
-        } else {
-          assistant
-            ..text = recovered
-            ..hasError = false
-            ..errorType = null;
-        }
-        return;
-      }
-    }
+    // RESUME: với lỗi mà server vẫn xử lý tiếp (timeout/mất mạng/5xx), chờ rồi lấy
+    // câu trả lời đã lưu của ĐÚNG lượt này.
+    if (err.shouldResume && await _resumeTurn(assistant)) return;
 
     // Không resume được → hiện lỗi. Giữ phần prose đã stream (nếu có) và chèn
     // thông điệp lỗi bên dưới để không mất nội dung dang dở.

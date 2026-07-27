@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 ///
 /// Mỗi loại có thông điệp tiếng Việt thân thiện + cờ [canRetry] (có nên hiện
 /// nút "Thử lại" không) và [shouldResume] (có nên thử fetch lại câu trả lời
-/// server đã lưu ở background không — xem ChatHistoryService.fetchLatestAssistantAnswer).
+/// server đã lưu ở background không — xem ChatHistoryService.resumeTurnAnswer).
 enum ChatErrorType {
   /// Mất kết nối mạng (không Wi-Fi/4G, DNS fail, host unreachable).
   noNetwork,

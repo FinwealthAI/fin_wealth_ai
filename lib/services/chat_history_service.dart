@@ -91,6 +91,7 @@ class ChatHistoryService {
           final event = decode(line);
           if (event == null) continue;
           yield event;
+          // [DONE] THẬT từ server → kết thúc SẠCH.
           if (event['type'] == '__done__') return;
         }
       }
@@ -100,7 +101,12 @@ class ChatHistoryService {
       if (leftover != null && leftover['type'] != '__done__') {
         yield leftover;
       }
-      yield {'type': '__done__'};
+      // Tới đây = stream đóng mà KHÔNG có [DONE] → bị CẮT giữa chừng (proxy/mạng
+      // rớt, worker bị kill). Phải đánh dấu `clean: false` để UI biết mà RESUME:
+      // pipeline server vẫn chạy nốt ở thread riêng rồi persist (agent/views.py
+      // `_produce`). Trước đây luôn phát `__done__` trơn nên cắt im lặng bị hiểu
+      // nhầm là xong → mất hẳn câu trả lời. Đối ứng `meta.clean` bên web.
+      yield {'type': '__done__', 'clean': false};
     } on ChatError {
       rethrow;
     } catch (e) {
@@ -108,24 +114,64 @@ class ChatHistoryService {
     }
   }
 
-  /// Lấy lại câu trả lời assistant MỚI NHẤT mà server đã persist ở background
-  /// (dùng để RESUME khi stream đứt giữa chừng — server vẫn chạy pipeline tới
-  /// cùng và lưu answer, xem agent/agent_service.py `_persist_turn`). Trả null
-  /// nếu chưa có/lỗi. Best-effort — KHÔNG ném lỗi ra ngoài.
-  static Future<String?> fetchLatestAssistantAnswer({
+  /// Giãn cách giữa các lần thử lấy lại (tổng ~44s). Giữ ĐỒNG BỘ với web
+  /// `agent/static/dify/js/chat_error.js` (RESUME_DELAYS_MS).
+  static const List<int> _resumeDelaysMs = [0, 1500, 2500, 4000, 6000, 8000, 10000, 12000];
+
+  /// Một lần quét: câu trả lời assistant của lượt SAU [afterMessageId].
+  static Future<String?> _fetchTurnAnswer({
     required String conversationId,
+    required String afterMessageId,
     String? token,
   }) async {
     try {
+      final anchor = int.tryParse(afterMessageId);
+      if (anchor == null) return null;
       final result =
           await loadChatHistory(conversationId: conversationId, token: token);
       for (final m in result.messages.reversed) {
-        if (m['role'] == 'assistant') {
-          final content = m['content']?.toString() ?? '';
-          if (content.trim().isNotEmpty) return content;
-        }
+        if (m['role'] != 'assistant') continue;
+        final id = int.tryParse(m['id']?.toString() ?? '');
+        if (id == null) continue;
+        if (id <= anchor) break; // đã lùi qua lượt cũ → dừng
+        final content = m['content']?.toString() ?? '';
+        if (content.trim().isNotEmpty) return content;
       }
     } catch (_) {}
+    return null;
+  }
+
+  /// RESUME: lấy câu trả lời đã persist của ĐÚNG lượt vừa bị cắt.
+  ///
+  /// [afterMessageId] = `message_id` phát ở SSE Event 2 — id của message USER lượt
+  /// này. Assistant message chỉ ra đời ở `_save_turn`, tức SAU khi pipeline chạy
+  /// xong, nên lúc stream đứt nó gần như luôn CHƯA tồn tại (99% độ trễ nằm trước
+  /// ký tự đầu tiên). Hai hệ quả bắt buộc xử lý:
+  ///   1. NEO THEO ID: chỉ nhận assistant có id > afterMessageId. Bản cũ lấy
+  ///      "answer mới nhất của hội thoại" → khi lượt này chưa lưu sẽ trả về câu
+  ///      trả lời của LƯỢT TRƯỚC và hiển thị như trả lời cho câu hỏi mới.
+  ///   2. CHỜ: thử lại có giãn cách cho tới khi server persist xong.
+  ///
+  /// [onWait] được gọi trước mỗi lần chờ → UI báo "đang lấy lại".
+  /// Best-effort — KHÔNG ném lỗi ra ngoài.
+  static Future<String?> resumeTurnAnswer({
+    required String conversationId,
+    required String afterMessageId,
+    String? token,
+    void Function()? onWait,
+  }) async {
+    for (final wait in _resumeDelaysMs) {
+      if (wait > 0) {
+        onWait?.call();
+        await Future<void>.delayed(Duration(milliseconds: wait));
+      }
+      final ans = await _fetchTurnAnswer(
+        conversationId: conversationId,
+        afterMessageId: afterMessageId,
+        token: token,
+      );
+      if (ans != null) return ans;
+    }
     return null;
   }
 
