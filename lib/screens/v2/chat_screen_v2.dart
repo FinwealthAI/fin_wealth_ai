@@ -101,6 +101,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   /// Hội thoại đã chạm giới hạn (sự kiện `limit_reached`) → khóa khung nhập.
   bool _chatLocked = false;
 
+  /// Lý do khoá là HẾT LƯỢT MIỄN PHÍ (`reason: free_quota`) chứ không phải hội
+  /// thoại quá dài → hiện nút nâng cấp thay vì nút mở hội thoại mới.
+  bool _quotaExhausted = false;
+  String _limitTitle = '';
+  String _limitBody = '';
+  String _limitCtaLabel = '';
+
   /// Sắp chạm giới hạn (sự kiện `soft_warning`) → hiện banner nhắc nhở.
   bool _softWarning = false;
 
@@ -572,13 +579,26 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         setState(() => assistant.userChoice = UserChoice.fromJson(event));
         return;
       case 'limit_reached':
+        // Hai lý do khoá, xử lý NGƯỢC nhau — không dùng chung lời:
+        //  - turns_or_chars: hội thoại quá dài → mở hội thoại mới là đúng.
+        //  - free_quota:     hết lượt miễn phí → mở hội thoại mới KHÔNG giúp gì,
+        //                    phải nâng cấp. Nói "bắt đầu cuộc trò chuyện mới" ở đây
+        //                    là chỉ user đi sai đường.
         setState(() {
           _chatLocked = true;
+          _quotaExhausted = event['reason']?.toString() == 'free_quota';
+          // Lời do SERVER gửi (web + app đọc chung một sự kiện nên câu chữ chỉ có
+          // một chỗ). Chuỗi dưới đây chỉ là dự phòng cho payload cũ không kèm text.
+          _limitTitle = event['title']?.toString() ?? '';
+          _limitBody = event['body']?.toString() ?? '';
+          _limitCtaLabel = event['cta_label']?.toString() ?? '';
           if (assistant.text.isEmpty) {
             assistant
-              ..text =
-                  'Cuộc trò chuyện đã đạt giới hạn. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.'
-              ..hasError = true;
+              ..text = _limitBody.isNotEmpty
+                  ? _limitBody
+                  : 'Cuộc trò chuyện đã đạt giới hạn. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.'
+              // Hết lượt KHÔNG phải lỗi — đừng tô đỏ như sự cố, đây là lời mời.
+              ..hasError = !_quotaExhausted;
           }
         });
         return;
@@ -1526,9 +1546,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         top: false,
         child: _chatLocked
             ? _buildLockedPanel()
-            : (!_isBasicChatEnabled() && !isGuest)
-                ? _buildBasicChatLockedPanel()
-                : Column(
+            : Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_softWarning) _buildSoftWarning(),
@@ -1608,7 +1626,42 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   }
 
   /// Khung thay thế ô nhập khi hội thoại đã bị khóa (`limit_reached`).
+  ///
+  /// Hai lý do khoá dẫn tới HAI hành động khác nhau, nên nút cũng phải khác:
+  /// hội thoại quá dài → mở hội thoại mới; hết lượt miễn phí → nâng cấp.
   Widget _buildLockedPanel() {
+    if (_quotaExhausted) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _limitTitle.isNotEmpty
+                ? _limitTitle
+                : 'Bạn đã dùng hết lượt hỏi miễn phí.',
+            style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextPrimary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.arrow_upward, size: 16),
+            label: Text(
+              _limitCtaLabel.isNotEmpty ? _limitCtaLabel : 'Nâng cấp tài khoản',
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UpgradeScreenV2()),
+              );
+            },
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1624,57 +1677,6 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           icon: const Icon(Icons.add_comment_outlined, size: 18),
           label: const Text('Bắt đầu cuộc trò chuyện mới'),
           onPressed: _newConversation,
-        ),
-      ],
-    );
-  }
-
-  bool _isBasicChatEnabled() {
-    return _authRepo.totalPoints >= 8;
-  }
-
-  Widget _buildBasicChatLockedPanel() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Bạn cần nâng cấp tài khoản để dùng tính năng này.',
-          style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8B5CF6),
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(Icons.arrow_upward, size: 16),
-              label: const Text('Nâng cấp ngay'),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UpgradeScreenV2()),
-                );
-              },
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF1E2655)),
-                backgroundColor: const Color(0xFF0D1231),
-                foregroundColor: const Color(0xFFE2E8F0),
-              ),
-              icon: const Icon(Icons.pie_chart, size: 16, color: Color(0xFF8B5CF6)),
-              label: const Text('Phân tích sâu'),
-              onPressed: () {
-                // Return to dashboard and switch tab
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-            ),
-          ],
         ),
       ],
     );

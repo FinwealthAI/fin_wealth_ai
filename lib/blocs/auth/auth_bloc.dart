@@ -7,7 +7,6 @@ import 'dart:async';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
-export 'package:fin_wealth/respositories/auth_repository.dart' show AccountExpiredException;
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
@@ -55,37 +54,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onCheckAuthStatus(CheckAuthStatus event, Emitter<AuthState> emit) async {
-    try {
-      final userData = await authRepository.tryAutoLogin();
-      if (userData != null) {
-        emit(AuthSuccess(userData: userData));
-      } else {
-        emit(const AuthFailure(error: "Not logged in"));
-      }
-    } on AccountExpiredException catch (e) {
-      emit(AuthAccountExpired(
-        username: e.username,
-        upgradeUrl: e.upgradeUrl,
-        zaloGroup: e.zaloGroup,
-        zaloSupport: e.zaloSupport,
-      ));
+    final userData = await authRepository.tryAutoLogin();
+    if (userData != null) {
+      emit(AuthSuccess(userData: userData));
+    } else {
+      emit(const AuthFailure(error: "Not logged in"));
     }
   }
 
+  /// ⚠️ TRƯỚC 18/08/2026 sự kiện này ĐÁ USER RA khi hết điểm (mỗi lần app resume).
+  /// Nay chỉ làm mới số điểm để màn hình hiện đúng "N ngày sử dụng".
   Future<void> _onCheckAccountExpiry(CheckAccountExpiry event, Emitter<AuthState> emit) async {
-    if (state is! AuthSuccess) return; // Chỉ check khi đang logged in
-    try {
-      await authRepository.checkAccountExpiry();
-    } on AccountExpiredException catch (e) {
-      emit(AuthAccountExpired(
-        username: e.username,
-        upgradeUrl: e.upgradeUrl,
-        zaloGroup: e.zaloGroup,
-        zaloSupport: e.zaloSupport,
-      ));
-    } catch (_) {
-      // Network error → im lặng
-    }
+    if (state is! AuthSuccess) return; // Chỉ chạy khi đang logged in
+    await authRepository.refreshAccountStatus();
   }
 
   Future<void> _onGoogleLoginEvent(GoogleLoginEvent event, Emitter<AuthState> emit) async {
@@ -109,13 +90,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         referralCode: event.referralCode,
       );
       emit(AuthSuccess(userData: userData));
-    } on AccountExpiredException catch (e) {
-      emit(AuthAccountExpired(
-        username: e.username,
-        upgradeUrl: e.upgradeUrl,
-        zaloGroup: e.zaloGroup,
-        zaloSupport: e.zaloSupport,
-      ));
     } catch (error) {
       String msg = error.toString().replaceFirst('Exception: ', '');
       if (msg.contains('network_error') || msg.contains('SocketException')) {
@@ -136,13 +110,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
       final userData = await authRepository.googleSignIn(idToken, authEntry: 'login');
       emit(AuthSuccess(userData: userData));
-    } on AccountExpiredException catch (e) {
-      emit(AuthAccountExpired(
-        username: e.username,
-        upgradeUrl: e.upgradeUrl,
-        zaloGroup: e.zaloGroup,
-        zaloSupport: e.zaloSupport,
-      ));
     } catch (error) {
       String msg = error.toString().replaceFirst('Exception: ', '');
       if (msg.contains('network_error') || msg.contains('SocketException')) {
@@ -160,13 +127,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         event.password,
       );
       emit(AuthSuccess(userData: userData));
-    } on AccountExpiredException catch (e) {
-      emit(AuthAccountExpired(
-        username: e.username,
-        upgradeUrl: e.upgradeUrl,
-        zaloGroup: e.zaloGroup,
-        zaloSupport: e.zaloSupport,
-      ));
     } catch (error) {
       emit(AuthFailure(error: error.toString()));
     }

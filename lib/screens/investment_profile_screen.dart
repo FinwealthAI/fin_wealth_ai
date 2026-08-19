@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,6 +15,28 @@ class _Question {
   final bool multi;
   final List<MapEntry<String, String>> options; // value → label
   const _Question(this.key, this.label, this.options, {this.multi = false});
+}
+
+/// Chiến lược được backend bật sẵn sau khảo sát (chỉ để HIỂN THỊ).
+///
+/// Luật chọn nằm trọn ở server (`stock_screener/strategy_recommender.py`) — mobile
+/// không tự chấm điểm lại, tránh 2 nguồn sự thật.
+class _StartStrategy {
+  final String name;
+  final String risk;
+  final String period;
+  const _StartStrategy(this.name, this.risk, this.period);
+
+  static _StartStrategy? fromJson(dynamic json) {
+    if (json is! Map) return null;
+    final name = json['name']?.toString().trim() ?? '';
+    if (name.isEmpty) return null;
+    return _StartStrategy(
+      name,
+      json['risk_level']?.toString() ?? '',
+      json['investment_period']?.toString() ?? '',
+    );
+  }
 }
 
 /// Một nhóm câu hỏi (≈ 1 bước của wizard web).
@@ -203,6 +227,27 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
     // _isLoading do _init quản lý sau khi tải xong cả prefill + summary.
   }
 
+  /// Chốt onboarding phía backend: đặt giao diện mặc định + bật chiến lược gợi ý.
+  ///
+  /// FAIL-OPEN: lỗi mạng ở đây chỉ mất phần "chiến lược khởi đầu", user vẫn vào
+  /// được app — khảo sát đã lưu xong ở lời gọi trước đó.
+  /// `dio` truyền sẵn khi màn sắp bị hủy (nút "Bỏ qua") — `_dio()` đọc
+  /// `context.read`, gọi sau khi điều hướng là dùng context đã chết.
+  Future<List<_StartStrategy>> _completeOnboarding({Dio? dio}) async {
+    try {
+      final resp =
+          await (dio ?? _dio()).post('/api/onboarding/complete/', data: const {});
+      final body = resp.data as Map? ?? const {};
+      final raw = (body['strategies'] as List?) ?? const [];
+      return raw
+          .map(_StartStrategy.fromJson)
+          .whereType<_StartStrategy>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
@@ -222,12 +267,21 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
           await _dio().post('/api/super-broker/discovery-submit/', data: payload);
       final body = resp.data as Map? ?? const {};
 
+      // Onboarding: chốt đăng ký ngay sau khảo sát → backend tự bật chiến lược
+      // hợp khẩu vị (không bắt người mới tự chọn). Lỗi ở đây KHÔNG chặn luồng.
+      final started =
+          widget.isOnboarding ? await _completeOnboarding() : const <_StartStrategy>[];
+
       if (!mounted) return;
-      final reflection = body['reflection']?.toString();
+      final reflection = body['reflection'];
       final confidence = (body['confidence'] as num?)?.round();
 
-      if (reflection != null && reflection.isNotEmpty) {
-        await _showReflection(reflection, confidence);
+      if (reflection is Map || started.isNotEmpty) {
+        await _showReflection(
+          reflection is Map ? Map<String, dynamic>.from(reflection) : const {},
+          confidence,
+          started,
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -258,7 +312,21 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
     }
   }
 
-  Future<void> _showReflection(String text, int? confidence) {
+  /// Màn kết quả khảo sát — khớp bản web: chân dung đầu tư + chiến lược đã bật.
+  ///
+  /// `reflection` là OBJECT (`archetype`/`strengths`/`blind_spots`/
+  /// `suitable_methods`), không phải chuỗi.
+  Future<void> _showReflection(
+    Map<String, dynamic> reflection,
+    int? confidence,
+    List<_StartStrategy> started,
+  ) {
+    final archetype = reflection['archetype'];
+    final arch = archetype is Map ? archetype : const {};
+    final strengths = _stringList(reflection['strengths']);
+    final blindSpots = _stringList(reflection['blind_spots']);
+    final methods = _stringList(reflection['suitable_methods']);
+
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.darkSurface,
@@ -294,11 +362,28 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
               const SizedBox(height: AppSpacing.md),
               Flexible(
                 child: SingleChildScrollView(
-                  child: Text(text,
-                      style: const TextStyle(
-                          color: AppColors.darkTextSecondary,
-                          fontSize: 14,
-                          height: 1.5)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (arch.isNotEmpty)
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _archChip('Rủi ro', arch['risk']),
+                            _archChip('Phương pháp', arch['methods']),
+                            _archChip('Chu kỳ', arch['horizon']),
+                          ].whereType<Widget>().toList(),
+                        ),
+                      ...?_bulletSection('💪 Điểm mạnh', strengths),
+                      ...?_bulletSection(
+                          '🪞 Điểm cần lưu ý', blindSpots,
+                          color: AppColors.warningDark),
+                      ...?_bulletSection('🧭 Phương pháp phù hợp', methods),
+                      ...?_startedSection(started),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -318,6 +403,114 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
     );
   }
 
+  static List<String> _stringList(dynamic v) => v is List
+      ? v.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList()
+      : const <String>[];
+
+  /// Chip một chiều của chân dung; thiếu giá trị → null (không render ô rỗng).
+  Widget? _archChip(String label, dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty || text == 'Chưa xác định' || text == 'Chưa chọn') {
+      return null;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.brandPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.brandPrimary.withValues(alpha: 0.3)),
+      ),
+      child: Text('$label: $text',
+          style: const TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600)),
+    );
+  }
+
+  List<Widget>? _bulletSection(String title, List<String> items,
+      {Color color = AppColors.darkTextSecondary}) {
+    if (items.isEmpty) return null;
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      Text(title,
+          style: const TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      for (final item in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• ', style: TextStyle(color: color, fontSize: 13)),
+              Expanded(
+                child: Text(item,
+                    style:
+                        TextStyle(color: color, fontSize: 13, height: 1.5)),
+              ),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  /// "Đã bật N chiến lược cho bạn" — chỉ có ở luồng đăng ký.
+  List<Widget>? _startedSection(List<_StartStrategy> started) {
+    if (started.isEmpty) return null;
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.check_circle,
+                    color: AppColors.success, size: 16),
+                const SizedBox(width: 6),
+                Text('Đã bật ${started.length} chiến lược cho bạn',
+                    style: const TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final s in started)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  [s.name, s.risk, s.period]
+                      .where((e) => e.isNotEmpty)
+                      .join(' · '),
+                  style: const TextStyle(
+                      color: AppColors.darkTextSecondary,
+                      fontSize: 12,
+                      height: 1.4),
+                ),
+              ),
+            const SizedBox(height: 4),
+            const Text(
+              'Hợp với khẩu vị bạn vừa khai. Có thể đổi bất kỳ lúc nào ở mục Chiến lược.',
+              style: TextStyle(
+                  color: AppColors.darkTextMuted, fontSize: 10, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Summary-first: đã có hồ sơ + không onboarding → hiện màn TÓM TẮT read-only.
@@ -330,8 +523,14 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
         actions: widget.isOnboarding
             ? [
                 TextButton(
-                  onPressed: () => Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/v2', (route) => false),
+                  onPressed: () {
+                    // Bỏ qua khảo sát vẫn được bật bộ chiến lược mặc định —
+                    // giống web: bỏ trống mọi câu vẫn nhận 2 chiến lược an toàn.
+                    // Không chờ mạng để nút "Bỏ qua" phản hồi tức thì.
+                    unawaited(_completeOnboarding(dio: _dio()));
+                    Navigator.of(context)
+                        .pushNamedAndRemoveUntil('/v2', (route) => false);
+                  },
                   child: const Text('Bỏ qua',
                       style: TextStyle(color: Colors.white54, fontSize: 14)),
                 ),
