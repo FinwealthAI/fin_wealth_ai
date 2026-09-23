@@ -117,8 +117,6 @@ class _SignupScreenV2State extends State<SignupScreenV2> {
             ),
             (route) => false,
           );
-        } else if (state is AuthAccountExpired) {
-          showAccountExpiredSheet(context, state);
         } else if (state is AuthFailure && state.error != 'Not logged in') {
           _showError(state.error);
         }

@@ -4,19 +4,6 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fin_wealth/config/api_config.dart';
 
-class AccountExpiredException implements Exception {
-  final String username;
-  final String upgradeUrl; // /open-account/hsc/?u=<username>
-  final String zaloGroup;
-  final String zaloSupport;
-  const AccountExpiredException({
-    required this.username,
-    required this.upgradeUrl,
-    required this.zaloGroup,
-    required this.zaloSupport,
-  });
-}
-
 class AuthRepository {
   final Dio dio;
   late final Dio _tokenDio; // Dio instance riêng để refresh token tránh deadlock
@@ -243,21 +230,6 @@ class AuthRepository {
       options: Options(headers: {'Accept': 'application/json'}),
     );
 
-    if (response.statusCode == 403 &&
-        response.data is Map &&
-        response.data['code'] == 'account_expired') {
-      final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
-      final upgradeUrl = upgradeRelative.isNotEmpty
-          ? '${ApiConfig.websiteUrl}$upgradeRelative'
-          : ApiConfig.websiteUrl;
-      throw AccountExpiredException(
-        username: response.data['username'] as String? ?? username,
-        upgradeUrl: upgradeUrl,
-        zaloGroup: response.data['zalo_group'] as String? ?? '',
-        zaloSupport: response.data['zalo_support'] as String? ?? '',
-      );
-    }
-
     if (response.statusCode == 200) {
       _accessToken  = response.data['access']  as String;
       _refreshToken = response.data['refresh'] as String;
@@ -299,33 +271,23 @@ class AuthRepository {
     throw Exception('Đăng nhập thất bại (${response.statusCode})');
   }
 
-  /// Kiểm tra nhẹ trạng thái hết hạn — dùng khi app resume từ background.
-  /// Throw [AccountExpiredException] nếu tài khoản đã hết điểm.
-  /// Không làm gì nếu chưa đăng nhập hoặc lỗi mạng (tránh kick user khi offline).
-  Future<void> checkAccountExpiry() async {
+  /// Làm mới điểm khi app resume từ background.
+  ///
+  /// ⚠️ TRƯỚC 18/08/2026 hàm này ĐÁ USER RA khi backend trả `account_expired`.
+  /// Hết điểm nay chỉ là mất bản PRO, không mất quyền dùng app — backend cũng đã
+  /// bỏ cờ đó (luôn false). Giữ lại phần làm mới điểm vì màn hình còn hiện
+  /// "N ngày sử dụng"; bỏ hẳn phần kick.
+  Future<void> refreshAccountStatus() async {
     if (_accessToken == null || _accessToken!.isEmpty) return;
     try {
       final response = await _tokenDio.get(ApiConfig.accountStatus);
       if (response.statusCode == 200 && response.data is Map) {
         final data = response.data as Map<String, dynamic>;
-        if (data['account_expired'] == true) {
-          final upgradeRelative = data['upgrade_url'] as String? ?? '';
-          throw AccountExpiredException(
-            username: data['username'] as String? ?? _username ?? '',
-            upgradeUrl: upgradeRelative.isNotEmpty
-                ? '${ApiConfig.websiteUrl}$upgradeRelative'
-                : ApiConfig.websiteUrl,
-            zaloGroup: data['zalo_group'] as String? ?? '',
-            zaloSupport: data['zalo_support'] as String? ?? '',
-          );
-        }
-        // Cập nhật điểm mới nhất
         final points = data['total_points'] as int?;
         if (points != null) _totalPoints = points;
       }
-    } catch (e) {
-      if (e is AccountExpiredException) rethrow;
-      // Lỗi mạng → im lặng, không kick user
+    } catch (_) {
+      // Lỗi mạng → im lặng
     }
   }
 
@@ -338,7 +300,6 @@ class AuthRepository {
   }
 
   /// Thử đăng nhập tự động bằng token đã lưu.
-  /// Throw [AccountExpiredException] nếu token hợp lệ nhưng tài khoản đã hết điểm.
   /// Return null nếu không có token hoặc token hết hạn.
   Future<Map<String, dynamic>?> tryAutoLogin() async {
     await _loadTokens();
@@ -360,7 +321,7 @@ class AuthRepository {
               _accessToken = r.data['access'] as String;
               dio.options.headers['Authorization'] = 'Bearer $_accessToken';
               await _saveTokens();
-              // Gọi lại sau refresh để lấy account_expired
+              // Gọi lại sau refresh để lấy điểm mới nhất
               return tryAutoLogin();
             }
           } catch (_) {}
@@ -379,20 +340,9 @@ class AuthRepository {
             : null;
         await _saveTokens();
 
-        // Tài khoản hết hạn — throw để AuthBloc emit AuthAccountExpired
-        if (data['account_expired'] == true) {
-          throw AccountExpiredException(
-            username: data['username'] as String? ?? _username ?? '',
-            upgradeUrl: _upgradeUrl ?? ApiConfig.websiteUrl,
-            zaloGroup: data['zalo_group'] as String? ?? '',
-            zaloSupport: data['zalo_support'] as String? ?? '',
-          );
-        }
-
         return {'username': _username ?? 'User'};
       }
-    } catch (e) {
-      if (e is AccountExpiredException) rethrow;
+    } catch (_) {
       // Lỗi mạng → fallback offline-mode, giữ session
     }
 
@@ -618,7 +568,6 @@ class AuthRepository {
 
   /// Google Sign-In
   /// Nhận ID token từ Google Sign-In SDK và gọi API backend.
-  /// Throw [AccountExpiredException] nếu backend trả 403 `account_expired`.
   Future<Map<String, dynamic>> googleSignIn(
     String idToken, {
     String authEntry = 'login',
@@ -640,21 +589,6 @@ class AuthRepository {
         validateStatus: (status) => status != null && status < 500,
       ),
     );
-
-    if (response.statusCode == 403 &&
-        response.data is Map &&
-        response.data['code'] == 'account_expired') {
-      final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
-      final upgradeUrl = upgradeRelative.isNotEmpty
-          ? '${ApiConfig.websiteUrl}$upgradeRelative'
-          : ApiConfig.websiteUrl;
-      throw AccountExpiredException(
-        username: response.data['username'] as String? ?? '',
-        upgradeUrl: upgradeUrl,
-        zaloGroup: response.data['zalo_group'] as String? ?? '',
-        zaloSupport: response.data['zalo_support'] as String? ?? '',
-      );
-    }
 
     if (response.statusCode == 200) {
       _accessToken = response.data['access'] as String;

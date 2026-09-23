@@ -64,8 +64,6 @@ class _LoginScreenV2State extends State<LoginScreenV2> {
           listener: (context, state) {
             if (state is AuthSuccess) {
               Navigator.of(context).pushReplacementNamed('/v2');
-            } else if (state is AuthAccountExpired) {
-              showAccountExpiredSheet(context, state);
             } else if (state is AuthFailure &&
                 state.error != 'Not logged in') {
               String msg = state.error.replaceFirst('Exception: ', '');

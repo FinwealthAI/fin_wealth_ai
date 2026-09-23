@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../theme/theme.dart';
-import 'upgrade_screen_v2.dart';
 
 class SplashScreenV2 extends StatefulWidget {
   const SplashScreenV2({super.key});
@@ -21,24 +20,12 @@ class _SplashScreenV2State extends State<SplashScreenV2> {
     Navigator.of(context).pushReplacementNamed(route);
   }
 
-  void _goExpired(AuthAccountExpired state) {
-    if (_navigated || !mounted) return;
-    _navigated = true;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const UpgradeScreenV2(fromExpiredSession: true),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthSuccess) {
           _go('/v2');
-        } else if (state is AuthAccountExpired) {
-          _goExpired(state);
         } else if (state is AuthFailure) {
           _go('/login-v2');
         }

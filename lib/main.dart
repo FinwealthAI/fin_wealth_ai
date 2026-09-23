@@ -27,7 +27,6 @@ import 'package:fin_wealth/screens/v2/root_shell_v2.dart' show RootShellV2, Root
 import 'package:fin_wealth/screens/v2/login_screen_v2.dart';
 import 'package:fin_wealth/screens/v2/splash_screen_v2.dart';
 import 'package:fin_wealth/screens/v2/stock_detail_screen_v2.dart';
-import 'package:fin_wealth/screens/v2/upgrade_screen_v2.dart';
 import 'package:fin_wealth/config/api_config.dart';
 import 'package:fin_wealth/theme/theme.dart';
 
@@ -92,11 +91,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkExpiryOnResume();
+      _refreshPointsOnResume();
     }
   }
 
-  Future<void> _checkExpiryOnResume() async {
+  /// Làm mới số điểm khi app quay lại foreground.
+  ///
+  /// ⚠️ TRƯỚC 18/08/2026 hàm này ĐĂNG XUẤT user và đẩy thẳng sang màn nâng cấp mỗi
+  /// khi tài khoản hết điểm — kể cả khi họ chỉ chuyển app rồi quay lại. Hết điểm nay
+  /// chỉ là mất bản PRO, nên chỉ còn làm mới điểm; không nghe state, không kick.
+  Future<void> _refreshPointsOnResume() async {
     // Cooldown 5 phút để tránh spam khi user switch app liên tục
     final now = DateTime.now();
     if (_lastExpiredCheck != null &&
@@ -112,26 +116,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (authBloc.state is! AuthSuccess) return;
 
     authBloc.add(CheckAccountExpiry());
-
-    // Lắng nghe state thay đổi ngay sau khi dispatch event
-    final stream = authBloc.stream;
-    await for (final s in stream.timeout(const Duration(seconds: 10),
-        onTimeout: (sink) => sink.close())) {
-      if (!mounted) return;
-      if (s is AuthAccountExpired) {
-        final navCtx = widget.navigatorKey.currentContext;
-        if (navCtx != null && navCtx.mounted) {
-          authBloc.add(LogoutRequested());
-          widget.navigatorKey.currentState?.pushAndRemoveUntil(
-            MaterialPageRoute(
-                builder: (_) => const UpgradeScreenV2(fromExpiredSession: true)),
-            (_) => false,
-          );
-        }
-        return;
-      }
-      if (s is! AuthSuccess) return; // state khác → stop
-    }
   }
 
   @override
