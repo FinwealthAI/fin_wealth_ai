@@ -26,11 +26,17 @@ class _PortfolioListScreenV2State extends State<PortfolioListScreenV2> {
   List<_Account> _accounts = const [];
   bool _loading = true;
   String? _error;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _isGuest = context.read<AuthRepository>().accessToken == null;
+    if (_isGuest) {
+      _loading = false;
+    } else {
+      _load();
+    }
   }
 
   Dio _dio() {
@@ -100,15 +106,27 @@ class _PortfolioListScreenV2State extends State<PortfolioListScreenV2> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.brandPrimary,
-        child: _buildBody(),
-      ),
+      body: _isGuest
+          ? _buildBody()
+          : RefreshIndicator(
+              onRefresh: _load,
+              color: AppColors.brandPrimary,
+              child: _buildBody(),
+            ),
     );
   }
 
   Widget _buildBody() {
+    if (_isGuest) {
+      return _emptyState(
+        icon: Icons.lock_outline,
+        title: 'Đăng nhập để xem danh mục',
+        subtitle: 'Quản lý danh mục và theo dõi NAV yêu cầu đăng nhập tài khoản.',
+        actionLabel: 'Đăng nhập',
+        actionIcon: Icons.login,
+        onAction: () => Navigator.of(context).pushNamed('/login-v2'),
+      );
+    }
     if (_loading) {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.brandPrimary));
@@ -147,6 +165,7 @@ class _PortfolioListScreenV2State extends State<PortfolioListScreenV2> {
     required String title,
     String? subtitle,
     String? actionLabel,
+    IconData actionIcon = Icons.calculate_outlined,
     VoidCallback? onAction,
   }) {
     return ListView(
@@ -176,7 +195,7 @@ class _PortfolioListScreenV2State extends State<PortfolioListScreenV2> {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brandPrimary),
-              icon: const Icon(Icons.calculate_outlined, size: 18),
+              icon: Icon(actionIcon, size: 18),
               label: Text(actionLabel),
               onPressed: onAction,
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../models/watchlist_item.dart';
+import '../../respositories/auth_repository.dart';
 import '../../respositories/watchlist_repository.dart';
 import '../../theme/theme.dart';
 import '../../widgets/common/common.dart';
@@ -24,11 +25,17 @@ class _WatchlistScreenV2State extends State<WatchlistScreenV2> {
   List<WatchlistItem> _items = const [];
   bool _loading = true;
   String? _error;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _isGuest = context.read<AuthRepository>().accessToken == null;
+    if (_isGuest) {
+      _loading = false;
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -125,22 +132,35 @@ class _WatchlistScreenV2State extends State<WatchlistScreenV2> {
         title: 'Danh sách theo dõi',
         subtitle: _loading ? null : '${_items.length} mã',
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Thêm mã',
-            onPressed: _addDialog,
-          ),
+          if (!_isGuest)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Thêm mã',
+              onPressed: _addDialog,
+            ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: AppColors.brandPrimary,
-        child: _buildBody(),
-      ),
+      body: _isGuest
+          ? _buildBody()
+          : RefreshIndicator(
+              onRefresh: _load,
+              color: AppColors.brandPrimary,
+              child: _buildBody(),
+            ),
     );
   }
 
   Widget _buildBody() {
+    if (_isGuest) {
+      return _centered(
+        icon: Icons.lock_outline,
+        title: 'Đăng nhập để xem danh sách theo dõi',
+        subtitle: 'Theo dõi giá và tín hiệu FA/TA yêu cầu đăng nhập tài khoản.',
+        actionLabel: 'Đăng nhập',
+        actionIcon: Icons.login,
+        onAction: () => Navigator.of(context).pushNamed('/login-v2'),
+      );
+    }
     if (_loading) {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.brandPrimary));
@@ -186,6 +206,7 @@ class _WatchlistScreenV2State extends State<WatchlistScreenV2> {
     required String title,
     String? subtitle,
     String? actionLabel,
+    IconData actionIcon = Icons.add,
     VoidCallback? onAction,
   }) {
     return ListView(
@@ -216,7 +237,7 @@ class _WatchlistScreenV2State extends State<WatchlistScreenV2> {
             child: FilledButton.icon(
               style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brandPrimary),
-              icon: const Icon(Icons.add, size: 18),
+              icon: Icon(actionIcon, size: 18),
               label: Text(actionLabel),
               onPressed: onAction,
             ),

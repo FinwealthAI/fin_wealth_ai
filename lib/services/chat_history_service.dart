@@ -406,16 +406,20 @@ class ChatHistoryService {
   // Hồ sơ đầu tư — cờ đã điền đủ chưa (để nhắc bổ sung trong chat)
   // ---------------------------------------------------------------------------
 
-  /// Trả về `has_complete_profile` từ `/api/investment-profile/`.
+  /// Trả về `has_profile` từ `/api/super-broker/profile-summary/` — cùng nguồn
+  /// dữ liệu mà `InvestmentProfileScreen` dùng để quyết định hiện TÓM TẮT hay
+  /// bài khảo sát. Field `has_complete_profile` ở `/api/investment-profile/`
+  /// là check V1 cũ (4 field legacy), không được cập nhật khi làm khảo sát
+  /// Super Broker → khiến banner nhắc hồ sơ hiện lại dù đã khảo sát xong.
   /// `true`: đã có hồ sơ · `false`: chưa · `null`: chưa rõ (lỗi/khách).
   static Future<bool?> hasCompleteProfile({String? token}) async {
     if (token == null) return null;
     try {
       final resp = await _dio.get(
-        '/api/investment-profile/',
+        '/api/super-broker/profile-summary/',
         options: _opts(token: token),
       );
-      final v = resp.data?['has_complete_profile'];
+      final v = resp.data?['has_profile'];
       return v is bool ? v : null;
     } catch (_) {
       return null;

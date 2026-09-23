@@ -237,6 +237,40 @@ class _MoreMenuScreenV2 extends StatelessWidget {
   static void _push(BuildContext c, Widget w) =>
       Navigator.of(c).push(MaterialPageRoute(builder: (_) => w));
 
+  /// Khách bấm vào tính năng cần tài khoản → hỏi đăng nhập thay vì mở thẳng
+  /// màn hình (màn đó sẽ gọi API không có token và hiện lỗi tải dữ liệu).
+  static void _pushOrPromptLogin(BuildContext context, bool isGuest, Widget w) {
+    if (!isGuest) {
+      _push(context, w);
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.darkSurface,
+        title: const Text('Đăng nhập',
+            style: TextStyle(color: AppColors.darkTextPrimary, fontSize: 16)),
+        content: const Text(
+          'Vui lòng đăng nhập để sử dụng tính năng này.',
+          style: TextStyle(color: AppColors.darkTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushReplacementNamed('/login-v2');
+            },
+            child: const Text('Đăng nhập'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _logout(BuildContext context) async {
     await context.read<AuthRepository>().logout();
     if (context.mounted) {
@@ -293,8 +327,8 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                       _QuickAction(
                         Icons.person_outline,
                         'Hồ sơ',
-                        onTap: () =>
-                            _push(context, const InvestmentProfileScreen()),
+                        onTap: () => _pushOrPromptLogin(
+                            context, isGuest, const InvestmentProfileScreen()),
                       ),
                       if (!isGuest)
                         _QuickAction(
@@ -327,13 +361,14 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                     _MenuItem(
                       'Quản lý danh mục',
                       Icons.account_balance_wallet_outlined,
-                      onTap: () =>
-                          _push(context, const PortfolioListScreenV2()),
+                      onTap: () => _pushOrPromptLogin(
+                          context, isGuest, const PortfolioListScreenV2()),
                     ),
                     _MenuItem(
                       'Danh sách theo dõi',
                       Icons.bookmark_outline,
-                      onTap: () => _push(context, const WatchlistScreenV2()),
+                      onTap: () => _pushOrPromptLogin(
+                          context, isGuest, const WatchlistScreenV2()),
                     ),
                     _MenuItem(
                       'Blog',

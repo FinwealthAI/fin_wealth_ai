@@ -14,6 +14,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool hasUnreadNotification;
   final bool lowPointsWarning;
   final VoidCallback? onUpgradeTap;
+  final VoidCallback? onPremiumTap;
 
   const HomeAppBar({
     super.key,
@@ -28,6 +29,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.hasUnreadNotification = false,
     this.lowPointsWarning = false,
     this.onUpgradeTap,
+    this.onPremiumTap,
   });
 
   @override
@@ -134,22 +136,26 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                   ),
                 if (premiumLabel != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.workspace_premium,
-                          size: 11, color: AppColors.warningDark),
-                      const SizedBox(width: 2),
-                      Flexible(
-                        child: Text(
-                          premiumLabel!,
-                          style: text.labelSmall?.copyWith(
-                              color: AppColors.warningDark,
-                              fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    onTap: onPremiumTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.workspace_premium,
+                            size: 11, color: AppColors.warningDark),
+                        const SizedBox(width: 2),
+                        Flexible(
+                          child: Text(
+                            premiumLabel!,
+                            style: text.labelSmall?.copyWith(
+                                color: AppColors.warningDark,
+                                fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
               ],
             ),

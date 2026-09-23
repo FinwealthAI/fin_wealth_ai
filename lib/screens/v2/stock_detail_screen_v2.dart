@@ -465,8 +465,10 @@ class _StockDetailScreenV2State extends State<StockDetailScreenV2>
     final price = _price;
     final change = _changePct;
     final positive = (change ?? 0) >= 0;
-    final priceColor =
-        positive ? AppColors.successDark : AppColors.dangerDark;
+    // change == null (chưa tải/khách): trung tính, tránh tô xanh mặc định lên "—".
+    final priceColor = change == null
+        ? AppColors.darkTextPrimary
+        : (positive ? AppColors.successDark : AppColors.dangerDark);
 
     return SliverAppBar(
       pinned: true,

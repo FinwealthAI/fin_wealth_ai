@@ -300,11 +300,24 @@ class _InvestmentProfileScreenState extends State<InvestmentProfileScreen> {
         await _loadSummary();
         if (mounted) setState(() => _showSummary = true);
       }
-    } catch (e) {
+    } on DioException catch (e) {
+      if (mounted) {
+        String msg = 'Không thể kết nối đến máy chủ, vui lòng thử lại.';
+        if (e.response?.statusCode == 401) {
+          msg = 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.';
+        } else if (e.response?.data is Map) {
+          msg = e.response?.data['message'] ?? e.response?.data['detail'] ?? msg;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
+        );
+      }
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Lỗi lưu: $e'), backgroundColor: AppColors.danger),
+          const SnackBar(
+              content: Text('Có lỗi xảy ra, vui lòng thử lại.'),
+              backgroundColor: AppColors.danger),
         );
       }
     } finally {

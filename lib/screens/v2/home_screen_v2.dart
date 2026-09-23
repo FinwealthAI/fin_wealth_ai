@@ -166,6 +166,11 @@ class HomeScreenV2State extends State<HomeScreenV2>
         onUpgradeTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const UpgradeScreenV2()),
         ),
+        onPremiumTap: () => _authRepo.accessToken == null
+            ? Navigator.of(context).pushNamed('/login-v2')
+            : Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const UpgradeScreenV2()),
+              ),
       ),
       body: RefreshIndicator(
         onRefresh: () => _load(forceRefresh: true),
