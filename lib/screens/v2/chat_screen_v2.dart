@@ -435,6 +435,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       if (mounted) {
         setState(() {
           assistant.isStreaming = false;
+          // Stream kết thúc mà server chưa kịp chốt (bị cắt / lỗi / user dừng) →
+          // coi phần đã hiện là chính thức, KHÔNG để chữ mờ vĩnh viễn.
+          assistant.isDraft = false;
           _isTyping = false;
         });
       }
@@ -592,12 +595,23 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         // câu trả lời thật. Xem BoundedAgentExecutor._reset_streamed_answer (backend).
         _streamFlushTimer?.cancel();
         _streamFlushTimer = null;
-        setState(() => assistant.text = '');
+        setState(() {
+          assistant.text = '';
+          assistant.isDraft = false;
+        });
+        return;
+      case 'answer_commit':
+        // Bản nháp SỐNG SÓT: chính nó là câu trả lời cuối (agent self-contained
+        // stream thẳng, server KHÔNG phát lại) → bỏ mờ, giữ nguyên chữ đang hiện.
+        setState(() => assistant.isDraft = false);
         return;
     }
 
     if (event['answer'] != null) {
       assistant.text += event['answer'].toString();
+      // Cờ đi kèm TỪNG chunk: lớp ReAct gắn `draft`, lớp tổng hợp/CIO thì không.
+      // Lấy theo chunk mới nhất nên khi lớp cuối stream đè là tự hết mờ.
+      assistant.isDraft = event['draft'] == true;
       _scheduleStreamFlush();
     }
   }
@@ -1128,9 +1142,18 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                       borderRadius: BorderRadius.circular(AppRadius.lg),
                       border: Border.all(color: AppColors.darkBorder),
                     ),
+                    // Bản nháp lớp ReAct → mờ như quá trình suy luận; `answer_commit`
+                    // (hoặc lớp cuối stream đè) gỡ mờ, AnimatedOpacity lo phần chuyển.
+                    // Chỉ mờ PROSE, giữ nguyên khung bubble để không nhấp nháy nền.
                     child: (m.text.isEmpty && m.isStreaming)
                         ? const _TypingDots()
-                        : _buildRichText(m.text.isEmpty ? '...' : m.text),
+                        : AnimatedOpacity(
+                            opacity: m.isDraft ? 0.5 : 1.0,
+                            duration: const Duration(milliseconds: 450),
+                            curve: Curves.easeOut,
+                            child:
+                                _buildRichText(m.text.isEmpty ? '...' : m.text),
+                          ),
                   ),
                 // Thẻ dữ liệu inline (stock/action/market/...).
                 if (m.cards.isNotEmpty) ...[

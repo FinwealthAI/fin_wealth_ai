@@ -9,6 +9,13 @@
 /// hoặc vòng tự phản biện viết lại (~7% lượt). Khi đó server phát `{"type":
 /// "answer_reset"}` và client PHẢI xoá text đã gom, nếu không bản nháp dính liền vào
 /// câu trả lời thật. Xử lý ở `chat_screen_v2._handleEvent`.
+///
+/// LƯU Ý `draft` / `answer_commit`: chữ lớp ReAct nay mang cờ `{"answer":…,
+/// "draft": true}` — client hiển thị MỜ như quá trình suy luận thay vì như câu trả lời
+/// chính thức (nếu không, lượt bị viết lại sẽ thành "hiện rõ rồi biến mất", user tưởng
+/// lỗi). Cuối lượt server chốt ĐÚNG MỘT LẦN: `answer_commit` = giữ nguyên chữ đang hiện
+/// (KHÔNG stream lại) → bỏ mờ; `answer_reset` = xoá, lớp cuối stream đè. Stream bị cắt
+/// trước khi chốt → coi như đã chốt (xem `finally` của `_send`).
 library;
 
 /// Chế độ phân tích — khớp field `mode` của request `/api/chat/send/`.
@@ -203,6 +210,12 @@ class ChatMessage {
   bool isStreaming;
   bool hasError;
 
+  /// Chữ đang hiện là BẢN NHÁP của lớp ReAct (event `{"answer":…, "draft": true}`) —
+  /// chưa chắc là câu trả lời cuối. Bubble hiển thị MỜ như quá trình suy luận, chỉ rõ
+  /// nét khi server chốt: `answer_commit` (giữ) / `answer_reset` (xoá, lớp cuối viết lại).
+  /// Xem ghi chú `answer_reset` ở đầu file.
+  bool isDraft;
+
   /// Loại lỗi (khi hasError) — quyết định có hiện nút "Thử lại" không.
   /// Dùng `ChatErrorType` (chat_error.dart) nhưng khai báo `Object?` ở đây để
   /// model không phụ thuộc ngược vào tầng service.
@@ -229,6 +242,7 @@ class ChatMessage {
     this.rating,
     this.isStreaming = false,
     this.hasError = false,
+    this.isDraft = false,
     this.errorType,
     this.retryQuery,
     this.isProactive = false,
