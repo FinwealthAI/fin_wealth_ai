@@ -210,6 +210,58 @@ class ChatHistoryService {
   }
 
   // ---------------------------------------------------------------------------
+  // Cộng đồng Finwealth (kênh đọc-only) — `/api/community/...`
+  // ---------------------------------------------------------------------------
+
+  /// Bài đăng (mới nhất trước) + trạng thái thành viên.
+  static Future<CommunityFeed> fetchCommunityFeed({String? token}) async {
+    final response = await _dio.get(
+      '/api/community/feed/',
+      options: _opts(token: token),
+    );
+    return CommunityFeed.fromJson(Map<String, dynamic>.from(response.data));
+  }
+
+  /// Số bài chưa đọc — dùng cho badge; lỗi → 0.
+  static Future<int> fetchCommunityUnread({String? token}) async {
+    if (token == null) return 0;
+    try {
+      final response = await _dio.get(
+        '/api/community/unread-count/',
+        options: _opts(token: token),
+      );
+      final data = response.data;
+      if (data is Map) return (data['count'] as num?)?.toInt() ?? 0;
+    } catch (_) {}
+    return 0;
+  }
+
+  static Future<void> markCommunityRead({String? token}) async {
+    try {
+      await _dio.post('/api/community/mark-read/', options: _opts(token: token));
+    } catch (_) {}
+  }
+
+  static Future<void> setCommunityMembership(bool join, {String? token}) async {
+    await _dio.post(
+      join ? '/api/community/join/' : '/api/community/leave/',
+      options: _opts(token: token),
+    );
+  }
+
+  static Future<void> sendCommunityFeedback({
+    required int postId,
+    required String rating,
+    String? token,
+  }) async {
+    await _dio.post(
+      '/api/community/feedback/',
+      data: {'post_id': postId, 'rating': rating},
+      options: _opts(token: token),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Conversations
   // ---------------------------------------------------------------------------
 

@@ -395,3 +395,61 @@ class ProactiveUnread {
     );
   }
 }
+
+/// Một bài đăng trong Cộng đồng Finwealth (kênh phát chung do Mr. Wealth đăng).
+class CommunityPost {
+  final int id;
+  final String title;
+  final String content;
+  final DateTime? createdAt;
+
+  /// 'like' | 'dislike' | null — đánh giá của chính user.
+  final String? rating;
+
+  const CommunityPost({
+    required this.id,
+    required this.title,
+    required this.content,
+    this.createdAt,
+    this.rating,
+  });
+
+  CommunityPost copyWith({String? rating}) => CommunityPost(
+        id: id,
+        title: title,
+        content: content,
+        createdAt: createdAt,
+        rating: rating,
+      );
+
+  factory CommunityPost.fromJson(Map<String, dynamic> json) => CommunityPost(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        title: (json['title'] ?? '').toString(),
+        content: (json['content'] ?? '').toString(),
+        createdAt: DateTime.tryParse((json['created_at'] ?? '').toString())
+            ?.toLocal(),
+        rating: json['rating'] as String?,
+      );
+}
+
+/// Kết quả `GET /api/chat`-tương-đương `/api/community/feed/`.
+class CommunityFeed {
+  final bool isMember;
+  final int unreadCount;
+  final List<CommunityPost> posts;
+
+  const CommunityFeed({
+    required this.isMember,
+    required this.unreadCount,
+    required this.posts,
+  });
+
+  factory CommunityFeed.fromJson(Map<String, dynamic> json) => CommunityFeed(
+        isMember: json['is_member'] != false,
+        unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,
+        posts: ((json['posts'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => CommunityPost.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
+}

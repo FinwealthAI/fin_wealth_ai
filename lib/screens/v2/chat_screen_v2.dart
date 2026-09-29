@@ -20,6 +20,7 @@ import '../../widgets/common/fw_app_bar.dart';
 import '../../widgets/common/fw_filter_pill.dart';
 import '../../widgets/onboarding/onboarding.dart';
 import '../investment_profile_screen.dart';
+import 'community_screen_v2.dart';
 import 'stock_detail_screen_v2.dart';
 import 'upgrade_screen_v2.dart';
 
@@ -128,6 +129,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   /// Toast nhắc bản tin định kỳ chỉ hiện 1 lần mỗi lần vào màn.
   bool _proactiveToastShown = false;
 
+  /// Số bài Cộng đồng chưa đọc → badge trên mục ghim ở drawer + nút lịch sử.
+  int _communityUnread = 0;
+
   StreamSubscription<Map<String, dynamic>>? _sub;
 
   /// Gộp nhiều chunk `answer` đến sát nhau thành 1 lần rebuild (~20fps) để
@@ -155,6 +159,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       _checkProfile();
       _loadScheduleEligibility();
       _refreshProactive(showToast: true);
+      _refreshCommunityUnread();
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
@@ -761,6 +766,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       onEndDrawerChanged: (open) {
         // Làm mới danh sách mỗi lần mở drawer (badge/bản tin mới).
         if (open) {
+          _refreshCommunityUnread();
           setState(() => _convsFuture =
               ChatHistoryService.listConversations(kind: _convTab, token: _token));
         }
@@ -786,7 +792,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           Builder(
             builder: (ctx) => IconButton(
               key: _kHistory,
-              icon: _withBadge(const Icon(Icons.history), _proactiveUnread),
+              icon: _withBadge(
+                  const Icon(Icons.history), _proactiveUnread + _communityUnread),
               tooltip: 'Lịch sử trò chuyện',
               onPressed:
                   isGuest ? null : () => Scaffold.of(ctx).openEndDrawer(),
@@ -1801,6 +1808,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
                 ],
               ),
             ),
+            _buildCommunityEntry(),
             // 2 tab lịch sử (khớp web): Trò chuyện (user) / Bản tin (proactive).
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -1913,6 +1921,71 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ),
     );
   }
+
+  Future<void> _refreshCommunityUnread() async {
+    final n = await ChatHistoryService.fetchCommunityUnread(token: _token);
+    if (mounted) setState(() => _communityUnread = n);
+  }
+
+  /// Mục ghim đầu drawer — mở room Cộng đồng (giống mục ghim ở web).
+  Widget _buildCommunityEntry() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
+      child: Material(
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () async {
+            Navigator.of(context).maybePop();
+            await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => CommunityScreenV2(token: _token)));
+            _refreshCommunityUnread();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 17,
+                  backgroundImage:
+                      AssetImage('assets/images/mr_wealth_avatar.png'),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Cộng đồng Finwealth',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkTextPrimary)),
+                      Text('Bản tin chung · chỉ đọc', style: _Ts.caption),
+                    ],
+                  ),
+                ),
+                if (_communityUnread > 0)
+                  _withBadgeChip(_communityUnread),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _withBadgeChip(int count) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.danger,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Text(count > 99 ? '99+' : '$count',
+            style: const TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+      );
 
   void _switchConvTab(String kind) {
     if (_convTab == kind) return;
