@@ -129,6 +129,18 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   /// Toast nhắc bản tin định kỳ chỉ hiện 1 lần mỗi lần vào màn.
   bool _proactiveToastShown = false;
 
+  /// Danh sách nhà tư vấn + id người đang chọn ('' = Mr. Wealth).
+  List<Advisor> _advisors = const [];
+  String _advisorId = '';
+  bool _switchingAdvisor = false;
+
+  Advisor? get _currentAdvisor {
+    for (final a in _advisors) {
+      if (a.id == _advisorId) return a;
+    }
+    return null;
+  }
+
   /// Số bài Cộng đồng chưa đọc → badge trên mục ghim ở drawer + nút lịch sử.
   int _communityUnread = 0;
 
@@ -160,6 +172,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       _loadScheduleEligibility();
       _refreshProactive(showToast: true);
       _refreshCommunityUnread();
+      _loadAdvisors();
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
@@ -268,6 +281,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         ..addAll(history.messages.map(ChatMessage.history));
       _chatLocked = history.limitStatus == 'locked';
       _softWarning = history.limitStatus == 'warning';
+      // Hội thoại thuộc về đúng một NTV → header đồng bộ theo server.
+      if (history.advisorId != null) _advisorId = history.advisorId!;
     });
     // Vừa đánh dấu đã đọc → cập nhật lại badge.
     _refreshProactive();
@@ -540,6 +555,10 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
     if (type == '__done__') return;
 
+    if (event.containsKey('advisor_id') && event['advisor_id'] != null) {
+      final adv = event['advisor_id'].toString();
+      if (adv != _advisorId && mounted) setState(() => _advisorId = adv);
+    }
     if (event['conversation_id'] != null) {
       final id = event['conversation_id'].toString();
       _conversationId = id;
@@ -668,6 +687,135 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     try {
       await ChatHistoryService.stopGenerate(taskId: taskId, token: _token);
     } catch (_) {}
+  }
+
+  Future<void> _loadAdvisors() async {
+    final r = await ChatHistoryService.fetchAdvisors(token: _token);
+    if (!mounted || r.advisors.isEmpty) return;
+    setState(() {
+      _advisors = r.advisors;
+      // Hội thoại đang mở (nếu có) đã đặt _advisorId qua _loadHistory; chưa có thì
+      // lấy lựa chọn mặc định của user.
+      if (_conversationId == null) _advisorId = r.current;
+    });
+  }
+
+  ImageProvider _advisorImage(Advisor? a) {
+    if (a == null || a.isMrWealth || a.avatarUrl.isEmpty) {
+      return const AssetImage('assets/images/mr_wealth_avatar.png');
+    }
+    return NetworkImage(a.avatarUrl);
+  }
+
+  Future<void> _openAdvisorPicker() async {
+    if (_advisors.isEmpty) await _loadAdvisors();
+    if (!mounted || _advisors.isEmpty) return;
+    final picked = await showModalBottomSheet<Advisor>(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _AdvisorSheet(
+        advisors: _advisors,
+        currentId: _advisorId,
+        imageOf: _advisorImage,
+      ),
+    );
+    if (picked != null && picked.id != _advisorId) _switchAdvisor(picked);
+  }
+
+  Future<void> _switchAdvisor(Advisor a) async {
+    // Đổi giữa lúc stream sẽ cắt ngang câu trả lời đang chạy.
+    if (_isTyping || _switchingAdvisor) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Vui lòng đợi Mr. Wealth trả lời xong rồi đổi nhà tư vấn')));
+      return;
+    }
+    setState(() => _switchingAdvisor = true);
+    try {
+      final r = await ChatHistoryService.selectAdvisor(a.id, token: _token);
+      if (!mounted) return;
+      setState(() => _advisorId = a.id);
+      if (r.resumed && r.conversationId.isNotEmpty) {
+        await _openConversationById(r.conversationId);
+      } else {
+        await ChatHistoryService.clearSavedConversationId(_username);
+        if (r.conversationId.isNotEmpty) {
+          await ChatHistoryService.saveConversationId(_username, r.conversationId);
+        }
+        if (!mounted) return;
+        setState(() {
+          _messages.clear();
+          _conversationId = r.conversationId.isEmpty ? null : r.conversationId;
+          _chatLocked = false;
+          _softWarning = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Không đổi được nhà tư vấn, vui lòng thử lại')));
+      }
+    } finally {
+      if (mounted) setState(() => _switchingAdvisor = false);
+    }
+  }
+
+  /// Dải chọn nhà tư vấn ngay dưới app bar — bấm để mở danh sách.
+  Widget _buildAdvisorBar() {
+    final a = _currentAdvisor;
+    final name = a?.displayName ?? 'Mr. Wealth';
+    final sub = a == null ? 'Khách quan, đa chiều' : a.tagline;
+    return Material(
+      color: AppColors.darkSurface,
+      child: InkWell(
+        onTap: _switchingAdvisor ? null : _openAdvisorPicker,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(radius: 16, backgroundImage: _advisorImage(a)),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _Ts.bodyMedium
+                            .copyWith(fontWeight: FontWeight.w700)),
+                    if (sub.isNotEmpty)
+                      Text(sub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _Ts.caption),
+                  ],
+                ),
+              ),
+              if (_switchingAdvisor)
+                const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+              else ...[
+                Text('Đổi nhà tư vấn',
+                    style: _Ts.caption
+                        .copyWith(color: AppColors.brandPrimaryDark)),
+                const Icon(Icons.expand_more,
+                    size: 18, color: AppColors.brandPrimaryDark),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _newConversation() async {
@@ -805,6 +953,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         children: [
           Column(
             children: [
+              if (!isGuest && _advisors.length > 1) _buildAdvisorBar(),
               Expanded(
                 child: _loadingHistory
                     ? const Center(child: CircularProgressIndicator())
@@ -895,7 +1044,9 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               alignment: WrapAlignment.center,
-              children: _suggestions
+              children: (_currentAdvisor?.suggestions.isNotEmpty == true
+                      ? _currentAdvisor!.suggestions
+                      : _suggestions)
                   .map((s) => FwFilterPill(
                         label: s,
                         icon: Icons.bolt,
@@ -2462,6 +2613,138 @@ class _TypingDotsState extends State<_TypingDots>
           },
         );
       }),
+    );
+  }
+}
+
+
+/// Bottom sheet chọn nhà tư vấn — mỗi người một phương pháp đầu tư.
+class _AdvisorSheet extends StatelessWidget {
+  final List<Advisor> advisors;
+  final String currentId;
+  final ImageProvider Function(Advisor) imageOf;
+
+  const _AdvisorSheet({
+    required this.advisors,
+    required this.currentId,
+    required this.imageOf,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (context, controller) => Column(
+        children: [
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.darkBorder,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Chọn nhà tư vấn', style: _Ts.h3),
+            ),
+          ),
+          Expanded(
+            child: ListView.separated(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+              itemCount: advisors.length,
+              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, i) {
+                final a = advisors[i];
+                final selected = a.id == currentId;
+                return Material(
+                  color: selected
+                      ? AppColors.brandPrimary.withValues(alpha: 0.14)
+                      : AppColors.darkSurfaceElevated,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    onTap: () => Navigator.of(context).pop(a),
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                            color: selected
+                                ? AppColors.brandPrimary
+                                : AppColors.darkBorder),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(radius: 20, backgroundImage: imageOf(a)),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(a.displayName,
+                                          style: _Ts.bodyMedium.copyWith(
+                                              fontWeight: FontWeight.w700)),
+                                    ),
+                                    if (a.methodLabel.isNotEmpty) ...[
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Text(a.methodLabel,
+                                          style: _Ts.caption.copyWith(
+                                              color:
+                                                  AppColors.brandPrimaryDark)),
+                                    ],
+                                  ],
+                                ),
+                                if (a.tagline.isNotEmpty)
+                                  Text(a.tagline, style: _Ts.bodySmall),
+                                if (a.traits.isNotEmpty) ...[
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Wrap(
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    children: [
+                                      for (final t in a.traits)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.darkSurface,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(t, style: _Ts.caption),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (selected)
+                            const Icon(Icons.check_circle,
+                                size: 20, color: AppColors.brandPrimary),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

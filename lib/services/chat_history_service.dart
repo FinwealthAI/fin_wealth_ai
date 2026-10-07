@@ -210,6 +210,72 @@ class ChatHistoryService {
   }
 
   // ---------------------------------------------------------------------------
+  // Nhà tư vấn (advisor) — `/api/super-broker/advisors/`
+  // ---------------------------------------------------------------------------
+
+  /// Danh sách NTV (Mr. Wealth đứng đầu) + id người đang chọn. Lỗi → rỗng.
+  static Future<({String current, List<Advisor> advisors})> fetchAdvisors(
+      {String? token}) async {
+    try {
+      final response = await _dio.get(
+        '/api/super-broker/advisors/',
+        options: _opts(token: token),
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      return (
+        current: (data['current'] ?? '').toString(),
+        advisors: ((data['advisors'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => Advisor.fromJson(Map<String, dynamic>.from(e)))
+            .map(_withAbsoluteAvatar)
+            .toList(),
+      );
+    } catch (_) {
+      return (current: '', advisors: const <Advisor>[]);
+    }
+  }
+
+  /// Avatar backend có thể là đường dẫn tương đối (`/static/...`) → ghép baseUrl.
+  static Advisor _withAbsoluteAvatar(Advisor a) {
+    var url = a.avatarUrl;
+    if (url.startsWith('//')) {
+      url = 'https:$url';
+    } else if (url.startsWith('/')) {
+      url = '${ApiConfig.baseUrl}$url';
+    }
+    if (url == a.avatarUrl) return a;
+    return Advisor(
+      id: a.id,
+      displayName: a.displayName,
+      tagline: a.tagline,
+      description: a.description,
+      avatarUrl: url,
+      methodLabel: a.methodLabel,
+      suggestions: a.suggestions,
+      traits: a.traits,
+    );
+  }
+
+  /// Chọn NTV: server mở lại hội thoại gần nhất với người đó, chưa có thì tạo mới.
+  /// Ném lỗi nếu server từ chối (UI báo lỗi).
+  static Future<AdvisorSwitchResult> selectAdvisor(String advisorId,
+      {String? token}) async {
+    final response = await _dio.post(
+      '/api/super-broker/advisors/',
+      data: {'advisor_id': advisorId},
+      options: _opts(token: token),
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    if (data['ok'] != true) {
+      throw Exception(data['error'] ?? 'Không đổi được nhà tư vấn');
+    }
+    return AdvisorSwitchResult(
+      conversationId: (data['conversation_id'] ?? '').toString(),
+      resumed: data['resumed'] == true,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Cộng đồng Finwealth (kênh đọc-only) — `/api/community/...`
   // ---------------------------------------------------------------------------
 
@@ -298,7 +364,12 @@ class ChatHistoryService {
   /// Tải lịch sử tin nhắn + trạng thái giới hạn hội thoại.
   ///
   /// `limitStatus`: 'locked' (đã khóa) | 'warning' (sắp đầy) | null/khác.
-  static Future<({List<Map<String, dynamic>> messages, String? limitStatus})>
+  static Future<
+        ({
+          List<Map<String, dynamic>> messages,
+          String? limitStatus,
+          String? advisorId
+        })>
       loadChatHistory({
     String? conversationId,
     String? token,
@@ -343,6 +414,11 @@ class ChatHistoryService {
     return (
       messages: messages,
       limitStatus: response.data?['limit_status']?.toString(),
+      // Chỉ có khi response mang key `advisor_id` (null = chưa rõ, '' = Mr. Wealth).
+      advisorId: (response.data is Map &&
+              (response.data as Map).containsKey('advisor_id'))
+          ? (response.data['advisor_id'] ?? '').toString()
+          : null,
     );
   }
 

@@ -55,12 +55,6 @@ class _CommunityScreenV2State extends State<CommunityScreenV2> {
       if (feed.isMember) {
         ChatHistoryService.markCommunityRead(token: widget.token);
       }
-      // Feed trả mới nhất trước; hiển thị cũ → mới, cuộn xuống đáy như chat.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(_scroll.position.maxScrollExtent);
-        }
-      });
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -208,17 +202,15 @@ class _CommunityScreenV2State extends State<CommunityScreenV2> {
       );
     }
 
-    // Cũ → mới, chèn ngăn cách ngày giữa các bài khác ngày.
-    final posts = feed.posts.reversed.toList();
+    // Feed đã mới nhất trước. ListView `reverse: true` neo ở đáy nên mở lên là thấy
+    // bài mới nhất (không cần jumpTo — extent ước lượng của list lười sẽ sai với bài
+    // markdown dài). Trong list đảo, phần tử sau nằm PHÍA TRÊN → nhãn ngày đặt sau
+    // bài đầu tiên của ngày đó (bài cũ nhất trong ngày).
+    final posts = feed.posts;
     final children = <Widget>[];
-    String? lastDay;
-    for (final p in posts) {
+    for (var i = 0; i < posts.length; i++) {
+      final p = posts[i];
       final d = p.createdAt;
-      final label = d == null ? null : _dayLabel(d);
-      if (label != null && label != lastDay) {
-        children.add(_DaySeparator(label: label));
-        lastDay = label;
-      }
       children.add(_PostBubble(
         post: p,
         time: d == null ? '' : _time(d),
@@ -228,11 +220,19 @@ class _CommunityScreenV2State extends State<CommunityScreenV2> {
           _snack('Đã sao chép');
         },
       ));
+      final label = d == null ? null : _dayLabel(d);
+      final nextDay = i + 1 < posts.length && posts[i + 1].createdAt != null
+          ? _dayLabel(posts[i + 1].createdAt!)
+          : null;
+      if (label != null && label != nextDay) {
+        children.add(_DaySeparator(label: label));
+      }
     }
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         controller: _scroll,
+        reverse: true,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: children,

@@ -453,3 +453,56 @@ class CommunityFeed {
             .toList(),
       );
 }
+
+/// Một nhà tư vấn (NTV) — mỗi người một phương pháp đầu tư. `id` rỗng = Mr. Wealth
+/// (trung lập, không nạp phương pháp nào). Khớp `/api/super-broker/advisors/`.
+class Advisor {
+  final String id;
+  final String displayName;
+  final String tagline;
+  final String description;
+  final String avatarUrl;
+  final String methodLabel;
+  final List<String> suggestions;
+  final List<String> traits;
+
+  const Advisor({
+    required this.id,
+    required this.displayName,
+    this.tagline = '',
+    this.description = '',
+    this.avatarUrl = '',
+    this.methodLabel = '',
+    this.suggestions = const [],
+    this.traits = const [],
+  });
+
+  bool get isMrWealth => id.isEmpty;
+
+  factory Advisor.fromJson(Map<String, dynamic> json) => Advisor(
+        id: (json['id'] ?? '').toString(),
+        displayName:
+            (json['persona_name'] ?? json['display_name'] ?? 'Mr. Wealth')
+                .toString(),
+        tagline: (json['tagline'] ?? '').toString(),
+        description: (json['description'] ?? '').toString(),
+        avatarUrl: (json['avatar_url'] ?? '').toString(),
+        methodLabel: (json['method_label'] ?? '').toString(),
+        suggestions: ((json['suggestions'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList(),
+        traits: ((json['traits'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => (e['label'] ?? '').toString())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+      );
+}
+
+/// Kết quả đổi NTV: hội thoại cần mở (đã có → `resumed`, chưa có → mới tạo).
+class AdvisorSwitchResult {
+  final String conversationId;
+  final bool resumed;
+  const AdvisorSwitchResult(
+      {required this.conversationId, required this.resumed});
+}
