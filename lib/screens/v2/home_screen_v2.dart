@@ -540,45 +540,79 @@ class HomeScreenV2State extends State<HomeScreenV2>
                 const SizedBox(height: AppSpacing.md),
               ],
               Builder(builder: (_) {
-                final validTickers = <String>[];
+                // `impact` do server suy (dấu liên kết × chiều giá hôm nay): 'benefit' hưởng lợi,
+                // 'pressure' chịu áp lực, 'neutral' liên quan nhưng chưa rõ chiều. Server cũ không
+                // gửi `impact` → gộp tất cả vào "Mã liên quan", KHÔNG gọi chúng là "hưởng lợi".
+                final benefit = <String>[];
+                final pressure = <String>[];
+                final related = <String>[];
+                void add(List<String> into, String? code) {
+                  if (code == null) return;
+                  final c = code.trim().toUpperCase();
+                  if (c.length >= 2 &&
+                      c.length <= 6 &&
+                      RegExp(r'^[A-Z0-9]+$').hasMatch(c) &&
+                      !into.contains(c)) {
+                    into.add(c);
+                  }
+                }
+
                 if (tickers is List) {
                   for (final t in tickers) {
-                    String? code;
-                    if (t is Map && t['ticker'] != null) {
-                      code = t['ticker'].toString();
+                    if (t is Map) {
+                      final code = t['ticker']?.toString();
+                      switch (t['impact']) {
+                        case 'benefit':
+                          add(benefit, code);
+                        case 'pressure':
+                          add(pressure, code);
+                        default:
+                          add(related, code);
+                      }
                     } else if (t is String) {
-                      code = t;
-                    }
-                    if (code == null) continue;
-                    final c = code.trim().toUpperCase();
-                    if (c.length >= 2 &&
-                        c.length <= 6 &&
-                        RegExp(r'^[A-Z0-9]+$').hasMatch(c)) {
-                      validTickers.add(c);
+                      add(related, t);
                     }
                   }
                 }
-                if (validTickers.isEmpty) return const SizedBox.shrink();
+                if (benefit.isEmpty && pressure.isEmpty && related.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                Widget group(String label, List<String> codes) {
+                  if (codes.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label,
+                            style: Theme.of(context).textTheme.labelLarge),
+                        const SizedBox(height: AppSpacing.xs),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final c in codes)
+                              ActionChip(
+                                label: Text(c),
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  _openDetail(c);
+                                },
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Mã hưởng lợi',
-                        style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: AppSpacing.xs),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final c in validTickers)
-                          ActionChip(
-                            label: Text(c),
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                              _openDetail(c);
-                            },
-                          ),
-                      ],
-                    ),
+                    group('Mã hưởng lợi', benefit),
+                    group('Mã chịu áp lực', pressure),
+                    group('Mã liên quan', related),
                   ],
                 );
               }),

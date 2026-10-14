@@ -533,8 +533,15 @@ class _TickersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Nhóm theo DẤU LIÊN KẾT (thuận/nghịch chiều), KHÔNG gọi là "hưởng lợi/bất lợi": màn này vẽ cả
+    // chuỗi giá nhiều tháng chứ không phải một biến động, nên không có chiều giá duy nhất để suy
+    // ra ai được lợi. Giá GIẢM mà mã thuận chiều thì mã mất doanh thu — gọi "hưởng lợi" là sai.
+    // Màu cố ý trung tính (xanh dương / tím), không dùng xanh-đỏ vốn mang nghĩa tốt-xấu.
     final positive = tickers.where((t) => t.correlation == 'positive').toList();
-    final negative = tickers.where((t) => t.correlation != 'positive').toList();
+    final negative = tickers.where((t) => t.correlation == 'negative').toList();
+    final related = tickers
+        .where((t) => t.correlation != 'positive' && t.correlation != 'negative')
+        .toList();
     final text = Theme.of(context).textTheme;
 
     return Padding(
@@ -553,19 +560,28 @@ class _TickersSection extends StatelessWidget {
           ),
           if (positive.isNotEmpty) ...[
             _CorrelationGroup(
-              label: 'Hưởng lợi',
-              icon: Icons.trending_up,
-              color: AppColors.successDark,
+              label: 'Thuận chiều',
+              icon: Icons.link,
+              color: AppColors.brandSecondaryDark,
               tickers: positive,
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          if (negative.isNotEmpty)
+          if (negative.isNotEmpty) ...[
             _CorrelationGroup(
-              label: 'Bất lợi',
-              icon: Icons.trending_down,
-              color: AppColors.dangerDark,
+              label: 'Nghịch chiều',
+              icon: Icons.swap_vert,
+              color: AppColors.brandPrimaryDark,
               tickers: negative,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (related.isNotEmpty)
+            _CorrelationGroup(
+              label: 'Liên quan',
+              icon: Icons.hub_outlined,
+              color: AppColors.darkTextSecondary,
+              tickers: related,
             ),
         ],
       ),
