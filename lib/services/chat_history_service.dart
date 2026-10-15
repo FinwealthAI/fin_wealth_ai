@@ -210,6 +210,35 @@ class ChatHistoryService {
   }
 
   // ---------------------------------------------------------------------------
+  // Mức phân tích (effort) — `/api/chat/effort-levels/`
+  // ---------------------------------------------------------------------------
+
+  /// Bộ chọn mức theo quyền của user (cùng luật với web): `enabled=false` → ẩn bộ
+  /// chọn (tài khoản free); hàng `allowed=false` (Tối đa chưa được cấp) phải khoá.
+  /// Lỗi/backend cũ chưa có endpoint → Nhanh + Chuyên sâu, không bao giờ có Tối đa.
+  static Future<({bool enabled, List<EffortLevel> levels})> fetchEffortLevels(
+      {String? token}) async {
+    try {
+      final response = await _dio.get(
+        '/api/chat/effort-levels/',
+        options: _opts(token: token),
+      );
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final levels = ((data['levels'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => EffortLevel.fromJson(Map<String, dynamic>.from(e)))
+          .whereType<EffortLevel>()
+          .toList();
+      return (
+        enabled: data['pro_mode_enabled'] == true && levels.isNotEmpty,
+        levels: levels,
+      );
+    } catch (_) {
+      return (enabled: true, levels: EffortLevel.basic);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Nhà tư vấn (advisor) — `/api/super-broker/advisors/`
   // ---------------------------------------------------------------------------
 

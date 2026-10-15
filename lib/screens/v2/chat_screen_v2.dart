@@ -91,6 +91,11 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   String? _conversationId;
   String? _currentTaskId;
   ChatMode _mode = ChatMode.flash;
+
+  /// Bộ chọn mức phân tích: chỉ hiện khi server cho phép (tier pro, như web) và
+  /// các hàng theo quyền của user. Chưa tải xong → ẩn.
+  bool _effortEnabled = false;
+  List<EffortLevel> _effortLevels = const [];
   bool _isTyping = false;
   bool _loadingHistory = false;
   bool _showScrollToBottom = false;
@@ -169,6 +174,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       _refreshProactive(showToast: true);
       _refreshCommunityUnread();
       _loadAdvisors();
+      _loadEffortLevels();
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
@@ -532,7 +538,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
 
     switch (type) {
       case 'classify':
-        setState(() => assistant.classify = ClassifyEvent.fromJson(event));
+        final classify = ClassifyEvent.fromJson(event);
+        setState(() {
+          assistant.classify = classify;
+          // Server từ chối mức hạn chế (Tối đa chưa được cấp quyền) → về mức
+          // mặc định để lượt sau không bị từ chối lại.
+          if (classify.intent == 'effort_denied') _mode = ChatMode.flash;
+        });
         return;
       case 'agent_start':
         setState(() => assistant.steps.add(AgentStep.fromStart(event)));
@@ -656,6 +668,18 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       // Hội thoại đang mở (nếu có) đã đặt _advisorId qua _loadHistory; chưa có thì
       // lấy lựa chọn mặc định của user.
       if (_conversationId == null) _advisorId = r.current;
+    });
+  }
+
+  Future<void> _loadEffortLevels() async {
+    final r = await ChatHistoryService.fetchEffortLevels(token: _token);
+    if (!mounted) return;
+    setState(() {
+      _effortEnabled = r.enabled;
+      _effortLevels = r.levels;
+      // Mức đang chọn không còn hợp lệ với user này → về mức mặc định.
+      final ok = r.levels.any((l) => l.mode == _mode && l.allowed);
+      if (!r.enabled || !ok) _mode = ChatMode.flash;
     });
   }
 
@@ -880,7 +904,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
         }
       },
       appBar: FwAppBar(
-        title: 'Mr.Wealth',
+        title: 'Finwealth',
         subtitle: 'AI Cố vấn đầu tư',
         // Chat là màn chính: hamburger thay cho back, giữ ô tìm cổ phiếu, bỏ
         // nút home (chat chính là trang chủ).
@@ -1487,23 +1511,23 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     );
   }
 
+  /// Huy hiệu mức phân tích — cùng nhãn/màu với web (NHANH / CHUYÊN SÂU / TỐI ĐA).
   Widget _modeBadge(ChatMode mode) {
-    final isPro = mode == ChatMode.pro;
+    final (bg, fg) = switch (mode) {
+      ChatMode.max => (AppColors.warningDark, AppColors.warningDark),
+      ChatMode.pro => (AppColors.brandPrimary, AppColors.brandPrimaryDark),
+      ChatMode.flash => (AppColors.brandSecondary, AppColors.brandSecondaryDark),
+    };
     return Container(
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 1),
       decoration: BoxDecoration(
-        color: (isPro ? AppColors.brandPrimary : AppColors.brandSecondary)
-            .withValues(alpha: 0.18),
+        color: bg.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         mode.label.toUpperCase(),
-        style: _Ts.caption.copyWith(
-          color:
-              isPro ? AppColors.brandPrimaryDark : AppColors.brandSecondaryDark,
-          fontWeight: FontWeight.w700,
-        ),
+        style: _Ts.caption.copyWith(color: fg, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1715,12 +1739,13 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_softWarning) _buildSoftWarning(),
-            if (!isGuest)
+            if (!isGuest && _effortEnabled) ...[
               Align(
                 alignment: Alignment.centerLeft,
                 child: _modeToggle(),
               ),
-            const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.sm),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -1855,52 +1880,48 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
     );
   }
 
+  /// Bộ chọn mức phân tích (Nhanh / Chuyên sâu / Tối đa) — một nút hiện mức
+  /// đang chọn, chạm mở bảng chọn; giống `mode_picker.html` của web.
   Widget _modeToggle() {
-    Widget seg(ChatMode mode) {
-      final active = _mode == mode;
-      return GestureDetector(
-        onTap: () => setState(() => _mode = mode),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 6),
-          decoration: BoxDecoration(
-            color: active ? AppColors.brandPrimary : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                mode == ChatMode.pro ? Icons.workspace_premium : Icons.bolt,
-                size: 14,
-                color: active ? Colors.white : AppColors.darkTextSecondary,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                mode.label,
-                style: _Ts.bodySmall.copyWith(
-                  color: active ? Colors.white : AppColors.darkTextSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+    return GestureDetector(
+      onTap: _isTyping ? null : _openModePicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.darkSurfaceElevated,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: AppColors.darkBorder),
         ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: AppColors.darkSurfaceElevated,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.darkBorder),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [seg(ChatMode.flash), seg(ChatMode.pro)],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _mode.label,
+              style: _Ts.bodySmall.copyWith(
+                color: AppColors.darkTextPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            const Icon(Icons.keyboard_arrow_down,
+                size: 16, color: AppColors.darkTextSecondary),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openModePicker() async {
+    final picked = await showModalBottomSheet<ChatMode>(
+      context: context,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _ModeSheet(levels: _effortLevels, current: _mode),
+    );
+    if (picked != null && mounted) setState(() => _mode = picked);
   }
 
   Widget _buildSendButton() {
@@ -2611,6 +2632,131 @@ class _TypingDotsState extends State<_TypingDots>
 
 
 /// Bottom sheet chọn nhà tư vấn — mỗi người một phương pháp đầu tư.
+/// Bảng chọn mức phân tích — nội dung bám `effort.py`/`mode_picker.html` của web.
+class _ModeSheet extends StatelessWidget {
+  final List<EffortLevel> levels;
+  final ChatMode current;
+  const _ModeSheet({required this.levels, required this.current});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Mức phân tích', style: _Ts.h3),
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Mức càng cao, câu trả lời càng đầy đủ nhưng càng lâu hơn.',
+              style: _Ts.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            for (final l in levels) ...[
+              _option(context, l),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _option(BuildContext context, EffortLevel l) {
+    final selected = l.mode == current && l.allowed;
+    final locked = !l.allowed;
+    final gold = l.mode == ChatMode.max;
+    final tagColor = gold ? AppColors.warningDark : AppColors.brandPrimaryDark;
+    return Opacity(
+      // Hàng bị khoá mờ đi (như web) nhưng vẫn đọc được lời giải thích.
+      opacity: locked ? 0.6 : 1,
+      child: Material(
+        color: selected
+            ? AppColors.brandPrimary.withValues(alpha: 0.14)
+            : AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: locked ? null : () => Navigator.of(context).pop(l.mode),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                  color: selected
+                      ? AppColors.brandPrimary
+                      : AppColors.darkBorder),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(l.label,
+                              style: _Ts.bodyMedium
+                                  .copyWith(fontWeight: FontWeight.w600)),
+                          if (l.tag.isNotEmpty || locked) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: (gold
+                                        ? AppColors.warningDark
+                                        : AppColors.brandPrimary)
+                                    .withValues(alpha: 0.18),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.sm),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (locked) ...[
+                                    Icon(Icons.lock_outline,
+                                        size: 11, color: tagColor),
+                                    const SizedBox(width: 3),
+                                  ],
+                                  if (l.tag.isNotEmpty)
+                                    Text(
+                                      l.tag,
+                                      style: _Ts.caption.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: tagColor,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(l.description, style: _Ts.bodySmall),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  const Padding(
+                    padding: EdgeInsets.only(left: AppSpacing.sm, top: 2),
+                    child: Icon(Icons.check,
+                        size: 18, color: AppColors.brandPrimaryDark),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AdvisorSheet extends StatelessWidget {
   final List<Advisor> advisors;
   final String currentId;

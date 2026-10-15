@@ -18,15 +18,98 @@
 /// trước khi chốt → coi như đã chốt (xem `finally` của `_send`).
 library;
 
-/// Chế độ phân tích — khớp field `mode` của request `/api/chat/send/`.
-enum ChatMode { flash, pro }
+/// Mức phân tích (effort) — khớp `agent/services/effort.py` của web:
+/// Nhanh → Chuyên sâu → Tối đa. `wire` là giá trị field `mode` của
+/// `/api/chat/send/`; `flash`/`pro` là hợp đồng với DB cũ nên giữ nguyên tên.
+enum ChatMode { flash, pro, max }
 
 extension ChatModeX on ChatMode {
-  String get wire => this == ChatMode.pro ? 'pro' : 'flash';
-  String get label => this == ChatMode.pro ? 'Pro' : 'Flash';
+  String get wire => switch (this) {
+        ChatMode.flash => 'flash',
+        ChatMode.pro => 'pro',
+        ChatMode.max => 'max',
+      };
 
-  static ChatMode fromWire(String? v) =>
-      (v == 'pro') ? ChatMode.pro : ChatMode.flash;
+  /// Tên hiển thị trong bộ chọn (= `EffortLevel.label` bên web).
+  String get label => switch (this) {
+        ChatMode.flash => 'Nhanh',
+        ChatMode.pro => 'Chuyên sâu',
+        ChatMode.max => 'Tối đa',
+      };
+
+  /// Mô tả trong bộ chọn (= `EffortLevel.description` bên web).
+  String get description => switch (this) {
+        ChatMode.flash =>
+          'Trả lời ngắn, vào thẳng ý chính. Tự nâng lên Chuyên sâu khi câu hỏi cần.',
+        ChatMode.pro => 'Báo cáo đầy đủ, nhiều nguồn dữ liệu, trả lời lâu hơn.',
+        ChatMode.max => 'Model riêng, ngân sách phân tích lớn nhất.',
+      };
+
+  /// Nhãn phụ trong bộ chọn (= `EffortLevel.tag`); rỗng nếu không có.
+  String get tag => switch (this) {
+        ChatMode.flash => 'Khuyên dùng',
+        ChatMode.pro => '',
+        ChatMode.max => 'VIP',
+      };
+
+  /// Giá trị lạ (server/client cũ) rơi về mức mặc định — như `effort.get_level`.
+  static ChatMode fromWire(String? v) => switch (v) {
+        'pro' => ChatMode.pro,
+        'max' => ChatMode.max,
+        _ => ChatMode.flash,
+      };
+}
+
+/// Một hàng trong bộ chọn mức phân tích — dữ liệu của `GET /api/chat/effort-levels/`
+/// (= `effort.picker_levels(user)` bên web, nguồn duy nhất cho tên/mô tả/quyền).
+class EffortLevel {
+  final ChatMode mode;
+  final String label;
+  final String tag;
+
+  /// Mô tả; với hàng bị khoá server đã thay bằng lời giải thích.
+  final String description;
+  final bool restricted;
+
+  /// User được phép chọn mức này. Mặc định KHÓA — chỉ mở khi server nói `true`.
+  final bool allowed;
+
+  const EffortLevel({
+    required this.mode,
+    required this.label,
+    required this.tag,
+    required this.description,
+    this.restricted = false,
+    this.allowed = false,
+  });
+
+  /// `null` nếu khoá lạ (mức mới ở server mà bản app này chưa biết) → bỏ qua.
+  static EffortLevel? fromJson(Map<String, dynamic> json) {
+    final key = json['key']?.toString();
+    if (key != 'flash' && key != 'pro' && key != 'max') return null;
+    final mode = ChatModeX.fromWire(key);
+    return EffortLevel(
+      mode: mode,
+      label: (json['label'] ?? mode.label).toString(),
+      tag: (json['tag'] ?? '').toString(),
+      description: (json['description'] ?? mode.description).toString(),
+      restricted: json['restricted'] == true,
+      allowed: json['allowed'] == true,
+    );
+  }
+
+  /// Dùng khi không lấy được từ server (backend cũ/mạng lỗi): Nhanh + Chuyên sâu,
+  /// KHÔNG có Tối đa — mức hạn chế chỉ hiện khi server xác nhận.
+  static final List<EffortLevel> basic = [
+    for (final m in [ChatMode.flash, ChatMode.pro])
+      EffortLevel(
+        mode: m,
+        label: m.label,
+        tag: m.tag,
+        description: m.description,
+        allowed: true,
+      ),
+  ];
 }
 
 /// Trạng thái một bước agent trong pipeline.
