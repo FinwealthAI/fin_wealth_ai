@@ -19,8 +19,6 @@ import 'strategy_screen_v2.dart';
 import 'watchlist_screen_v2.dart';
 import '../../widgets/dashboard/profile_bar.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
-import '../../widgets/onboarding/onboarding.dart';
-import '../../services/onboarding_prefs.dart';
 import 'notifications_screen_v2.dart';
 import '../investment_profile_screen.dart';
 
@@ -28,8 +26,10 @@ class RootShellNav {
   static final GlobalKey<RootShellV2State> key =
       GlobalKey<RootShellV2State>();
 
+  /// Về tab Trang chủ của "Phân tích sâu". Đang ở chat thì giữ nguyên chat
+  /// (chat mới là trang chủ của app).
   static void goHome() {
-    key.currentState?.setIndex(0);
+    key.currentState?.goHome();
   }
 
   static void goMore() {
@@ -52,95 +52,63 @@ class RootShellV2 extends StatefulWidget {
   State<RootShellV2> createState() => RootShellV2State();
 }
 
+/// Mặc định app mở thẳng màn **Chat** (giống `/agent/` trên web). Các tab
+/// Trang chủ / Chiến lược / Thị trường / Khác chỉ xuất hiện khi user chọn
+/// "Phân tích sâu" trong menu (dấu 3 gạch); nút Mr.Wealth ở giữa thanh tab
+/// đưa về lại chat. Cả hai giao diện cùng sống trong một IndexedStack nên
+/// chuyển qua lại không làm mất hội thoại đang stream.
 class RootShellV2State extends State<RootShellV2> {
   int _index = 0;
 
-  // GlobalKeys cho tour hướng dẫn cấp app (bottom nav + FAB).
-  final GlobalKey _kHome = GlobalKey();
-  final GlobalKey _kStrategy = GlobalKey();
-  final GlobalKey _kMarket = GlobalKey();
-  final GlobalKey _kMore = GlobalKey();
-  final GlobalKey _kFab = GlobalKey();
-  bool _appTourStarted = false;
+  /// false = Chat (mặc định), true = "Phân tích sâu" (bottom nav 4 tab).
+  bool _deepMode = false;
+
+  /// Các tab chỉ dựng khi lần đầu vào "Phân tích sâu" — mở app không tải dữ
+  /// liệu Home/Strategy/Market vô ích. Dựng rồi thì giữ nguyên (không reload).
+  bool _deepBuilt = false;
 
   late final _tabs = <Widget>[
-    HomeScreenV2(onOpenChat: _openChat),
+    HomeScreenV2(onOpenChat: showChat),
     const StrategyScreenV2(),
     const MarketEvaluationScreenV2(),
     const _MoreMenuScreenV2(),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowOnboarding());
-  }
-
-  /// Luồng hướng dẫn HỢP NHẤT (1 lần đầu, 1 cờ): welcome → giới thiệu các khu
-  /// vực chính (bottom nav) → tới Mr.Wealth thì mở thẳng màn chat và chạy tiếp
-  /// tour bên trong chat. Bỏ qua giữa chừng → kết thúc & đánh dấu đã xem.
-  Future<void> _maybeShowOnboarding() async {
-    if (_appTourStarted || !mounted) return;
-    final authRepo = context.read<AuthRepository>();
-    if (authRepo.accessToken == null) return; // khách → bỏ qua
-    final username = authRepo.username ?? '';
-    if (await OnboardingPrefs.hasSeen(username)) return;
-    if (!mounted) return;
-    _appTourStarted = true;
-
-    final start = await showAppWelcomeDialog(context);
-    if (!mounted) return;
-    if (!start) {
-      await OnboardingPrefs.markSeen(username);
-      return;
-    }
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-
-    final steps = <CoachStep>[
-      CoachStep(_kHome, '🏠 Trang chủ',
-          'Tổng quan thị trường, cổ phiếu nổi bật & cơ hội đáng chú ý trong ngày — nơi bạn bắt đầu mỗi phiên.'),
-      CoachStep(_kStrategy, '🚀 Chiến lược',
-          'Bộ lọc cổ phiếu theo phương pháp (CANSLIM, VCP…) và sàn chiến lược mẫu để tìm mã phù hợp.'),
-      CoachStep(_kMarket, '📊 Thị trường',
-          'Đánh giá sức khỏe thị trường: điểm số ngắn/dài hạn, mức độ thận trọng — biết "nhiệt độ" trước khi vào lệnh.'),
-      CoachStep(_kMore, '🔲 Khác',
-          'Quản lý danh mục, danh sách theo dõi, lọc cổ phiếu, tính margin, blog, biểu đồ kinh tế & hồ sơ đầu tư.'),
-      CoachStep(_kFab, '🤖 Mr.Wealth — Trợ lý AI',
-          'Trái tim của Finwealth: hỏi phân tích cổ phiếu, đánh giá danh mục, tìm cơ hội. Cùng mở lên và xem cách dùng nhé!',
-          circle: true),
-    ];
-
-    runCoachMarks(
-      context,
-      steps,
-      doneLabel: 'Vào Mr.Wealth',
-      onDone: (completed) {
-        if (!completed) {
-          OnboardingPrefs.markSeen(username); // bỏ qua → kết thúc luồng
-          return;
-        }
-        if (!mounted) return;
-        // Đi hết phần app → vào thẳng màn chat, chạy tiếp tour bên trong.
-        // ChatScreenV2 sẽ tự đánh dấu đã xem khi tour chat kết thúc.
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const ChatScreenV2(runTourOnOpen: true),
-          ),
-        );
-      },
-    );
-  }
-
+  /// Mở một tab của "Phân tích sâu" (tự chuyển sang giao diện đó nếu đang ở chat).
   void setIndex(int i) {
     if (!mounted) return;
-    setState(() => _index = i);
+    setState(() {
+      _index = i;
+      _deepMode = true;
+      _deepBuilt = true;
+    });
   }
 
-  void _openChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ChatScreenV2()),
-    );
+  void goHome() {
+    if (!mounted) return;
+    setState(() => _index = 0);
+  }
+
+  /// Vào giao diện "Phân tích sâu" (tab đang chọn được giữ nguyên).
+  void showDeepAnalysis() {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _deepMode = true;
+      _deepBuilt = true;
+    });
+  }
+
+  /// Về màn Chat (trang chính).
+  void showChat() {
+    if (!mounted) return;
+    setState(() => _deepMode = false);
+  }
+
+  /// Menu đóng lại rồi mới đổi giao diện, tránh drawer còn "treo" khi cross-fade.
+  void _menuOpenDeepAnalysis(BuildContext drawerContext) {
+    Navigator.of(drawerContext).pop();
+    showDeepAnalysis();
   }
 
   @override
@@ -167,12 +135,31 @@ class RootShellV2State extends State<RootShellV2> {
   }
 
   Widget _buildShell() {
+    // Back ở "Phân tích sâu" → về chat thay vì thoát app.
+    return PopScope(
+      canPop: !_deepMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) showChat();
+      },
+      child: IndexedStack(
+        index: _deepMode ? 1 : 0,
+        children: [
+          ChatScreenV2(
+            menuDrawer: _ShellMenuDrawer(
+              onDeepAnalysis: _menuOpenDeepAnalysis,
+            ),
+            onOpenDeepAnalysis: showDeepAnalysis,
+          ),
+          if (_deepBuilt) _buildDeepScaffold() else const SizedBox.shrink(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeepScaffold() {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
-      floatingActionButton: KeyedSubtree(
-        key: _kFab,
-        child: _MrWealthFab(onTap: _openChat),
-      ),
+      floatingActionButton: _MrWealthFab(onTap: showChat),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         color: AppColors.darkSurface,
@@ -183,16 +170,13 @@ class RootShellV2State extends State<RootShellV2> {
         padding: EdgeInsets.zero,
         child: Row(
           children: [
-            _navItem(0, Icons.home_outlined, Icons.home, 'Trang chủ',
-                itemKey: _kHome),
+            _navItem(0, Icons.home_outlined, Icons.home, 'Trang chủ'),
             _navItem(1, Icons.rocket_launch_outlined, Icons.rocket_launch,
-                'Chiến lược', itemKey: _kStrategy),
+                'Chiến lược'),
             // Khoảng trống cho nút Mr.Wealth nhô lên ở giữa.
             const SizedBox(width: 56),
-            _navItem(2, Icons.speed_outlined, Icons.speed, 'Thị trường',
-                itemKey: _kMarket),
-            _navItem(3, Icons.grid_view_outlined, Icons.grid_view, 'Khác',
-                itemKey: _kMore),
+            _navItem(2, Icons.speed_outlined, Icons.speed, 'Thị trường'),
+            _navItem(3, Icons.grid_view_outlined, Icons.grid_view, 'Khác'),
           ],
         ),
       ),
@@ -200,14 +184,12 @@ class RootShellV2State extends State<RootShellV2> {
   }
 
   Widget _navItem(
-      int index, IconData icon, IconData activeIcon, String label,
-      {Key? itemKey}) {
+      int index, IconData icon, IconData activeIcon, String label) {
     final selected = _index == index;
     final color =
         selected ? AppColors.brandPrimaryDark : AppColors.darkTextMuted;
     return Expanded(
       child: InkResponse(
-        key: itemKey,
         onTap: () => setState(() => _index = index),
         radius: 36,
         child: Column(
@@ -224,6 +206,155 @@ class RootShellV2State extends State<RootShellV2> {
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Menu trái của màn chat (dấu 3 gạch). Cố ý rất ngắn — chỉ lối vào
+/// "Phân tích sâu" + vài mục tài khoản; công cụ khác nằm trong "Phân tích sâu".
+class _ShellMenuDrawer extends StatelessWidget {
+  final void Function(BuildContext drawerContext) onDeepAnalysis;
+  const _ShellMenuDrawer({required this.onDeepAnalysis});
+
+  void _push(BuildContext context, Widget w) {
+    Navigator.of(context).pop(); // đóng drawer
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => w));
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    final nav = Navigator.of(context);
+    await context.read<AuthRepository>().logout();
+    nav.pushNamedAndRemoveUntil('/login-v2', (r) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authRepo = context.read<AuthRepository>();
+    final isGuest = authRepo.accessToken == null;
+    final username = authRepo.username ?? 'Khách';
+    final expiration = authRepo.expirationDate;
+    final lowPoints = !isGuest && authRepo.totalPoints < kLowPointsThreshold;
+    final text = Theme.of(context).textTheme;
+
+    return Drawer(
+      backgroundColor: AppColors.darkSurface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor:
+                        AppColors.brandPrimary.withValues(alpha: 0.2),
+                    child: Text(
+                      username.isNotEmpty ? username[0].toUpperCase() : '?',
+                      style: text.titleMedium
+                          ?.copyWith(color: AppColors.brandPrimaryDark),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.titleMedium),
+                        if (!isGuest && expiration != null)
+                          Text(
+                            'Hết hạn: $expiration',
+                            style: text.labelSmall?.copyWith(
+                              color: lowPoints
+                                  ? AppColors.warningDark
+                                  : AppColors.darkTextMuted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: AppColors.darkBorder, height: 1),
+            // Lối vào chính — nổi bật như nút chuyển giao diện trên web.
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Material(
+                color: AppColors.brandPrimary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  onTap: () => onDeepAnalysis(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.insights,
+                            color: AppColors.brandPrimaryDark),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Phân tích sâu',
+                                  style: text.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                'Thị trường, chiến lược, danh mục…',
+                                style: text.bodySmall?.copyWith(
+                                    color: AppColors.darkTextSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right,
+                            color: AppColors.darkTextMuted),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (!isGuest) ...[
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Hồ sơ đầu tư'),
+                onTap: () => _push(context, const InvestmentProfileScreen()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: const Text('Thông báo'),
+                onTap: () => _push(context, const NotificationsScreenV2()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.workspace_premium_outlined),
+                title: const Text('Nâng cấp tài khoản'),
+                onTap: () => _push(context, const UpgradeScreenV2()),
+              ),
+            ],
+            const Spacer(),
+            const Divider(color: AppColors.darkBorder, height: 1),
+            if (isGuest)
+              ListTile(
+                leading: const Icon(Icons.login),
+                title: const Text('Đăng nhập'),
+                onTap: () => Navigator.of(context)
+                    .pushReplacementNamed('/login-v2'),
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Đăng xuất'),
+                onTap: () => _logout(context),
+              ),
           ],
         ),
       ),

@@ -11,14 +11,12 @@ import '../../models/chat_models.dart';
 import '../../respositories/auth_repository.dart';
 import '../../services/chat_error.dart';
 import '../../services/chat_history_service.dart';
-import '../../services/onboarding_prefs.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_shadows.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/chat/chat_card_widget.dart';
 import '../../widgets/common/fw_app_bar.dart';
 import '../../widgets/common/fw_filter_pill.dart';
-import '../../widgets/onboarding/onboarding.dart';
 import '../investment_profile_screen.dart';
 import 'community_screen_v2.dart';
 import 'stock_detail_screen_v2.dart';
@@ -59,14 +57,20 @@ const List<String> _suggestions = [
 class ChatScreenV2 extends StatefulWidget {
   final String? initialTicker;
 
-  /// Khi mở từ luồng onboarding hợp nhất (sau tour app) → chạy thẳng tour chat
-  /// (không hiện welcome dialog), kết thúc thì đánh dấu đã xem hướng dẫn.
-  final bool runTourOnOpen;
+  /// Menu trái (dấu 3 gạch). Khác null = chat đang là MÀN CHÍNH nhúng trong
+  /// `RootShellV2`: AppBar hiện nút hamburger mở menu này (bỏ nút home).
+  /// Null = chat được push như màn con bình thường.
+  final Widget? menuDrawer;
+
+  /// Chuyển sang giao diện "Phân tích sâu" (các tab Trang chủ/Chiến lược/...).
+  /// Dùng cho nút thoát khi hết lượt hỏi miễn phí — khớp web.
+  final VoidCallback? onOpenDeepAnalysis;
 
   const ChatScreenV2({
     super.key,
     this.initialTicker,
-    this.runTourOnOpen = false,
+    this.menuDrawer,
+    this.onOpenDeepAnalysis,
   });
 
   @override
@@ -78,16 +82,8 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   final ScrollController _scroll = ScrollController();
   late final AuthRepository _authRepo = context.read<AuthRepository>();
 
-  // GlobalKeys cho tour hướng dẫn lần đầu (coach-mark spotlight).
-  final GlobalKey _kSuggest = GlobalKey();
-  final GlobalKey _kInput = GlobalKey();
-  final GlobalKey _kMode = GlobalKey();
-  final GlobalKey _kNewChat = GlobalKey();
-  final GlobalKey _kSchedule = GlobalKey();
-  final GlobalKey _kHistory = GlobalKey();
-
-  /// Đang chạy onboarding rồi → tránh kích hoạt lần hai.
-  bool _onboardingStarted = false;
+  /// Chat là màn chính của app (nhúng trong shell, có menu hamburger).
+  bool get _embedded => widget.menuDrawer != null;
 
   final List<ChatMessage> _messages = [];
   List<String> _validTickers = const [];
@@ -176,10 +172,6 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       ChatHistoryService.getValidTickers(token: _token).then((t) {
         if (mounted) _validTickers = t;
       });
-      // Tour chat CHỈ chạy khi đến từ luồng onboarding hợp nhất (sau tour app).
-      if (widget.runTourOnOpen) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _startChatTour());
-      }
     }
     if (widget.initialTicker != null) {
       _input.text = 'Phân tích ${widget.initialTicker}';
@@ -215,39 +207,6 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       if (mounted) setState(() => _loadingHistory = false);
       _scrollToBottom();
     }
-  }
-
-  /// Phần CHAT của luồng hướng dẫn hợp nhất: tour spotlight các nút chính của
-  /// màn Mr.Wealth. Vào thẳng (không welcome dialog) vì luồng app đã chào ở
-  /// bước trước. Kết thúc/bỏ qua → đánh dấu đã xem (cờ chung 1 lần/đời).
-  Future<void> _startChatTour() async {
-    if (_onboardingStarted || isGuest || !mounted) return;
-    _onboardingStarted = true;
-
-    // Đợi hết frame để chắc chắn các widget mục tiêu đã layout xong.
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-
-    final steps = <CoachStep>[
-      CoachStep(_kSuggest, '✨ Bắt đầu chỉ với 1 chạm',
-          'Chưa biết hỏi gì? Chạm một gợi ý để xem ngay Mr.Wealth làm được gì cho bạn.'),
-      CoachStep(_kInput, '💬 Hỏi bất cứ điều gì về đầu tư',
-          'Gõ câu hỏi như đang nhắn tin: "FPT có nên mua?", "Vĩ mô tuần này ra sao?". Mr.Wealth phân tích kèm số liệu — chờ vài chục giây để có câu trả lời chắc tay.'),
-      CoachStep(_kMode, '⚡ Chọn độ sâu phân tích',
-          'Flash trả lời nhanh cho câu hỏi thường ngày; Pro phân tích sâu hơn cho quyết định quan trọng.'),
-      CoachStep(_kNewChat, '🆕 Cuộc trò chuyện mới',
-          'Bắt đầu chủ đề mới để câu trả lời luôn tập trung và chất lượng.',
-          circle: true),
-      CoachStep(_kSchedule, '⏰ Để Mr.Wealth làm việc khi bạn bận',
-          'Đặt lịch hỏi định kỳ — ví dụ mỗi sáng tự gửi tóm tắt thị trường hay rà soát danh mục. Cơ hội & rủi ro tự tìm đến bạn.',
-          circle: true),
-      CoachStep(_kHistory, '🕑 Xem lại mọi hội thoại',
-          'Tất cả phân tích đều được lưu lại để bạn mở lại và đối chiếu bất cứ lúc nào.',
-          circle: true),
-    ];
-
-    runCoachMarks(context, steps,
-        onDone: (_) => OnboardingPrefs.markSeen(_username));
   }
 
   /// Lấy trạng thái hồ sơ để quyết định có nhắc bổ sung không.
@@ -910,6 +869,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
+      drawer: widget.menuDrawer,
       endDrawer: isGuest ? null : _buildConversationsDrawer(),
       onEndDrawerChanged: (open) {
         // Làm mới danh sách mỗi lần mở drawer (badge/bản tin mới).
@@ -922,24 +882,33 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
       appBar: FwAppBar(
         title: 'Mr.Wealth',
         subtitle: 'AI Cố vấn đầu tư',
+        // Chat là màn chính: hamburger thay cho back, giữ ô tìm cổ phiếu, bỏ
+        // nút home (chat chính là trang chủ).
+        showHome: !_embedded,
+        leading: _embedded
+            ? Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Menu',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
+                ),
+              )
+            : null,
         actions: [
           if (!isGuest && _scheduleEligible)
             IconButton(
-              key: _kSchedule,
               icon: const Icon(Icons.event_available_outlined),
               tooltip: 'Lịch hỏi tự động',
               color: AppColors.success,
               onPressed: _openScheduleSheet,
             ),
           IconButton(
-            key: _kNewChat,
             icon: const Icon(Icons.add_comment_outlined),
             tooltip: 'Cuộc trò chuyện mới',
             onPressed: isGuest ? null : _newConversation,
           ),
           Builder(
             builder: (ctx) => IconButton(
-              key: _kHistory,
               icon: _withBadge(
                   const Icon(Icons.history), _proactiveUnread + _communityUnread),
               tooltip: 'Lịch sử trò chuyện',
@@ -1031,6 +1000,22 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
             style: _Ts.bodyMedium.copyWith(color: AppColors.darkTextSecondary),
             textAlign: TextAlign.center,
           ),
+          if (isGuest) ...[
+            const SizedBox(height: AppSpacing.xl),
+            FilledButton.icon(
+              icon: const Icon(Icons.login, size: 18),
+              label: const Text('Đăng nhập'),
+              onPressed: () =>
+                  Navigator.of(context).pushReplacementNamed('/login-v2'),
+            ),
+            // Khách vẫn xem được dữ liệu thị trường như trước.
+            if (widget.onOpenDeepAnalysis != null)
+              TextButton.icon(
+                icon: const Icon(Icons.insights, size: 18),
+                label: const Text('Xem phân tích sâu'),
+                onPressed: widget.onOpenDeepAnalysis,
+              ),
+          ],
           if (!isGuest &&
               _profileComplete == false &&
               !_profilePromptDismissed) ...[
@@ -1040,7 +1025,6 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
           if (!isGuest) ...[
             const SizedBox(height: AppSpacing.xl),
             Wrap(
-              key: _kSuggest,
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               alignment: WrapAlignment.center,
@@ -1734,7 +1718,7 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
             if (!isGuest)
               Align(
                 alignment: Alignment.centerLeft,
-                child: KeyedSubtree(key: _kMode, child: _modeToggle()),
+                child: _modeToggle(),
               ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -1742,7 +1726,6 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
               children: [
                 Expanded(
                   child: TextField(
-                    key: _kInput,
                     controller: _input,
                     minLines: 1,
                     maxLines: 4,
@@ -1839,6 +1822,15 @@ class _ChatScreenV2State extends State<ChatScreenV2> {
               );
             },
           ),
+          // Hết lượt hỏi vẫn còn lối đi: sang "Phân tích sâu" (khớp web).
+          if (widget.onOpenDeepAnalysis != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.insights, size: 16),
+              label: const Text('Phân tích sâu'),
+              onPressed: widget.onOpenDeepAnalysis,
+            ),
+          ],
         ],
       );
     }
