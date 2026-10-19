@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import '../models/chat_models.dart';
 import 'chat_error.dart';
+import 'chat_sse.dart';
 
 /// Service cho phần Chat V3 — nói chuyện với Agent V2 backend (`/api/chat/...`).
 ///
@@ -62,21 +64,36 @@ class ChatHistoryService {
     // thông điệp thân thiện + quyết định resume/retry. `rethrow` giữ nguyên nếu
     // đã là ChatError (không bọc chồng).
     try {
-      final response = await _dio.post(
-        '/api/chat/send/',
-        data: {
-          'query': message,
-          'conversation_id': conversationId,
-          'mode': mode.wire,
-          'inputs': inputs ?? const {},
-          'source': 'mobile',
-        },
-        options: _opts(token: token, responseType: ResponseType.stream),
-      );
+      final payload = {
+        'query': message,
+        'conversation_id': conversationId,
+        'mode': mode.wire,
+        'inputs': inputs ?? const {},
+        'source': 'mobile',
+      };
 
-      final stream = (response.data.stream as Stream)
-          .cast<List<int>>()
-          .transform(utf8.decoder);
+      // Web: Dio (XHR) không stream được và trần 45s → dùng fetch (xem chat_sse.dart).
+      final Stream<List<int>> bytes;
+      if (kIsWeb) {
+        bytes = postSseStream(
+          url: '${ApiConfig.baseUrl}/api/chat/send/',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(payload),
+          idleTimeout: _dio.options.receiveTimeout!,
+        );
+      } else {
+        final response = await _dio.post(
+          '/api/chat/send/',
+          data: payload,
+          options: _opts(token: token, responseType: ResponseType.stream),
+        );
+        bytes = (response.data.stream as Stream).cast<List<int>>();
+      }
+      final stream = bytes.transform(utf8.decoder);
 
       final partial = StringBuffer();
 

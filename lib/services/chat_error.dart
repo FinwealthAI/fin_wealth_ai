@@ -39,6 +39,49 @@ class ChatError implements Exception {
 
   const ChatError(this.type, this.message, {this.detail});
 
+  static const String _msgTimeout =
+      'Máy chủ phản hồi chậm. Câu trả lời có thể vẫn đang được xử lý — '
+      'thử lại sau giây lát.';
+  static const String _msgNoNetwork =
+      'Không có kết nối mạng. Kiểm tra Wi-Fi hoặc dữ liệu di động rồi thử lại.';
+
+  factory ChatError.timeout() =>
+      const ChatError(ChatErrorType.timeout, _msgTimeout);
+
+  factory ChatError.noNetwork({String? detail}) =>
+      ChatError(ChatErrorType.noNetwork, _msgNoNetwork, detail: detail);
+
+  /// Map từ mã HTTP lỗi. [serverDetail] = `detail` trong body (chỉ dùng cho 403).
+  factory ChatError.fromStatus(int code, {String? serverDetail}) {
+    if (code == 403) {
+      return ChatError(
+        ChatErrorType.forbidden,
+        serverDetail ?? 'Bạn chưa đủ điểm Wealth để sử dụng Trợ lý AI.',
+        detail: 'HTTP 403',
+      );
+    }
+    if (code == 429) {
+      return const ChatError(
+        ChatErrorType.tooManyRequests,
+        'Bạn đang có một cuộc hội thoại khác đang xử lý. '
+        'Vui lòng đợi xong rồi thử lại.',
+        detail: 'HTTP 429',
+      );
+    }
+    if (code >= 500) {
+      return ChatError(
+        ChatErrorType.serverBusy,
+        'Máy chủ đang bận. Vui lòng thử lại sau giây lát.',
+        detail: 'HTTP $code',
+      );
+    }
+    return ChatError(
+      ChatErrorType.unknown,
+      'Có lỗi xảy ra khi gửi tin nhắn. Vui lòng thử lại.',
+      detail: 'HTTP $code',
+    );
+  }
+
   /// Có nên hiện nút "Thử lại" không. Lỗi gate điểm (403) không retry được.
   bool get canRetry => type != ChatErrorType.forbidden;
 
@@ -60,47 +103,12 @@ class ChatError implements Exception {
         case DioExceptionType.receiveTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.transformTimeout:
-          return const ChatError(
-            ChatErrorType.timeout,
-            'Máy chủ phản hồi chậm. Câu trả lời có thể vẫn đang được xử lý — '
-            'thử lại sau giây lát.',
-          );
+          return ChatError.timeout();
         case DioExceptionType.connectionError:
-          return ChatError(
-            ChatErrorType.noNetwork,
-            'Không có kết nối mạng. Kiểm tra Wi-Fi hoặc dữ liệu di động rồi thử lại.',
-            detail: e.message,
-          );
+          return ChatError.noNetwork(detail: e.message);
         case DioExceptionType.badResponse:
-          final code = e.response?.statusCode ?? 0;
-          if (code == 403) {
-            return ChatError(
-              ChatErrorType.forbidden,
-              _detailOr(e,
-                  'Bạn chưa đủ điểm Wealth để sử dụng Trợ lý AI.'),
-              detail: 'HTTP 403',
-            );
-          }
-          if (code == 429) {
-            return const ChatError(
-              ChatErrorType.tooManyRequests,
-              'Bạn đang có một cuộc hội thoại khác đang xử lý. '
-              'Vui lòng đợi xong rồi thử lại.',
-              detail: 'HTTP 429',
-            );
-          }
-          if (code >= 500) {
-            return ChatError(
-              ChatErrorType.serverBusy,
-              'Máy chủ đang bận. Vui lòng thử lại sau giây lát.',
-              detail: 'HTTP $code',
-            );
-          }
-          return ChatError(
-            ChatErrorType.unknown,
-            'Có lỗi xảy ra khi gửi tin nhắn. Vui lòng thử lại.',
-            detail: 'HTTP $code',
-          );
+          return ChatError.fromStatus(e.response?.statusCode ?? 0,
+              serverDetail: _serverDetail(e));
         case DioExceptionType.cancel:
           // Người dùng chủ động dừng — không phải lỗi thực sự.
           return const ChatError(
@@ -111,11 +119,7 @@ class ChatError implements Exception {
         case DioExceptionType.unknown:
         case DioExceptionType.badCertificate:
           if (e.error is SocketException) {
-            return ChatError(
-              ChatErrorType.noNetwork,
-              'Không có kết nối mạng. Kiểm tra Wi-Fi hoặc dữ liệu di động rồi thử lại.',
-              detail: e.message,
-            );
+            return ChatError.noNetwork(detail: e.message);
           }
           return ChatError(
             ChatErrorType.unknown,
@@ -125,12 +129,7 @@ class ChatError implements Exception {
       }
     }
 
-    if (e is SocketException) {
-      return const ChatError(
-        ChatErrorType.noNetwork,
-        'Không có kết nối mạng. Kiểm tra Wi-Fi hoặc dữ liệu di động rồi thử lại.',
-      );
-    }
+    if (e is SocketException) return ChatError.noNetwork();
 
     return ChatError(
       ChatErrorType.unknown,
@@ -140,8 +139,8 @@ class ChatError implements Exception {
   }
 
   /// Lấy `detail` từ body 403 nếu Dio đã gom sẵn thành Map/String; nếu là
-  /// stream (ResponseType.stream) thì không đọc được ở đây → dùng [fallback].
-  static String _detailOr(DioException e, String fallback) {
+  /// stream (ResponseType.stream) thì không đọc được ở đây → null (dùng mặc định).
+  static String? _serverDetail(DioException e) {
     final data = e.response?.data;
     if (data is Map && data['detail'] is String) {
       return data['detail'] as String;
@@ -149,7 +148,7 @@ class ChatError implements Exception {
     if (data is String && data.isNotEmpty && data.length < 300) {
       return data;
     }
-    return fallback;
+    return null;
   }
 
   @override

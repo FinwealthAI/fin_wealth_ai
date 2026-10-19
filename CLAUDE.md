@@ -78,6 +78,8 @@ Mobile đã code lại phần chat thành **V3** bám pipeline Agent V2 (class v
 - `lib/services/chat_history_service.dart` — `streamMessage()` trả `Stream<Map>` đã decode từng event SSE (kèm sentinel `{type:'__done__'}`); thêm `getValidTickers()` (cache), `listConversations()`, `renameConversation()`, `deleteConversation()`.
 - `lib/models/chat_models.dart` — `ChatMode` (flash/pro), `AgentStep` + `AgentStepStatus`, `ClassifyEvent`, `ChatConversationSummary`, `ChatMessage` (steps/classify/mode/ticker/rating/isStreaming), `ChatFeedback`.
 
+- `lib/services/chat_sse*.dart` — **chỉ cho web** (`kIsWeb`): Dio trên web chạy bằng `XMLHttpRequest` nên KHÔNG stream được và có trần timeout tổng 45s (heartbeat không gia hạn) → `streamMessage()` dùng `fetch` + `ReadableStream` thay Dio. Native vẫn dùng Dio `ResponseType.stream`. Đừng đưa SSE về lại Dio trên web.
+
 Dependency thêm: `markdown` (để custom `MarkdownElementBuilder` cho bảng).
 
 Endpoint (đều dưới `{baseUrl}/api/chat/`): `send/` (POST, SSE stream), `stop/`, `feedback/`, `conversations/`, `conversations[/<id>]/messages/`, `conversations[/<id>]/rename/`, `conversations[/<id>]/delete/`, `valid-tickers/`, `effort-levels/` (GET → `{pro_mode_enabled, levels[{key,label,tag,description,restricted,allowed}]}`; mode gửi lên là `flash`/`pro`/`max`).
