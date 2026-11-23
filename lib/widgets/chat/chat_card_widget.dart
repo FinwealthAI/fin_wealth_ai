@@ -397,27 +397,23 @@ class _MarketCard extends StatelessWidget {
   final Map<String, dynamic> d;
   const _MarketCard({required this.d});
 
-  static const _regLbl = {
-    'bullish': 'Tăng trưởng',
-    'sideways': 'Đi ngang',
-    'bearish': 'Suy yếu',
-    'volatile': 'Biến động',
+  // Thẻ thị trường = tỷ trọng cổ phiếu gợi ý theo ĐỘ RỘNG + dữ kiện (khớp `agent/cards.py::build_market_card`). Bốn điểm
+  // Kỹ thuật/Độ rộng/Định giá/Mr. Wealth cũ đã gỡ 23/11/2026 (đo lại trên production không đạt; điểm AI chấm ngược).
+  static const _regCol = {
+    'bullish': Color(0xFF10B981),
+    'sideways': Color(0xFFF59E0B),
+    'bearish': Color(0xFFEF4444),
+    'volatile': Color(0xFFF59E0B),
   };
-
-  Color _scoreColor(num s) => s >= 65
-      ? const Color(0xFF10B981)
-      : s >= 50
-          ? const Color(0xFF3B82F6)
-          : s >= 35
-              ? const Color(0xFFF59E0B)
-              : const Color(0xFFEF4444);
 
   @override
   Widget build(BuildContext context) {
-    final score = _num(d['final_score']) ?? 50;
-    final col = _scoreColor(score);
-    final reg = _regLbl[d['tech_regime']?.toString()] ??
-        (d['tech_regime']?.toString() ?? '—');
+    final score = _num(d['final_score']);
+    final col = _regCol[d['regime']?.toString()] ?? AppColors.darkTextMuted;
+    final label = d['label']?.toString() ?? '—';
+    final breadth = _num(d['breadth_score']);
+    final pe = _num(d['median_pe']);
+    final vni = _num(d['vnindex']);
 
     return Container(
       margin: _cardMargin,
@@ -426,7 +422,7 @@ class _MarketCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle('Góc nhìn thị trường'),
+          _cardTitle('Tỷ trọng cổ phiếu gợi ý'),
           const SizedBox(height: AppSpacing.sm),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -439,13 +435,13 @@ class _MarketCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                   border: Border.all(color: col.withValues(alpha: 0.27)),
                 ),
-                child: Text(reg,
+                child: Text(label,
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
                         color: col)),
               ),
-              Text(score.toStringAsFixed(1),
+              Text(score != null ? '${score.round()}%' : '--',
                   style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -456,7 +452,7 @@ class _MarketCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: (score / 100).clamp(0, 1).toDouble(),
+              value: ((score ?? 0) / 100).clamp(0, 1).toDouble(),
               minHeight: 8,
               backgroundColor: Colors.white.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation(col),
@@ -465,25 +461,11 @@ class _MarketCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              Expanded(
-                  child: _comp('⚙️ Kỹ thuật', _num(d['tech_score']),
-                      const Color(0xFF3B82F6))),
+              Expanded(child: _fact('VNINDEX', vni != null ? vni.toStringAsFixed(2) : '--')),
               const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                  child: _comp('📊 Độ rộng', _num(d['breadth_score']),
-                      const Color(0xFF10B981))),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                  child: _comp('💰 Định giá', _num(d['val_score']),
-                      const Color(0xFFF97316))),
+              Expanded(child: _fact('Trên MA20', breadth != null ? '${breadth.round()}%' : '--')),
               const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                  child: _comp('🤖 Mr. Wealth', _num(d['ai_score']),
-                      const Color(0xFFA855F7))),
+              Expanded(child: _fact('P/E trung vị', pe != null ? '${pe.toStringAsFixed(1)}x' : '--')),
             ],
           ),
         ],
@@ -491,7 +473,7 @@ class _MarketCard extends StatelessWidget {
     );
   }
 
-  Widget _comp(String label, num? val, Color color) {
+  Widget _fact(String label, String value) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
@@ -508,19 +490,11 @@ class _MarketCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: AppColors.darkTextMuted)),
           const SizedBox(height: 4),
-          Text(val != null ? val.toStringAsFixed(1) : '--',
-              style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w900, color: color)),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: ((val ?? 0) / 100).clamp(0, 1).toDouble(),
-              minHeight: 4,
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.darkTextPrimary)),
         ],
       ),
     );

@@ -116,43 +116,42 @@ class _MarketEvaluationScreenV2State extends State<MarketEvaluationScreenV2> {
             _load();
           },
         ),
-        const SizedBox(height: 16),
-        _ScoresBreakdownCard(snapshot: s),
+        if (s.marketBreadth != null) ...[
+          const SizedBox(height: 16),
+          _BreadthGroupsCard(state: s.marketBreadth!, exposurePct: s.finalScore),
+        ],
         const SizedBox(height: 16),
         _VnindexCard(snapshot: s),
         const SizedBox(height: 16),
         _MacroBreadthCard(snapshot: s),
-        const SizedBox(height: 16),
-        _AiSentimentCard(sentiment: s.aiSentiment),
       ],
     );
   }
 }
 
-// ── Score tổng hợp ────────────────────────────────────────────────────────────
+// ── Tỷ trọng cổ phiếu gợi ý (mô hình độ rộng) ─────────────────────────────────
+// Trước 23/11/2026 thẻ này đọc `final_score` như điểm /100 với vùng 35/50/65 («Tốt/Khá/Thận trọng/Xấu») của điểm tổng
+// hợp cũ; từ 09/11 nó là tỷ trọng cổ phiếu gợi ý theo độ rộng (lưới 1/6) — nhãn lấy từ server (`label`).
+
+Color _regimeColor(String regime) {
+  switch (regime) {
+    case 'bullish':
+      return AppColors.successDark;
+    case 'bearish':
+      return AppColors.dangerDark;
+    default:
+      return AppColors.warningDark;
+  }
+}
 
 class _ScoreCard extends StatelessWidget {
   final MarketEvaluation snapshot;
   const _ScoreCard({required this.snapshot});
 
-  Color _scoreColor(double s) {
-    if (s >= 65) return AppColors.successDark;
-    if (s >= 50) return AppColors.brandPrimaryDark;
-    if (s >= 35) return AppColors.warningDark;
-    return AppColors.dangerDark;
-  }
-
-  String _zoneLabel(double s) {
-    if (s >= 65) return 'Tốt';
-    if (s >= 50) return 'Khá';
-    if (s >= 35) return 'Thận trọng';
-    return 'Xấu';
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = snapshot.finalScore;
-    final color = _scoreColor(s);
+    final color = _regimeColor(snapshot.regime);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -163,45 +162,46 @@ class _ScoreCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text('Tỷ trọng cổ phiếu gợi ý',
+              style: TextStyle(
+                  color: AppColors.darkTextSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                s.toStringAsFixed(1),
+                '${s.round()}%',
                 style: TextStyle(
                     color: color, fontSize: 36, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: 4),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 5),
-                child: Text('/100',
-                    style: TextStyle(
-                        color: AppColors.darkTextMuted, fontSize: 13)),
-              ),
               const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: color.withValues(alpha: 0.4)),
+              if (snapshot.label.isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: color.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(snapshot.label,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
                 ),
-                child: Text(_zoneLabel(s),
-                    style: TextStyle(
-                        color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-              ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            snapshot.label,
-            style: const TextStyle(
-                color: AppColors.darkTextPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600),
+          const Text(
+            'Phần tài sản nên để ở cổ phiếu, tính từ độ rộng thị trường (số đông cổ phiếu khoẻ hay yếu). '
+            'Tín hiệu quản trị rủi ro chung, không dự báo một mã.',
+            style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12, height: 1.4),
           ),
           if (snapshot.snapshotUpdatedAt.isNotEmpty)
-            Text(snapshot.snapshotUpdatedAt,
+            Text('Cập nhật ${snapshot.snapshotUpdatedAt}',
                 style: const TextStyle(
                     color: AppColors.darkTextMuted, fontSize: 11)),
           const SizedBox(height: 14),
@@ -216,11 +216,11 @@ class _ZoneGaugeBar extends StatelessWidget {
   final double score;
   const _ZoneGaugeBar({required this.score});
 
+  // Ranh của mô hình độ rộng: ≤ 1/3 độ rộng yếu (chặn mua), giữa = vào từng phần, ≥ 2/3 mạnh.
   static const _zones = [
-    (end: 35.0, color: AppColors.dangerDark,       label: 'Xấu'),
-    (end: 50.0, color: AppColors.warningDark,      label: 'Thận trọng'),
-    (end: 65.0, color: AppColors.brandPrimaryDark, label: 'Khá'),
-    (end: 100.0, color: AppColors.successDark,     label: 'Tốt'),
+    (end: 33.3, color: AppColors.dangerDark,  label: 'Độ rộng yếu'),
+    (end: 66.7, color: AppColors.warningDark, label: 'Trung tính'),
+    (end: 100.0, color: AppColors.successDark, label: 'Độ rộng mạnh'),
   ];
 
   @override
@@ -243,7 +243,7 @@ class _ZoneGaugeBar extends StatelessWidget {
                   children: [
                     for (int i = 0; i < _zones.length; i++) ...[
                       Flexible(
-                        flex: (i == 0 ? 35 : i == 1 ? 15 : i == 2 ? 15 : 35),
+                        flex: (i == 1 ? 34 : 33),
                         child: Container(
                           height: 12,
                           color: _zones[i].color.withValues(alpha: 0.35),
@@ -281,13 +281,13 @@ class _ZoneGaugeBar extends StatelessWidget {
           Stack(
             children: [
               SizedBox(height: 14, width: w),
-              for (final milestone in [0, 35, 50, 65, 100])
+              for (final milestone in [0, 33, 50, 67, 100])
                 Positioned(
                   left: (milestone / 100 * w).clamp(0, w - 1),
                   child: Transform.translate(
-                    offset: Offset(milestone == 0 ? 0 : milestone == 100 ? -20 : -10, 0),
+                    offset: Offset(milestone == 0 ? 0 : milestone == 100 ? -26 : -12, 0),
                     child: Text(
-                      '$milestone',
+                      '$milestone%',
                       style: TextStyle(
                         fontSize: 9,
                         color: _labelColor(milestone.toDouble()),
@@ -326,9 +326,8 @@ class _ZoneGaugeBar extends StatelessWidget {
   }
 
   Color _labelColor(double v) {
-    if (v >= 65) return AppColors.successDark;
-    if (v >= 50) return AppColors.brandPrimaryDark;
-    if (v >= 35) return AppColors.warningDark;
+    if (v >= 66.7) return AppColors.successDark;
+    if (v > 33.3) return AppColors.warningDark;
     return AppColors.dangerDark;
   }
 }
@@ -351,19 +350,23 @@ class _TrianglePainter extends CustomPainter {
 
 // ── Breakdown 5 điểm thành phần ───────────────────────────────────────────────
 
-class _ScoresBreakdownCard extends StatelessWidget {
-  final MarketEvaluation snapshot;
-  const _ScoresBreakdownCard({required this.snapshot});
+/// Ba nhóm chỉ báo độ rộng — CHÍNH thứ quyết định tỷ trọng gợi ý (cùng thẻ trên web). Thay thẻ «Điểm thành phần»
+/// (Kỹ thuật/Độ rộng/Định giá/Ngắn hạn/Dài hạn) đã gỡ 23/11/2026.
+class _BreadthGroupsCard extends StatelessWidget {
+  final MarketBreadthState state;
+  final double exposurePct;
+  const _BreadthGroupsCard({required this.state, required this.exposurePct});
+
+  Color _c(double score) => score >= 1
+      ? AppColors.successDark
+      : score <= 0
+          ? AppColors.dangerDark
+          : AppColors.warningDark;
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      ('Kỹ thuật', snapshot.techScore, AppColors.brandPrimaryDark),
-      ('Độ rộng', snapshot.breadthScore, AppColors.successDark),
-      ('Định giá', snapshot.valScore, AppColors.warningDark),
-      ('Ngắn hạn', snapshot.shortTermScore, AppColors.brandSecondaryDark),
-      ('Dài hạn', snapshot.longTermScore, AppColors.goldenAccent),
-    ];
+    final raw = state.exposureRawPct?.round();
+    final cur = exposurePct.round();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -374,58 +377,66 @@ class _ScoresBreakdownCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Điểm thành phần',
+          const Text('Ba nhóm chỉ báo độ rộng',
               style: TextStyle(
                   color: AppColors.darkTextPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          const Text('Mỗi nhóm khoẻ cộng 1/3 tỷ trọng gợi ý.',
+              style: TextStyle(color: AppColors.darkTextMuted, fontSize: 12)),
           const SizedBox(height: 12),
-          ...items.map((e) => _ScoreBar(label: e.$1, value: e.$2, color: e.$3)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScoreBar extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-  const _ScoreBar(
-      {required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 72,
-            child: Text(label,
-                style: const TextStyle(
-                    color: AppColors.darkTextSecondary, fontSize: 13)),
-          ),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: value / 100,
-                minHeight: 8,
-                backgroundColor: AppColors.darkBorder,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
+          for (final g in state.groups) ...[
+            Row(children: [
+              Expanded(
+                child: Text(g.label,
+                    style: const TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 36,
-            child: Text(
-              value.toStringAsFixed(1),
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _c(g.score).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(g.status,
+                    style: TextStyle(
+                        color: _c(g.score),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            for (final ind in g.indicators)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 2),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(ind.label,
+                        style: const TextStyle(
+                            color: AppColors.darkTextSecondary, fontSize: 12)),
+                  ),
+                  Text(
+                    ind.healthy == null ? '—' : (ind.healthy! ? 'khoẻ' : 'yếu'),
+                    style: TextStyle(
+                      color: ind.healthy == null
+                          ? AppColors.darkTextMuted
+                          : (ind.healthy! ? AppColors.successDark : AppColors.dangerDark),
+                      fontSize: 12,
+                    ),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 10),
+          ],
+          Text(
+            '${state.provisional ? 'Tạm tính trong phiên · ' : ''}'
+            '${raw != null ? 'Tín hiệu thô $raw% · ' : ''}tỷ trọng gợi ý $cur%'
+            '${raw != null && raw != cur ? ' (giữ mức cũ vì tín hiệu chưa lệch đủ 1/3 — tránh mua bán qua lại)' : ''}.',
+            style: const TextStyle(
+                color: AppColors.darkTextMuted, fontSize: 11, height: 1.4),
           ),
         ],
       ),
@@ -632,120 +643,6 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
-// ── AI Sentiment ──────────────────────────────────────────────────────────────
-
-class _AiSentimentCard extends StatelessWidget {
-  final AiSentiment sentiment;
-  const _AiSentimentCard({required this.sentiment});
-
-  Color _sentColor(String color) {
-    switch (color) {
-      case 'positive':
-        return AppColors.successDark;
-      case 'negative':
-        return AppColors.dangerDark;
-      case 'caution':
-        return AppColors.warningDark;
-      default:
-        return AppColors.darkTextMuted;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.darkSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: AppColors.brandPrimary.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.auto_awesome,
-                color: AppColors.brandPrimaryDark, size: 18),
-            const SizedBox(width: 8),
-            const Text('AI Sentiment',
-                style: TextStyle(
-                    color: AppColors.darkTextPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Text(
-              '${sentiment.score.toStringAsFixed(0)}/100',
-              style: const TextStyle(
-                  color: AppColors.brandPrimaryDark,
-                  fontWeight: FontWeight.bold),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: _SentimentLabel(
-                  'Ngắn hạn',
-                  sentiment.shortTerm.label,
-                  _sentColor(sentiment.shortTerm.color)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _SentimentLabel(
-                  'Dài hạn',
-                  sentiment.longTerm.label,
-                  _sentColor(sentiment.longTerm.color)),
-            ),
-          ]),
-          if (sentiment.summary.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              sentiment.summary,
-              style: const TextStyle(
-                  color: AppColors.darkTextSecondary,
-                  fontSize: 13,
-                  height: 1.5),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SentimentLabel extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _SentimentLabel(this.label, this.value, this.color);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: AppColors.darkTextMuted, fontSize: 11)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-}
-
 // ── History Chart ─────────────────────────────────────────────────────────────
 
 class _HistorySection extends StatelessWidget {
@@ -772,7 +669,7 @@ class _HistorySection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('Lịch sử điểm',
+            const Text('Lịch sử tỷ trọng gợi ý',
                 style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 15,
@@ -820,7 +717,7 @@ class _HistorySection extends StatelessWidget {
             SizedBox(height: 240, child: _CombinedChart(history: history)),
           const SizedBox(height: 8),
           const Row(children: [
-            _LegendDot(AppColors.brandPrimaryDark, 'Điểm tổng hợp'),
+            _LegendDot(AppColors.brandPrimaryDark, 'Tỷ trọng gợi ý'),
             SizedBox(width: 16),
             _LegendDot(AppColors.successDark, 'VNINDEX'),
           ]),
@@ -937,7 +834,7 @@ class _CombinedChart extends StatelessWidget {
             getTooltipItems: (spots) => spots.map((s) {
               if (s.barIndex == 0) {
                 return LineTooltipItem(
-                  'Điểm: ${s.y.toStringAsFixed(1)}',
+                  'Tỷ trọng gợi ý: ${s.y.round()}%',
                   const TextStyle(color: AppColors.brandPrimaryDark, fontSize: 11, fontWeight: FontWeight.w600),
                 );
               } else {

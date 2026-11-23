@@ -12,6 +12,9 @@ class ProfileBar extends StatelessWidget {
   final int? daysLeft;
   final String? expirationDate;
   final bool lowPointsWarning;
+
+  /// Tài khoản ở hạng cao nhất: hiện tên gói thay cho ngày hết hạn + nút nâng cấp.
+  final String? planLabel;
   final VoidCallback? onUpgradeTap;
 
   const ProfileBar({
@@ -24,6 +27,7 @@ class ProfileBar extends StatelessWidget {
     this.daysLeft,
     this.expirationDate,
     this.lowPointsWarning = false,
+    this.planLabel,
     this.onUpgradeTap,
   });
 
@@ -68,7 +72,26 @@ class ProfileBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Chào, $userName 👋', style: text.titleMedium),
-                if (daysLeft != null)
+                if (planLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.workspace_premium,
+                            size: 12, color: AppColors.brandPrimaryDark),
+                        const SizedBox(width: 4),
+                        Text(
+                          planLabel!,
+                          style: text.labelSmall?.copyWith(
+                            color: AppColors.brandPrimaryDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (daysLeft != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2, bottom: 4),
                     child: Row(

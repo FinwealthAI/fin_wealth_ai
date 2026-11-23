@@ -90,7 +90,7 @@ class HomeScreenV2State extends State<HomeScreenV2>
         _dash = dash;
         _loading = false;
         _err = null;
-        _lowPointsWarning = _authRepo.accessToken != null && dash.totalPoints < kLowPointsThreshold;
+        _lowPointsWarning = _authRepo.lowPointsWarning;
       });
     } catch (e) {
       if (!mounted) return;
@@ -159,6 +159,9 @@ class HomeScreenV2State extends State<HomeScreenV2>
         daysLeft: _authRepo.accessToken != null ? _authRepo.totalPoints : null,
         expirationDate: _authRepo.expirationDate,
         lowPointsWarning: _lowPointsWarning,
+        planLabel: _authRepo.accessToken != null && _authRepo.isHighestPlan
+            ? 'Gói ${_authRepo.planLabel ?? 'Tối đa'} · cao nhất'
+            : null,
         hasUnreadNotification: false,
         onAvatarTap: () => RootShellNav.goMore(),
         onSearchTap: _openSearch,

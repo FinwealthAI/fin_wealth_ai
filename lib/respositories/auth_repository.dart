@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
@@ -17,8 +19,13 @@ class AuthRepository {
   String? _expirationDate;
   String? _email;
   String? _phone;
-  bool _lowPointsWarning = false;
   String? _upgradeUrl;
+
+  /// Gói tài khoản do SERVER quyết (`plan` của account-status — nguồn duy nhất là
+  /// `bot_user/services/account_plan.py`). null = server chưa trả `plan` (backend cũ)
+  /// → suy từ điểm như trước. Đừng tự so điểm ở UI: tài khoản mức Tối đa là hạng cao
+  /// nhất dù điểm thấp, so điểm là mời nâng cấp nhầm.
+  Map<String, dynamic>? _plan;
 
   final _logoutController = StreamController<void>.broadcast();
   Stream<void> get onLogout => _logoutController.stream;
@@ -33,8 +40,29 @@ class AuthRepository {
   String? get expirationDate => _expirationDate;
   String? get email => _email;
   String? get phone => _phone;
-  bool get lowPointsWarning => _lowPointsWarning;
   String? get upgradeUrl => _upgradeUrl;
+
+  /// Đang ở hạng cao nhất (mức Tối đa) — không còn gì để nâng, điểm/ngày hết hạn vô nghĩa.
+  bool get isHighestPlan => _plan?['is_highest'] == true;
+
+  /// Tên gói ('Miễn phí' / 'PRO' / 'Tối đa'); null khi chưa biết.
+  String? get planLabel => _plan?['label'] as String?;
+
+  /// Còn mời nâng cấp không (mục "Nâng cấp tài khoản").
+  bool get canUpgrade =>
+      _accessToken == null || (_plan?['can_upgrade'] as bool? ?? true);
+
+  /// Nhắc nổi bật "Nâng cấp" cạnh ngày hết hạn.
+  bool get lowPointsWarning {
+    if (_accessToken == null) return false;
+    final fromServer = _plan?['low_points_warning'];
+    if (fromServer is bool) return fromServer;
+    return _totalPoints < kLowPointsThreshold;
+  }
+
+  void _applyPlan(dynamic plan) {
+    if (plan is Map) _plan = Map<String, dynamic>.from(plan);
+  }
 
   AuthRepository({required this.dio, String? baseUrl}) : baseUrl = baseUrl ?? ApiConfig.mobileApi {
     // Cấu hình mặc định + interceptor JWT
@@ -153,7 +181,14 @@ class AuthRepository {
     _email = prefs.getString('email');
     _phone = prefs.getString('phone');
     _upgradeUrl = prefs.getString('upgrade_url');
-    
+    final planJson = prefs.getString('account_plan');
+    _plan = null;
+    if (planJson != null) {
+      try {
+        _applyPlan(jsonDecode(planJson));
+      } catch (_) {}
+    }
+
     // Set authorization header if token exists
     if (_accessToken != null && _accessToken!.isNotEmpty) {
       dio.options.headers['Authorization'] = 'Bearer $_accessToken';
@@ -211,6 +246,12 @@ class AuthRepository {
     } else {
       await prefs.remove('upgrade_url');
     }
+
+    if (_plan != null) {
+      await prefs.setString('account_plan', jsonEncode(_plan));
+    } else {
+      await prefs.remove('account_plan');
+    }
   }
 
   /// Đăng nhập bằng JWT.
@@ -238,7 +279,6 @@ class AuthRepository {
       await _saveTokens();
 
       final upgradeRelative = response.data['upgrade_url'] as String? ?? '';
-      _lowPointsWarning = response.data['low_points_warning'] == true;
       _upgradeUrl = upgradeRelative.isNotEmpty
           ? '${ApiConfig.websiteUrl}$upgradeRelative'
           : null;
@@ -250,7 +290,6 @@ class AuthRepository {
         'expiration_date': response.data['expiration_date']?.toString(),
         'email': response.data['email']?.toString(),
         'phone': response.data['phone']?.toString(),
-        'low_points_warning': _lowPointsWarning,
         'upgrade_url': _upgradeUrl,
       };
 
@@ -260,7 +299,9 @@ class AuthRepository {
       _expirationDate = user['expiration_date'];
       _email = user['email'];
       _phone = user['phone'];
+      _plan = null; // tài khoản khác — gói của phiên trước không còn đúng
       await _saveTokens();
+      await refreshAccountStatus();
 
       return user;
     }
@@ -285,6 +326,8 @@ class AuthRepository {
         final data = response.data as Map<String, dynamic>;
         final points = data['total_points'] as int?;
         if (points != null) _totalPoints = points;
+        _applyPlan(data['plan']);
+        await _saveTokens();
       }
     } catch (_) {
       // Lỗi mạng → im lặng
@@ -338,6 +381,7 @@ class AuthRepository {
         _upgradeUrl = upgradeRelative.isNotEmpty
             ? '${ApiConfig.websiteUrl}$upgradeRelative'
             : null;
+        _applyPlan(data['plan']);
         await _saveTokens();
 
         return {'username': _username ?? 'User'};
@@ -361,6 +405,7 @@ class AuthRepository {
     _expirationDate = null;
     _email = null;
     _phone = null;
+    _plan = null;
     await _saveTokens(); // Clear from storage
     dio.options.headers.remove('Authorization');
     _logoutController.add(null);
@@ -434,7 +479,9 @@ class AuthRepository {
       _username = user['username'];
       _totalPoints = user['point'] ?? 0;
       _avatar = user['avatar'];
+      _plan = null;
       await _saveTokens();
+      await refreshAccountStatus();
 
       return user;
     }
@@ -602,9 +649,11 @@ class AuthRepository {
       _username = user['username'];
       _totalPoints = user['point'] ?? 0;
       _avatar = user['avatar'];
+      _plan = null;
 
       // Save tokens
       await _saveTokens();
+      await refreshAccountStatus();
 
       return user;
     }

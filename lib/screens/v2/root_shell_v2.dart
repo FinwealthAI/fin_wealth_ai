@@ -6,7 +6,6 @@ import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_state.dart';
 import '../../respositories/auth_repository.dart';
 import 'upgrade_screen_v2.dart';
-import '../../config/api_config.dart' show kLowPointsThreshold;
 import '../../theme/theme.dart';
 import 'blog_screen_v2.dart';
 import 'chat_screen_v2.dart';
@@ -332,7 +331,7 @@ class _ShellMenuDrawer extends StatelessWidget {
     final isGuest = authRepo.accessToken == null;
     final username = authRepo.username ?? 'Khách';
     final expiration = authRepo.expirationDate;
-    final lowPoints = !isGuest && authRepo.totalPoints < kLowPointsThreshold;
+    final lowPoints = authRepo.lowPointsWarning;
     final text = Theme.of(context).textTheme;
 
     return Drawer(
@@ -364,7 +363,13 @@ class _ShellMenuDrawer extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: text.titleMedium),
-                        if (!isGuest && expiration != null)
+                        if (!isGuest && authRepo.isHighestPlan)
+                          Text(
+                            'Gói ${authRepo.planLabel ?? 'Tối đa'} · cao nhất',
+                            style: text.labelSmall
+                                ?.copyWith(color: AppColors.brandPrimaryDark),
+                          )
+                        else if (!isGuest && expiration != null)
                           Text(
                             'Hết hạn: $expiration',
                             style: text.labelSmall?.copyWith(
@@ -430,11 +435,14 @@ class _ShellMenuDrawer extends StatelessWidget {
                 title: const Text('Thông báo'),
                 onTap: () => _push(context, const NotificationsScreenV2()),
               ),
-              ListTile(
-                leading: const Icon(Icons.workspace_premium_outlined),
-                title: const Text('Nâng cấp tài khoản'),
-                onTap: () => _push(context, const UpgradeScreenV2()),
-              ),
+              // Hạng do server quyết (`AuthRepository.canUpgrade`) — tài khoản ở
+              // hạng cao nhất không thấy lời mời nâng cấp.
+              if (authRepo.canUpgrade)
+                ListTile(
+                  leading: const Icon(Icons.workspace_premium_outlined),
+                  title: const Text('Nâng cấp tài khoản'),
+                  onTap: () => _push(context, const UpgradeScreenV2()),
+                ),
             ],
             // Chỉ bản web (m.finwealth.vn) chưa cài. Drawer giữ nguyên để hộp
             // hướng dẫn bật lên trên nó (đóng drawer trước thì context này mất).
@@ -537,7 +545,10 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                     avatarUrl: avatarUrl,
                     daysLeft: isGuest ? null : totalPoints,
                     expirationDate: isGuest ? null : expirationDate,
-                    lowPointsWarning: !isGuest && totalPoints < kLowPointsThreshold,
+                    lowPointsWarning: authRepo.lowPointsWarning,
+                    planLabel: !isGuest && authRepo.isHighestPlan
+                        ? 'Gói ${authRepo.planLabel ?? 'Tối đa'} · cao nhất'
+                        : null,
                     onUpgradeTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                           builder: (_) => const UpgradeScreenV2()),

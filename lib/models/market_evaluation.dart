@@ -5,51 +5,65 @@ double? _toD(dynamic v) {
   return null;
 }
 
-class AiSentimentShort {
+/// Một chỉ báo trong mô hình độ rộng (vd "% mã trên MA20"): khoẻ/yếu so với ngưỡng.
+class BreadthIndicator {
   final String label;
-  final String color;
-  final String reason;
+  final bool? healthy;
 
-  AiSentimentShort({required this.label, required this.color, required this.reason});
+  BreadthIndicator({required this.label, this.healthy});
 
-  factory AiSentimentShort.fromJson(Map<String, dynamic> j) => AiSentimentShort(
-        label: j['label'] ?? 'Trung tính',
-        color: j['color'] ?? 'neutral',
-        reason: j['reason'] ?? '',
+  factory BreadthIndicator.fromJson(Map<String, dynamic> j) =>
+      BreadthIndicator(label: j['label'] ?? '', healthy: j['healthy'] as bool?);
+}
+
+/// Một nhóm chỉ báo độ rộng (Sớm · Xác nhận · Dài hạn). `score` 1 = khoẻ, 0 = yếu, giữa = lẫn lộn.
+/// Mỗi nhóm khoẻ cộng 1/3 vào tỷ trọng cổ phiếu gợi ý (`quant/services/market_breadth.py`).
+class BreadthGroup {
+  final String label;
+  final double score;
+  final List<BreadthIndicator> indicators;
+
+  BreadthGroup({required this.label, required this.score, required this.indicators});
+
+  String get status => score >= 1 ? 'khoẻ' : score <= 0 ? 'yếu' : 'lẫn lộn';
+
+  factory BreadthGroup.fromJson(Map<String, dynamic> j) => BreadthGroup(
+        label: j['label'] ?? '',
+        score: _toD(j['score']) ?? 0,
+        indicators: ((j['indicators'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(BreadthIndicator.fromJson)
+            .toList(),
       );
 }
 
-class AiSentiment {
-  final double score;
-  final AiSentimentShort shortTerm;
-  final AiSentimentShort longTerm;
-  final String summary;
-  final String analysis;
+/// Trạng thái mô hình độ rộng quyết định tỷ trọng gợi ý (`market_breadth` của API).
+class MarketBreadthState {
+  final List<BreadthGroup> groups;
+  final double? exposureRawPct;
+  final String asOf;
+  final bool provisional;
 
-  AiSentiment({
-    required this.score,
-    required this.shortTerm,
-    required this.longTerm,
-    required this.summary,
-    required this.analysis,
+  MarketBreadthState({
+    required this.groups,
+    this.exposureRawPct,
+    required this.asOf,
+    required this.provisional,
   });
 
-  factory AiSentiment.fromJson(Map<String, dynamic>? j) {
-    if (j == null) {
-      return AiSentiment(
-        score: 50,
-        shortTerm: AiSentimentShort(label: 'Trung tính', color: 'neutral', reason: ''),
-        longTerm: AiSentimentShort(label: 'Trung tính', color: 'neutral', reason: ''),
-        summary: '',
-        analysis: '',
-      );
-    }
-    return AiSentiment(
-      score: _toD(j['score']) ?? 50,
-      shortTerm: AiSentimentShort.fromJson((j['short_term'] as Map<String, dynamic>?) ?? {}),
-      longTerm: AiSentimentShort.fromJson((j['long_term'] as Map<String, dynamic>?) ?? {}),
-      summary: j['summary'] ?? '',
-      analysis: j['analysis'] ?? '',
+  static MarketBreadthState? fromJson(dynamic j) {
+    if (j is! Map<String, dynamic>) return null;
+    final groups = (j['groups'] as Map<String, dynamic>?) ?? const {};
+    if (groups.isEmpty) return null;
+    final raw = _toD(j['exposure_raw']);
+    return MarketBreadthState(
+      groups: groups.values
+          .whereType<Map<String, dynamic>>()
+          .map(BreadthGroup.fromJson)
+          .toList(),
+      exposureRawPct: raw != null ? raw * 100 : null,
+      asOf: j['as_of']?.toString() ?? '',
+      provisional: j['provisional'] == true,
     );
   }
 }
@@ -62,15 +76,11 @@ class MarketEvaluation {
   final double finalScore;
   final String snapshotUpdatedAt;
 
-  // Scores
-  final double techScore;
-  final double breadthScore;
-  final double valScore;
-  final double quantScore;
-  final double aiScore;
-  final double shortTermScore;
-  final double longTermScore;
-  final double alWeight;
+  /// Ba nhóm chỉ báo độ rộng tạo ra `finalScore` (null khi server chưa có).
+  final MarketBreadthState? marketBreadth;
+
+  // Điểm Kỹ thuật/Định giá/Tổng hợp/AI/Ngắn hạn/Dài hạn đã gỡ 23/11/2026 (backend đo lại trên production: không
+  // hơn nắm giữ thụ động, điểm AI chấm ngược) — đừng thêm lại với mặc định 50: app sẽ hiện "50" như số đo có thật.
 
   // VNINDEX kỹ thuật
   final double? vnindex;
@@ -80,8 +90,6 @@ class MarketEvaluation {
   final double? pctChange20d;
   final double? volatility20dPct;
   final double? rsi14;
-  final String techRegime;
-  final String? divergenceSignal;
   final double? nearestSupport;
   final double? nearestResistance;
   final double? pctToSupport;
@@ -105,23 +113,13 @@ class MarketEvaluation {
   final double? brentOil;
   final double? interbankRate;
 
-  // AI Sentiment
-  final AiSentiment aiSentiment;
-
   MarketEvaluation({
     required this.regime,
     required this.label,
     required this.cautionLevel,
     required this.finalScore,
     required this.snapshotUpdatedAt,
-    required this.techScore,
-    required this.breadthScore,
-    required this.valScore,
-    required this.quantScore,
-    required this.aiScore,
-    required this.shortTermScore,
-    required this.longTermScore,
-    required this.alWeight,
+    this.marketBreadth,
     this.vnindex,
     this.ma20,
     this.ma60,
@@ -129,8 +127,6 @@ class MarketEvaluation {
     this.pctChange20d,
     this.volatility20dPct,
     this.rsi14,
-    required this.techRegime,
-    this.divergenceSignal,
     this.nearestSupport,
     this.nearestResistance,
     this.pctToSupport,
@@ -147,7 +143,6 @@ class MarketEvaluation {
     this.usdvnd,
     this.brentOil,
     this.interbankRate,
-    required this.aiSentiment,
   });
 
   factory MarketEvaluation.fromJson(Map<String, dynamic> j) => MarketEvaluation(
@@ -156,14 +151,7 @@ class MarketEvaluation {
         cautionLevel: j['caution_level'] ?? 'medium',
         finalScore: _toD(j['final_score']) ?? 50,
         snapshotUpdatedAt: j['snapshot_updated_at'] ?? '',
-        techScore: _toD(j['tech_score']) ?? 50,
-        breadthScore: _toD(j['breadth_score']) ?? 50,
-        valScore: _toD(j['val_score']) ?? 50,
-        quantScore: _toD(j['quant_score']) ?? 50,
-        aiScore: _toD(j['ai_score']) ?? 50,
-        shortTermScore: _toD(j['short_term_score']) ?? 50,
-        longTermScore: _toD(j['long_term_score']) ?? 50,
-        alWeight: _toD(j['al_weight']) ?? 0.3,
+        marketBreadth: MarketBreadthState.fromJson(j['market_breadth']),
         vnindex: _toD(j['vnindex']),
         ma20: _toD(j['ma20']),
         ma60: _toD(j['ma60']),
@@ -171,8 +159,6 @@ class MarketEvaluation {
         pctChange20d: _toD(j['pct_change_20d']),
         volatility20dPct: _toD(j['volatility_20d_pct']),
         rsi14: _toD(j['rsi_14']),
-        techRegime: j['tech_regime'] ?? '',
-        divergenceSignal: j['divergence_signal'],
         nearestSupport: _toD(j['nearest_support']),
         nearestResistance: _toD(j['nearest_resistance']),
         pctToSupport: _toD(j['pct_to_support']),
@@ -189,18 +175,13 @@ class MarketEvaluation {
         usdvnd: _toD(j['usdvnd']),
         brentOil: _toD(j['brent_oil']),
         interbankRate: _toD(j['interbank_rate']),
-        aiSentiment: AiSentiment.fromJson(j['ai_sentiment'] as Map<String, dynamic>?),
       );
 }
 
 class MarketEvaluationHistoryItem {
   final String date;
   final double? finalScore;
-  final double? quantScore;
-  final double? aiScore;
-  final double? techScore;
   final double? breadthScore;
-  final double? valScore;
   final String regime;
   final double? vnindex;
   final double? ma20;
@@ -215,11 +196,7 @@ class MarketEvaluationHistoryItem {
   MarketEvaluationHistoryItem({
     required this.date,
     this.finalScore,
-    this.quantScore,
-    this.aiScore,
-    this.techScore,
     this.breadthScore,
-    this.valScore,
     required this.regime,
     this.vnindex,
     this.ma20,
@@ -236,11 +213,7 @@ class MarketEvaluationHistoryItem {
       MarketEvaluationHistoryItem(
         date: j['date']?.toString() ?? '',
         finalScore: _toD(j['final_score']),
-        quantScore: _toD(j['quant_score']),
-        aiScore: _toD(j['ai_score']),
-        techScore: _toD(j['tech_score']),
         breadthScore: _toD(j['breadth_score']),
-        valScore: _toD(j['val_score']),
         regime: j['regime'] ?? 'sideways',
         vnindex: _toD(j['vnindex']),
         ma20: _toD(j['ma20']),
