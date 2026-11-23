@@ -36,6 +36,13 @@ jobs:
             --dart-define=USE_RELATIVE_PATHS=false \
             --no-tree-shake-icons
 
+      # 4b. PWA: điền bản kê tệp + hash vào build/web/sw.js (docs/pwa.md).
+      #     Hỏng ở đây thì KHÔNG deploy — sw.js sai có thể giữ người dùng ở bản cũ.
+      - name: 📲 PWA service worker
+        run: |
+          python3 -m unittest discover -s tool -p 'test_*.py'
+          python3 tool/pwa_build.py build/web
+
       # 5. Deploy lên server qua SSH + rsync
       - name: 🚢 Deploy to Server
         uses: appleboy/ssh-action@v1.0.3

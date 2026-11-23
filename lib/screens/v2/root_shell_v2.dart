@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -21,6 +23,8 @@ import '../../widgets/dashboard/profile_bar.dart';
 import '../../widgets/dashboard/dashboard_widgets.dart';
 import 'notifications_screen_v2.dart';
 import '../investment_profile_screen.dart';
+import '../../pwa/pwa.dart';
+import '../../pwa/pwa_install.dart';
 
 class RootShellNav {
   static final GlobalKey<RootShellV2State> key =
@@ -66,6 +70,93 @@ class RootShellV2State extends State<RootShellV2> {
   /// Các tab chỉ dựng khi lần đầu vào "Phân tích sâu" — mở app không tải dữ
   /// liệu Home/Strategy/Market vô ích. Dựng rồi thì giữ nguyên (không reload).
   bool _deepBuilt = false;
+
+  // PWA (chỉ bản web m.finwealth.vn): thẻ mời cài app sau một lúc dùng — docs/pwa.md.
+  static const _installCardDelay = Duration(seconds: 20);
+  Timer? _installCardTimer;
+  bool _installCardDue = false;
+  bool _showInstallCard = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mở app bằng lối tắt (nhấn giữ icon) thì vào thẳng màn đó.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleLaunchShortcut());
+    if (Pwa.supported) {
+      Pwa.changes.addListener(_onPwaChanged);
+      _installCardTimer = Timer(_installCardDelay, () {
+        _installCardDue = true;
+        _maybeShowInstallCard();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _installCardTimer?.cancel();
+    if (Pwa.supported) Pwa.changes.removeListener(_onPwaChanged);
+    super.dispose();
+  }
+
+  /// `?open=chat|strategy|market` từ lối tắt trong web/manifest.json.
+  /// Chat là màn mặc định nên chỉ cần xử lý hai tab của "Phân tích sâu".
+  void _handleLaunchShortcut() {
+    switch (Pwa.takeLaunch()) {
+      case 'strategy':
+        setIndex(1);
+      case 'market':
+        setIndex(2);
+    }
+  }
+
+  void _onPwaChanged() {
+    if (!mounted) return;
+    if (_showInstallCard && Pwa.isInstalled) {
+      setState(() => _showInstallCard = false);
+    } else if (_installCardDue) {
+      // Chrome có thể giữ hộp cài muộn hơn mốc 20 giây.
+      _maybeShowInstallCard();
+    }
+  }
+
+  Future<void> _maybeShowInstallCard() async {
+    if (!mounted || _showInstallCard || !pwaInstallWorthOffering()) return;
+    if (await PwaPrefs.isSnoozed()) return;
+    if (mounted) setState(() => _showInstallCard = true);
+  }
+
+  Future<void> _onInstallCardTap() async {
+    final accepted = await startPwaInstall(context);
+    if (!mounted) return;
+    if (accepted || Pwa.platform == PwaPlatform.ios) {
+      // iOS không báo được đã cài hay chưa: xem hướng dẫn rồi thì thôi mời.
+      await PwaPrefs.snoozeNow();
+      if (mounted) setState(() => _showInstallCard = false);
+    }
+  }
+
+  Future<void> _onInstallCardDismiss() async {
+    setState(() => _showInstallCard = false);
+    await PwaPrefs.snoozeNow();
+  }
+
+  /// Chat: nổi dưới thanh tiêu đề (không che ô nhập). Phân tích sâu: chỉ ở Trang
+  /// chủ, trên thanh tab — ở tab Khác thẻ sẽ che chính mục "Cài FinWealth".
+  Widget? _installCardOverlay(BuildContext context) {
+    if (!_showInstallCard || (_deepMode && _index != 0)) return null;
+    final card = PwaInstallCard(
+      onInstall: _onInstallCardTap,
+      onDismiss: _onInstallCardDismiss,
+    );
+    return _deepMode
+        ? Positioned(left: 12, right: 12, bottom: 44, child: card)
+        : Positioned(
+            left: 12,
+            right: 12,
+            top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+            child: card,
+          );
+  }
 
   late final _tabs = <Widget>[
     HomeScreenV2(onOpenChat: showChat),
@@ -141,16 +232,21 @@ class RootShellV2State extends State<RootShellV2> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) showChat();
       },
-      child: IndexedStack(
-        index: _deepMode ? 1 : 0,
+      child: Stack(
         children: [
-          ChatScreenV2(
-            menuDrawer: _ShellMenuDrawer(
-              onDeepAnalysis: _menuOpenDeepAnalysis,
-            ),
-            onOpenDeepAnalysis: showDeepAnalysis,
+          IndexedStack(
+            index: _deepMode ? 1 : 0,
+            children: [
+              ChatScreenV2(
+                menuDrawer: _ShellMenuDrawer(
+                  onDeepAnalysis: _menuOpenDeepAnalysis,
+                ),
+                onOpenDeepAnalysis: showDeepAnalysis,
+              ),
+              if (_deepBuilt) _buildDeepScaffold() else const SizedBox.shrink(),
+            ],
           ),
-          if (_deepBuilt) _buildDeepScaffold() else const SizedBox.shrink(),
+          if (_installCardOverlay(context) case final overlay?) overlay,
         ],
       ),
     );
@@ -340,6 +436,14 @@ class _ShellMenuDrawer extends StatelessWidget {
                 onTap: () => _push(context, const UpgradeScreenV2()),
               ),
             ],
+            // Chỉ bản web (m.finwealth.vn) chưa cài. Drawer giữ nguyên để hộp
+            // hướng dẫn bật lên trên nó (đóng drawer trước thì context này mất).
+            if (Pwa.supported && !Pwa.isInstalled)
+              ListTile(
+                leading: const Icon(Icons.install_mobile_outlined),
+                title: const Text('Cài FinWealth lên điện thoại'),
+                onTap: () => startPwaInstall(context),
+              ),
             const Spacer(),
             const Divider(color: AppColors.darkBorder, height: 1),
             if (isGuest)
@@ -522,6 +626,13 @@ class _MoreMenuScreenV2 extends StatelessWidget {
                       onTap: () =>
                           _push(context, const EconomicChartsScreenV2()),
                     ),
+                    // Chỉ bản web (m.finwealth.vn) chưa cài: cài lên màn hình chính.
+                    if (Pwa.supported && !Pwa.isInstalled)
+                      _MenuItem(
+                        'Cài FinWealth lên điện thoại',
+                        Icons.install_mobile_outlined,
+                        onTap: () => startPwaInstall(context),
+                      ),
                     const _MenuItem('Về FinWealth', Icons.info_outline),
                     const SizedBox(height: 16),
                     _ServerStatus(),

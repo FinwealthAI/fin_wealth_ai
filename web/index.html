@@ -1,44 +1,254 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    $FLUTTER_BASE_HREF được `flutter build --base-href` thay (mặc định "/").
+    Phải bắt đầu và kết thúc bằng "/".
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FinWealth – trợ lý đầu tư chứng khoán Việt Nam: hỏi Mr.Wealth, chiến lược lọc cổ phiếu, đánh giá thị trường, quản lý danh mục.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0D0F17">
   <meta name="google-signin-client_id" content="280830107479-5b7cim5c869sca8krkqn9pfv35phg1ns.apps.googleusercontent.com">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-  <!-- iOS meta tags & icons -->
+  <!-- PWA: Android/Chrome đọc manifest; iOS đọc các thẻ apple-* -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="application-name" content="FinWealth">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="fin_wealth">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="FinWealth">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/jpeg" href="favicon.png" />
+  <title>FinWealth</title>
 
-  <title>fin_wealth</title>
-  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0D0F17; }
+
+    /* Màn chờ trong lúc tải Flutter — vẽ GIỐNG HỆT SplashScreenV2 để lúc Flutter
+       thay vào không bị nháy. Sửa splash bên Flutter thì sửa cả ở đây. */
+    #fw-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: linear-gradient(180deg, #0D0F17 0%, rgba(124, 58, 237, .25) 50%, #0D0F17 100%), #0D0F17;
+      color: #F8FAFC;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      transition: opacity .25s ease;
+    }
+    #fw-splash.fw-hide { opacity: 0; pointer-events: none; }
+    #fw-splash .fw-logo {
+      width: 96px; height: 96px; border-radius: 50%; overflow: hidden;
+      background: linear-gradient(90deg, #7C3AED, #2563EB);
+      box-shadow: 0 0 20px rgba(124, 58, 237, .30);
+    }
+    #fw-splash .fw-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* displaySmall mặc định M3 (36/44, w400), SizedBox lg=16 / xl=24 như SplashScreenV2 */
+    #fw-splash .fw-name { margin-top: 16px; font-size: 36px; line-height: 44px; font-weight: 400; }
+    #fw-splash .fw-spin {
+      margin-top: 24px; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%;
+      border: 2.4px solid transparent; border-top-color: #C084FC; border-right-color: #C084FC;
+      animation: fw-spin .9s linear infinite;
+    }
+    #fw-splash .fw-slow { margin-top: 24px; font-size: 14px; color: #9CA3AF; text-align: center; }
+    #fw-splash .fw-slow button, #fw-update button {
+      font: inherit; font-weight: 600; color: #fff; background: #7C3AED;
+      border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer;
+    }
+    #fw-splash .fw-slow button { margin-top: 12px; }
+    @keyframes fw-spin { to { transform: rotate(360deg); } }
+
+    /* left/right + margin auto (KHÔNG left:50% + translate — cách đó chỉ để lại nửa màn
+       làm chỗ chứa nên chữ gãy nhiều dòng trên điện thoại) */
+    #fw-update {
+      position: fixed; z-index: 10000; top: 12px; left: 0; right: 0; margin: 0 auto;
+      width: fit-content; max-width: calc(100vw - 32px); box-sizing: border-box;
+      display: flex; align-items: center; gap: 12px; white-space: nowrap;
+      padding: 6px 6px 6px 16px; border-radius: 999px;
+      background: #1E1E2C; color: #E5E7EB; border: 1px solid rgba(255, 255, 255, .08);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+      font: 14px/1.3 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    #fw-update .fw-x { background: transparent; color: #9CA3AF; padding: 8px 10px; font-weight: 400; }
+  </style>
+
+  <script>
+    // Cầu nối PWA cho Flutter (lib/pwa/pwa_bridge_web.dart) — giữ tên hàm khớp hai bên.
+    (function () {
+      'use strict';
+      var ua = navigator.userAgent || '';
+      var deferred = null;
+      var installedNow = false;
+      var listeners = [];
+      var standaloneMq = window.matchMedia ? window.matchMedia('(display-mode: standalone)') : null;
+
+      function isStandalone() {
+        return !!((standaloneMq && standaloneMq.matches) || navigator.standalone === true);
+      }
+      function platform() {
+        // Trình duyệt nhúng trong Zalo/Facebook/TikTok… không cài được app: phải mở bằng Safari/Chrome.
+        if (/zalo|fban|fbav|fb_iab|instagram|line\/|tiktok|musical_ly/i.test(ua)) return 'inapp';
+        if (/iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+        if (/android/i.test(ua)) return 'android';
+        return 'other';
+      }
+      function emit() {
+        listeners.slice().forEach(function (cb) { try { cb(); } catch (e) { /* bỏ qua */ } });
+      }
+
+      // Chrome/Edge Android: giữ sự kiện để Flutter tự hiện lời mời cài đặt đúng lúc.
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferred = e;
+        emit();
+      });
+      window.addEventListener('appinstalled', function () {
+        deferred = null;
+        installedNow = true;
+        emit();
+      });
+      if (standaloneMq && standaloneMq.addEventListener) standaloneMq.addEventListener('change', emit);
+
+      // Lối tắt trong manifest mở app bằng "/?open=chat|strategy|market": cất lại cho Flutter
+      // rồi gỡ khỏi URL để tải lại trang không chạy lại lối tắt.
+      var launch = '';
+      try {
+        var params = new URLSearchParams(location.search);
+        launch = params.get('open') || '';
+        if (launch) {
+          params.delete('open');
+          var q = params.toString();
+          history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + location.hash);
+        }
+      } catch (e) { /* bỏ qua */ }
+
+      window.fwPwa = {
+        isStandalone: isStandalone,
+        platform: platform,
+        canPrompt: function () { return !!deferred; },
+        isInstalled: function () { return installedNow || isStandalone(); },
+        promptInstall: function () {
+          var ev = deferred;
+          if (!ev) return Promise.resolve('unavailable');
+          deferred = null; // mỗi sự kiện chỉ prompt() được một lần
+          ev.prompt();
+          return ev.userChoice.then(
+            function (c) { emit(); return (c && c.outcome) || 'dismissed'; },
+            function () { emit(); return 'dismissed'; });
+        },
+        onChange: function (cb) { if (typeof cb === 'function') listeners.push(cb); },
+        takeLaunch: function () { var v = launch; launch = ''; return v; }
+      };
+    })();
+
+    // Màn chờ + service worker.
+    (function () {
+      'use strict';
+      var firstFrame = false;
+
+      window.addEventListener('flutter-first-frame', function () {
+        firstFrame = true;
+        var s = document.getElementById('fw-splash');
+        if (s) {
+          s.classList.add('fw-hide');
+          setTimeout(function () { s.remove(); }, 300);
+        }
+      });
+      setTimeout(function () {
+        var slow = document.querySelector('#fw-splash .fw-slow');
+        if (slow && !firstFrame) slow.hidden = false;
+      }, 20000);
+
+      if (!('serviceWorker' in navigator)) return;
+      var sw = navigator.serviceWorker;
+      var hadController = !!sw.controller;
+      var reloading = false;
+
+      sw.addEventListener('controllerchange', function () {
+        // Lần cài đầu (clients.claim) không cần tải lại; các lần sau là bản mới vừa chiếm quyền.
+        if (!hadController) { hadController = true; return; }
+        if (reloading) return;
+        reloading = true;
+        location.reload();
+      });
+
+      function showUpdateToast(worker) {
+        if (document.getElementById('fw-update')) return;
+        var bar = document.createElement('div');
+        bar.id = 'fw-update';
+        bar.setAttribute('role', 'status');
+        bar.innerHTML = '<span>Đã có phiên bản mới</span>' +
+          '<button type="button" class="fw-go">Cập nhật</button>' +
+          '<button type="button" class="fw-x" aria-label="Để sau">✕</button>';
+        bar.querySelector('.fw-go').addEventListener('click', function () {
+          worker.postMessage({ type: 'SKIP_WAITING' });
+        });
+        bar.querySelector('.fw-x').addEventListener('click', function () { bar.remove(); });
+        document.body.appendChild(bar);
+      }
+
+      function onWaiting(worker) {
+        // Còn ở màn chờ: chuyển bản mới ngay, người dùng không mất gì.
+        // Đang dùng app: hỏi — tải lại giữa lúc chat sẽ cắt ngang câu trả lời.
+        if (!firstFrame) worker.postMessage({ type: 'SKIP_WAITING' });
+        else showUpdateToast(worker);
+      }
+
+      function watch(reg) {
+        if (reg.waiting && sw.controller) onWaiting(reg.waiting);
+        reg.addEventListener('updatefound', function () {
+          var w = reg.installing;
+          if (!w) return;
+          w.addEventListener('statechange', function () {
+            if (w.state === 'installed' && sw.controller) onWaiting(w);
+          });
+        });
+        // App đã cài ít khi bị đóng hẳn: kiểm bản mới mỗi lần quay lại app (tối đa 30 phút/lần).
+        var lastCheck = Date.now();
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState !== 'visible' || Date.now() - lastCheck < 30 * 60 * 1000) return;
+          lastCheck = Date.now();
+          reg.update().catch(function () { /* mạng lỗi: lần sau */ });
+        });
+      }
+
+      var registered = false;
+      function register() {
+        if (registered) return;
+        registered = true;
+        sw.register('sw.js', { scope: './', updateViaCache: 'none' })
+          .then(function (reg) { if (!hadController) watch(reg); })
+          .catch(function (e) { console.warn('[fw-pwa] không đăng ký được service worker', e); });
+      }
+
+      // Máy đã có worker: theo dõi ngay để bắt bản mới lúc còn ở màn chờ.
+      sw.getRegistration().then(function (reg) { if (reg && sw.controller) watch(reg); });
+      // Lần đầu: đăng ký SAU khung hình đầu — lúc đó main.dart.js đã nằm trong cache HTTP,
+      // worker kiểm lại bằng ETag (304) chứ không tải lần hai trên mạng di động.
+      window.addEventListener('flutter-first-frame', function () { setTimeout(register, 3000); });
+      setTimeout(register, 30000);
+    })();
+  </script>
 
   <script src="flutter_bootstrap.js" async></script>
 </head>
 
 <body>
+  <div id="fw-splash" role="progressbar" aria-label="Đang tải FinWealth">
+    <div class="fw-logo"><img src="assets/assets/images/logo_standard.jpg" alt=""></div>
+    <div class="fw-name">FinWealth</div>
+    <div class="fw-spin"></div>
+    <div class="fw-slow" hidden>
+      <div>Mạng đang chậm, FinWealth vẫn đang tải…</div>
+      <button type="button" onclick="location.reload()">Tải lại</button>
+    </div>
+  </div>
 </body>
 
 </html>

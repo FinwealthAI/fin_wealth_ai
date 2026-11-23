@@ -1,35 +1,65 @@
 {
-    "name": "fin_wealth",
-    "short_name": "fin_wealth",
-    "start_url": ".",
+    "id": "/",
+    "name": "FinWealth – Trợ lý đầu tư AI",
+    "short_name": "FinWealth",
+    "description": "Trợ lý đầu tư chứng khoán Việt Nam: hỏi Mr.Wealth, chiến lược lọc cổ phiếu, đánh giá thị trường và quản lý danh mục.",
+    "lang": "vi",
+    "dir": "ltr",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "orientation": "portrait",
+    "background_color": "#0D0F17",
+    "theme_color": "#0D0F17",
+    "categories": ["finance", "business", "news"],
     "prefer_related_applications": false,
     "icons": [
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
-            "type": "image/jpeg"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-512.png",
             "sizes": "512x512",
-            "type": "image/jpeg"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-maskable-192.png",
             "sizes": "192x192",
-            "type": "image/jpeg",
+            "type": "image/png",
             "purpose": "maskable"
         },
         {
             "src": "icons/Icon-maskable-512.png",
             "sizes": "512x512",
-            "type": "image/jpeg",
+            "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Hỏi Mr.Wealth",
+            "short_name": "Mr.Wealth",
+            "description": "Mở thẳng màn chat với trợ lý AI",
+            "url": "/?open=chat",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Chiến lược",
+            "short_name": "Chiến lược",
+            "description": "Sàn chiến lược và bộ lọc cổ phiếu",
+            "url": "/?open=strategy",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Đánh giá thị trường",
+            "short_name": "Thị trường",
+            "description": "Sức khỏe thị trường và tỷ trọng cổ phiếu gợi ý",
+            "url": "/?open=market",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png" }]
         }
     ]
 }

@@ -96,6 +96,17 @@ Request body: `{ query, conversation_id?, mode: "flash"|"pro", inputs: { categor
 
 Nguồn tham chiếu backend: `../finwealth/agent/views.py` (`send_chat_message`), `../finwealth/agent/agent_service.py` (`run_pipeline` / `stream_response`), `../finwealth/agent/urls.py`.
 
+## PWA (bản web m.finwealth.vn)
+
+Bản web là PWA cài được lên màn hình chính — chi tiết, lý do "đừng hoàn nguyên", cấu hình nginx, công tắc tắt khẩn cấp ở [docs/pwa.md](docs/pwa.md).
+
+- `web/sw.js` là KHUÔN: CI chạy `python3 tool/pwa_build.py build/web` sau `flutter build web` để điền bản kê tệp + SHA-256 (hỏng → không deploy). Build web tay để deploy thì cũng phải chạy bước này.
+- `web/flutter_bootstrap.js` cố ý KHÔNG đăng ký service worker của Flutter (đã khai tử).
+- Phía Dart: `lib/pwa/` (`Pwa.*` trả "không hỗ trợ" trên Android/iOS native — import có điều kiện); tên hàm `window.fwPwa` trong `web/index.html` phải khớp `lib/pwa/pwa_web.dart`.
+- Splash HTML trong `web/index.html` vẽ giống hệt `SplashScreenV2` — sửa một bên thì sửa bên kia.
+- Icon web sinh bằng `python3 tool/make_pwa_icons.py` (cần Pillow); phải là PNG thật, vuông.
+- Mọi tệp trong `web/` được phát hành công khai — không để ghi chú/tài liệu ở đó.
+
 ## Quy ước
 
 - Bám theme + widget có sẵn; không hardcode màu/spacing.
